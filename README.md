@@ -1,7 +1,7 @@
 # WPHI
 
 旧 Windows クライアント Philly を Tauri 2 で作り直した PHI のクライアント。
-設計は [docs/01-design.md](docs/01-design.md)。
+設計は [docs/01-design.md](docs/01-design.md)、残りの作業は [docs/02-tasks.md](docs/02-tasks.md)。
 
 ## 開発環境
 
