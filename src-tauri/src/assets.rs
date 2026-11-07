@@ -38,10 +38,6 @@ const DEFAULT_GRA: &[(u32, &str)] = &[
     (0x75, "アニメなしオブジェ"),
 ];
 
-/// WPHI で既定グラを上書きする種別(2026-11-07 に作者が指定)。chara/<グラ名>.bmp が無ければスキンの Index.txt に戻る。
-/// 無ければ種別の既定グラ(同梱の Index.txt では tak_bslime)に戻る。
-const DEFAULT_GRA_OVERRIDE: &[(u32, &str)] = &[(0x07, "t_eraser")];
-
 pub struct Assets {
     roots: Vec<PathBuf>,
     /// 変換済みの PNG。ponytail: 上限なし。キャラグラは1枚 20KB 前後で数百枚なので、増えて困るまで Philly の LRU は真似ない
@@ -100,17 +96,10 @@ impl Assets {
         Some(colorkey(&found, TEAL))
     }
 
-    /// 種別の既定グラ。WPHI の上書きを先に見て、次にスキンの `Chara/Index.txt` を探す場所の順に見る。
+    /// 種別の既定グラ。スキンの `Chara/Index.txt` を探す場所の順に見る。
     /// Index.txt のファイルはスキンの `Chara` から探し、無ければ `chara` から探す
     /// (同梱の Index.txt は PCGL のキャラグラを指している)。
     fn default_chara(&self, code: u32) -> Option<image::DynamicImage> {
-        let overridden = DEFAULT_GRA_OVERRIDE
-            .iter()
-            .find(|(c, _)| *c == code)
-            .and_then(|(_, gra)| self.open(&format!("chara/{gra}.bmp")));
-        if overridden.is_some() {
-            return overridden;
-        }
         let key = DEFAULT_GRA
             .iter()
             .find(|(c, _)| *c == code)
@@ -275,7 +264,7 @@ mod tests {
         assert_eq!(decode(&board), direct);
         // 表に無い種別は知的生物
         assert!(a.get("chara", &query(&[("gra", "none"), ("code", "99")])).is_some());
-        // イレイザー(0x07)は t_eraser。同梱に無いので同梱の Index.txt の tak_bslime に戻る
+        // イレイザー(0x07)は同梱の Index.txt で tak_bslime
         let eraser = a.get("chara", &query(&[("gra", "none"), ("code", "7")])).unwrap();
         let slime = colorkey(&a.open("chara/tak_bslime.bmp").unwrap(), TEAL);
         assert_eq!(decode(&eraser), slime);

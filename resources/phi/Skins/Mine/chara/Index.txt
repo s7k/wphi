@@ -4,7 +4,7 @@
 人・銅像			= t_man.bmp
 知的生物			= t_elf.bmp
 獣					= t_dog.bmp
-狂戦士				= w_j_rakshasa.bmp
+狂戦士				= t_fightery.bmp
 魔法生物			= t_golem1.bmp
 アンデッド			= t_skeltonr.bmp
 精神体				= t_ghost2.bmp
