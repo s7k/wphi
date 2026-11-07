@@ -49,6 +49,18 @@ Windows では SmartScreen が警告を出す。
 macOS ではアドホック署名だけなので、ダウンロードした `.app` は `xattr -dr com.apple.quarantine WPHI.app` で隔離属性を外してから開く。
 AppImage は FUSE(Ubuntu では `libfuse2`)が要る。無い時は `APPIMAGE_EXTRACT_AND_RUN=1` を付けて起動する。
 
+## アイコンの作り直し
+
+アイコンの元は `src-tauri/icons/icon.svg`(金属の縁で内側が赤いヒーターシールドに、翼を広げたドラゴンの白いシルエット。輪郭が W になる)。
+SVG を書き換えたら、1024px の PNG にしてから Tauri でアイコン一式を作る。
+SVG を PNG にする道具は何でもよい。下は resvg(`cargo install resvg`)の例。
+
+```sh
+resvg src-tauri/icons/icon.svg /tmp/icon-1024.png -w 1024
+npx tauri icon /tmp/icon-1024.png -o /tmp/icons
+cp /tmp/icons/{32x32.png,128x128.png,128x128@2x.png,icon.icns,icon.ico,icon.png} src-tauri/icons/
+```
+
 ## 開発用の受信の記録
 
 実サーバの受信を調べる時は、`WPHI_RECORD=<フォルダ> npm run tauri dev` で起動する。
