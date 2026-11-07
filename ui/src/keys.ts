@@ -312,6 +312,10 @@ export function menuAction(id: string): KeyAction | null {
     call: ALT.KeyB,
     return: ALT.KeyR,
     map: SHIFT.F5,
+    "map-turn": NONE.KeyT,
+    "map-solid": SHIFT.KeyT,
+    "map-57": SHIFT.Digit7,
+    "map-40": SHIFT.Digit5,
   };
   return table[id] ?? null;
 }

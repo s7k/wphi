@@ -68,7 +68,18 @@ const MENUS: Table = &[
             ("return", "Return (Alt+R)"),
         ],
     ),
-    ("表示", &[("map", "マップ (Shift+F5)")]),
+    (
+        "表示",
+        &[
+            ("map", "マップ (Shift+F5)"),
+            ("-", ""),
+            ("map-turn", "回転マップ (T)"),
+            ("map-solid", "北固定マップ (Shift+T)"),
+            ("-", ""),
+            ("map-57", "7x7 マップ (Shift+7)"),
+            ("map-40", "5x5 マップ (Shift+5)"),
+        ],
+    ),
 ];
 
 /// `Menu.txt` の `off,<メニュー名>` の行。
