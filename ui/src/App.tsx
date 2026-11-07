@@ -769,7 +769,7 @@ function InputEditor(props: {
         </label>
         <label className={props.logFollow ? "toggle on" : "toggle"} title="ログが増えたら最下行へ移る">
           <input type="checkbox" checked={props.logFollow} onChange={(e) => props.onLogFollow(e.target.checked)} />
-          下に固定
+          ログを固定
         </label>
         <label className={props.logSave ? "toggle on" : "toggle"}>
           <input type="checkbox" checked={props.logSave} onChange={(e) => props.onLogSave(e.target.checked)} />
