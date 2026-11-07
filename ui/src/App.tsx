@@ -804,6 +804,10 @@ function InputEditor(props: {
   onLogFollow: (on: boolean) => void;
 }) {
   const [loud, setLoud] = useState(false);
+  // 確認で「すべて大声」を選んだ。大声を解除するまで確認せず、送っても大声のままにする(Philly の大声の確認)
+  const [loudAll, setLoudAll] = useState(false);
+  // 大声の確認で答えを待っている発言
+  const [loudAsk, setLoudAsk] = useState<{ deliver: () => void; ta: HTMLTextAreaElement } | null>(null);
   const [allTab, setAllTab] = useState(false);
   // 連続送信を 100ms 空ける(Philly の SendFromInputEdit)
   const lastSend = useRef(0);
@@ -815,27 +819,37 @@ function InputEditor(props: {
     const line = caretLine(ta.value, ta.selectionStart);
     const text = prepareLine(line.text, { ctrl, loud: loud && !allTab, lastLine: line.index + 1 >= line.count });
     if (text === null) return;
-    if (loud && !allTab) {
-      // Philly は大声の前に確認し、送ったら大声を解除する
-      if (!window.confirm("大声で発言します。\nこの世界にいる全員に聞こえます。\nよろしいですか？")) {
-        setLoud(false);
-        return;
-      }
-      setLoud(false);
+    const deliver = () => {
+      if (allTab) {
+        if (!window.confirm("全タブに発言します。\nよろしいですか？")) {
+          setAllTab(false);
+          return;
+        }
+        props.sessions.forEach((s) => sendLine(s, text));
+      } else sendLine(props.session, text);
+      const next = afterSend(ta.value, ta.selectionStart);
+      ta.value = next.value;
+      ta.setSelectionRange(next.caret, next.caret);
+      // 送った行が見えるよう、カーソルの位置までスクロールする
+      ta.blur();
+      ta.focus();
+    };
+    // Philly は大声の前に確認し、送ったら大声を解除する。「すべて大声」の後は確認しない
+    if (loud && !allTab && !loudAll) {
+      setLoudAsk({ deliver, ta });
+      return;
     }
-    if (allTab) {
-      if (!window.confirm("全タブに発言します。\nよろしいですか？")) {
-        setAllTab(false);
-        return;
-      }
-      props.sessions.forEach((s) => sendLine(s, text));
-    } else sendLine(props.session, text);
-    const next = afterSend(ta.value, ta.selectionStart);
-    ta.value = next.value;
-    ta.setSelectionRange(next.caret, next.caret);
-    // 送った行が見えるよう、カーソルの位置までスクロールする
-    ta.blur();
-    ta.focus();
+    deliver();
+  }
+
+  function answerLoud(answer: "yes" | "all" | "no") {
+    const ask = loudAsk;
+    setLoudAsk(null);
+    if (!ask) return;
+    if (answer === "all") setLoudAll(true);
+    else setLoud(false);
+    if (answer === "no") ask.ta.focus();
+    else ask.deliver();
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -852,10 +866,43 @@ function InputEditor(props: {
 
   return (
     <div className="input-area">
+      {loudAsk && (
+        <div
+          className="confirm-dialog"
+          role="dialog"
+          // キーを Philly の操作にしない。Esc は「いいえ」
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Escape") answerLoud("no");
+          }}
+        >
+          <p>
+            大声で発言します。
+            <br />
+            この世界にいる全員に聞こえます。
+            <br />
+            よろしいですか？
+          </p>
+          <div className="confirm-buttons">
+            <button autoFocus onClick={() => answerLoud("yes")}>
+              はい
+            </button>
+            <button onClick={() => answerLoud("all")}>すべて大声</button>
+            <button onClick={() => answerLoud("no")}>いいえ</button>
+          </div>
+        </div>
+      )}
       <div className="input-toolbar">
         <label className={loud ? "toggle on" : "toggle"}>
-          <input type="checkbox" checked={loud} onChange={(e) => setLoud(e.target.checked)} />
-          大声
+          <input
+            type="checkbox"
+            checked={loud}
+            onChange={(e) => {
+              setLoud(e.target.checked);
+              if (!e.target.checked) setLoudAll(false);
+            }}
+          />
+          {loudAll ? "すべて大声" : "大声"}
         </label>
         <label className={allTab ? "toggle on" : "toggle"}>
           <input type="checkbox" checked={allTab} onChange={(e) => setAllTab(e.target.checked)} />

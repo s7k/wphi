@@ -78,9 +78,30 @@ body {
 }
 
 .input-area {
+  position: relative;
   display: flex;
   flex-direction: column;
   border-top: 1px solid #a0a0a0;
+}
+
+/* 入力欄の上に出す確認(大声の「すべて大声」) */
+.confirm-dialog {
+  position: absolute;
+  bottom: 100%;
+  left: 8px;
+  z-index: 10;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #808080;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
+}
+.confirm-dialog p {
+  margin: 0 0 8px;
+}
+.confirm-buttons {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
 }
 
 .input-toolbar {
