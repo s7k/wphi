@@ -110,7 +110,7 @@ regex!(NAME, r"(\[?(?:(?!&gt;)[^>])+?\]?) &gt;");
 /// 1行を HTML にする(Philly の `ToHtml` に続けて `ChangeNameFont` を呼んだ結果)。
 pub fn to_html(text: &str, opts: &LogOptions) -> String {
     let loud = text.starts_with('(');
-    let mut t = sanitize(text);
+    let mut t = escape_html(text);
 
     t = t.replace("はーと", "&hearts;");
     t = t.replace(
@@ -149,7 +149,8 @@ pub fn to_html(text: &str, opts: &LogOptions) -> String {
     change_name_font(&t)
 }
 
-fn sanitize(text: &str) -> String {
+/// HTML の特別な文字(`& < > " '`)を全部エスケープする。
+pub fn escape_html(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for ch in text.chars() {
         match ch {

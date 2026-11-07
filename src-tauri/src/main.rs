@@ -443,7 +443,7 @@ async fn append_log(app: tauri::AppHandle, label: String, date: String, html: St
         .map_err(|e| format!("{}: {e}", path.display()))?;
     if new {
         let css = log_css().unwrap_or_default();
-        let title = label.replace('&', "&amp;").replace('<', "&lt;");
+        let title = phi_proto::tag_to_html::escape_html(&label);
         write!(
             f,
             "<!doctype html>\n<meta charset=\"utf-8\">\n<title>{title} {date}</title>\n<style>\n{css}\n</style>\n"

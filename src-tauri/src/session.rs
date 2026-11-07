@@ -305,7 +305,7 @@ async fn wait_line(stream: &mut TcpStream, lines: &mut LineBuffer, ok: &[u8], ng
 /// クライアントが出すログの行(Philly の AddSysMessageOk / AddSysMessageNg)。
 fn system(ok: bool, text: &str) -> UiEvent {
     let class = if ok { "class_system_ok" } else { "class_system_ng" };
-    let text = text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+    let text = phi_proto::tag_to_html::escape_html(text);
     UiEvent::Ui(UiOnly::Log {
         channel: Channel::System,
         html: format!(r#"<font class="{class}">{text}</font>"#),
