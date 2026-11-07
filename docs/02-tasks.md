@@ -52,6 +52,8 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 
 ## P4
 
+- [x] イレイザー(種別 0x07)の既定グラを t_eraser にする(作者の指定。無ければスキンの LANU_Slime.bmp)。`src-tauri/src/assets.rs` の DEFAULT_GRA_OVERRIDE
+
 - [x] メニューバー(`MainForm.dfm` の構成、`Style/Menu.txt` で表示を切り替える)。ファイル・操作・行動・魔法・表示の項目はキーと同じ操作にした
   - [ ] キャラクターとツールのメニュー、操作のメニューの大声・全タブ・ログ保存の切り替え
 - [ ] 窓の吸い付きと位置記憶(Windows のみ)

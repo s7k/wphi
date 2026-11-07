@@ -38,6 +38,9 @@ const DEFAULT_GRA: &[(u32, &str)] = &[
     (0x75, "アニメなしオブジェ"),
 ];
 
+/// WPHI で既定グラを上書きする種別(2026-11-07 に作者が指定)。chara/<グラ名>.bmp が無ければスキンの Index.txt に戻る。
+const DEFAULT_GRA_OVERRIDE: &[(u32, &str)] = &[(0x07, "t_eraser")];
+
 pub struct Assets {
     roots: Vec<PathBuf>,
     /// 変換済みの PNG。ponytail: 上限なし。キャラグラは1枚 20KB 前後で数百枚なので、増えて困るまで Philly の LRU は真似ない
@@ -97,6 +100,13 @@ impl Assets {
     }
 
     fn default_chara(&self, code: u32) -> Option<image::DynamicImage> {
+        let overridden = DEFAULT_GRA_OVERRIDE
+            .iter()
+            .find(|(c, _)| *c == code)
+            .and_then(|(_, gra)| self.open(&format!("chara/{gra}.bmp")));
+        if overridden.is_some() {
+            return overridden;
+        }
         let key = DEFAULT_GRA
             .iter()
             .find(|(c, _)| *c == code)
@@ -253,6 +263,10 @@ mod tests {
         assert_eq!(decode(&board), direct);
         // 表に無い種別は知的生物
         assert!(a.get("chara", &query(&[("gra", "none"), ("code", "99")])).is_some());
+        // イレイザー(0x07)は t_eraser。同梱に無いのでスキンの LANU_Slime.bmp に戻る
+        let eraser = a.get("chara", &query(&[("gra", "none"), ("code", "7")])).unwrap();
+        let slime = colorkey(&a.open("Skins/Mine/Chara/LANU_Slime.bmp").unwrap(), TEAL);
+        assert_eq!(decode(&eraser), slime);
     }
 }
 
