@@ -21,8 +21,12 @@ export function keyContext(state: MapState | undefined, fullKeyMove: boolean): K
   return { northFix, fullKeyMove };
 }
 
+/** 送った行を、同じ窓の中に SENT_EVENT で知らせる(リストを閉じる為。App が受ける) */
+export const SENT_EVENT = "phi-sent";
+
 export function sendLine(session: number, text: string) {
   invoke("send_line", { session, text }).catch(console.error);
+  window.dispatchEvent(new CustomEvent(SENT_EVENT, { detail: { session, text } }));
 }
 
 /** 移動以外のキー操作を行う */

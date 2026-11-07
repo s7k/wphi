@@ -35,6 +35,7 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 ## P3: リスト・入力窓・priv・EagleEye・世界移動
 
 - [x] リスト(`#list` 〜 `#end-list`)の表示と選択。番号キーで選び、0 は取り消し(`Command.cpp` の ListModeSend と KeyBindListMode)。ログの上のチェックリストとマップ窓の右の領域に出す
+  - [x] リスト表示中に何かを送ったら、9 でない限りリストを閉じる(Philly の SendTextListCancel。v5y は取り消してもリストの終わりを送らない)
   - [x] 魔法を唱える操作の後に届く cast の一覧を出さない(Philly の NextListCancel)。空のリストも出さない
   - [ ] 9 で続きのページ(`#more`)を送る処理と、番号のずれ(ListOffset)・範囲外の番号でリストを閉じる処理(ListEndTenKeyCertainly)
   - [ ] マップ窓のリストをクリックで選ぶ
