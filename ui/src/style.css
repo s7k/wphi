@@ -54,6 +54,12 @@ body {
   background: #fff;
 }
 
+/* 裏にいる間に発言か priv が届いたタブ */
+.tab.unread {
+  background: #ffd0d0;
+  font-weight: bold;
+}
+
 /* 背景・文字色・文字の大きさはスキンの Log.css が決める。書体だけはこちらの近代的なフォントで上書きする */
 .phi-log {
   flex: 1;

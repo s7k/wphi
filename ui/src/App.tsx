@@ -3,7 +3,7 @@ import { emitTo, listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, moveInput } from "./keys.ts";
@@ -38,6 +38,8 @@ type Tab = {
   privActive: string | null;
   /** ログを保存しているか(Philly の LogAutoSave。タブごとに切り替える) */
   logSave: boolean;
+  /** 裏にいる間に発言か priv が届いた */
+  unread: boolean;
 };
 
 /** Philly のログバッファに合わせ、古い行から捨てる */
@@ -121,6 +123,10 @@ export function App() {
     emitTo("map", MAP_STATE_EVENT, state ?? { session: -1, mapset: "" }).catch((e) => console.error(e));
   };
   useEffect(() => sendMapState(active), [active]);
+  // 前に出したタブの未読の印を消す
+  useEffect(() => {
+    if (active !== null) update(active, (t) => (t.unread ? { ...t, unread: false } : t));
+  }, [active]);
   useEffect(() => {
     const unlisten = listen("phi-map-ready", () => sendMapState(activeRef.current));
     return () => {
@@ -276,6 +282,19 @@ export function App() {
   const updateList = (session: number, f: (l: ListState) => ListState) =>
     update(session, (t) => (t.list ? { ...t, list: f(t.list) } : t));
 
+  /**
+   * 発言と priv が届いた時の知らせ(Philly.ini の [TaskBarFlash])。
+   * 裏のタブには未読の印を付け、窓が前に無ければタスクバーを点滅させる。
+   * Philly の既定は GtOnly=on(> のある行だけ)、Loud=off(大声では点滅しない)
+   */
+  function notifyTalk(session: number, channel: string, html: string) {
+    if (channel !== "talk" && channel !== "priv") return;
+    const loud = /^(?:<[^>]*>)*\(/.test(html);
+    if (session !== activeRef.current) update(session, (t) => ({ ...t, unread: true }));
+    if (!loud && !document.hasFocus())
+      getCurrentWindow().requestUserAttention(UserAttentionType.Informational).catch(console.error);
+  }
+
   /** 受けた priv を相手の組の会話に足す。会話が無ければ作り、priv の画面を開く(Philly.ini の PopupPrivForm) */
   function addPriv(session: number, from: string, html: string) {
     update(session, (t) => {
@@ -335,6 +354,7 @@ export function App() {
       switch (ev.type) {
         case "log":
           append(session, ev.html);
+          notifyTalk(session, ev.channel, ev.html);
           if (ev.channel === "priv" && ev.from) addPriv(session, ev.from, ev.html);
           // リピート移動中に壁に当たった時(Philly の PersonalThread.cpp の RecvCannotGo)
           if (session === activeRef.current && /DM<\/font> &gt; (進めません\.|Can not go\.)/.test(ev.html))
@@ -396,6 +416,7 @@ export function App() {
         privOpen: false,
         privActive: null,
         logSave: false,
+        unread: false,
       },
     ]);
     setActive(session);
@@ -527,7 +548,10 @@ function TabBar(props: {
   return (
     <div className="tab-bar">
       {props.tabs.map((t) => (
-        <span key={t.session} className={t.session === props.active ? "tab active" : "tab"}>
+        <span
+          key={t.session}
+          className={t.session === props.active ? "tab active" : t.unread ? "tab unread" : "tab"}
+        >
           <button className="tab-label" onClick={() => props.onSelect(t.session)}>
             {t.label}
           </button>
