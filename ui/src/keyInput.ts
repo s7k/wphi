@@ -2,8 +2,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { keyAction } from "./keys";
 import type { MapState } from "./protocol";
 
-/** フルキーの 789 uio jkl m をテンキーとして使うか(Philly.ini の FullKeyMove)。設定画面は P4 */
-const FULL_KEY_MOVE = false;
+/**
+ * フルキーの 789 uio jkl m をテンキーとして使うか(Philly.ini の FullKeyMove)。
+ * Philly の既定は off だが、無いと 7・8・9 が番号としてそのまま送られ、サーバが発言として扱う。
+ * 作者が使うので既定を on にした。設定画面で切り替えるのは P4
+ */
+const FULL_KEY_MOVE = true;
 
 /** 入力欄の外で押したキーを Philly の操作として送る。操作にしたら true。 */
 export function handleGameKey(

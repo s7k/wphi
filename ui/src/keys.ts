@@ -19,7 +19,7 @@ export type KeyAction =
 export type KeyContext = {
   /** 7x7 の北固定マップか。Philly は `ExMapSize57 && !ExMapStyleTurn` の時に北固定の移動にする */
   northFix: boolean;
-  /** フルキーの 789 uio jkl m をテンキーとして使う(Philly.ini の FullKeyMove。Philly の既定は off) */
+  /** フルキーの 789 uio jkl m をテンキーとして使う(Philly.ini の FullKeyMove。Philly の既定は off、rust-philly は on) */
   fullKeyMove: boolean;
 };
 
