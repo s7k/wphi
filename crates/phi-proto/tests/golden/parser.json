@@ -1,0 +1,2586 @@
+[
+ {
+  "name": "fixtures",
+  "steps": [
+   {
+    "line": "2373746174757320745f4c6f7264203a20343737353a20343737353a20333334343a20333334343a2032343036333a20323136313a20373236393a20333731323a20353239303a2032353430",
+    "events": [
+     {
+      "type": "status",
+      "name": "t_Lord",
+      "hp": 4775,
+      "maxHp": 4775,
+      "mp": 3344,
+      "maxMp": 3344,
+      "exp": 24063,
+      "gp": 2161,
+      "f": 7269,
+      "w": 3712,
+      "m": 5290,
+      "c": 2540
+     }
+    ]
+   },
+   {
+    "line": "23636f6e64202a2d2d2d2d2d2d",
+    "events": [
+     {
+      "type": "cond",
+      "poison": true,
+      "palsy": false,
+      "panic": false,
+      "confuse": false,
+      "berserk": false,
+      "silence": false,
+      "blind": false
+     }
+    ]
+   },
+   {
+    "line": "23636f6e64202d2d2d2d2d2d2d",
+    "events": [
+     {
+      "type": "cond",
+      "poison": false,
+      "palsy": false,
+      "panic": false,
+      "confuse": false,
+      "berserk": false,
+      "silence": false,
+      "blind": false
+     }
+    ]
+   },
+   {
+    "line": "4578616d706c65436861722082aa8d558c8282b582bd",
+    "events": [
+     {
+      "type": "message",
+      "channel": "log",
+      "text": "ExampleChar が攻撃した",
+      "markup": false
+     }
+    ]
+   },
+   {
+    "line": "2f2a636f6c6f723d7265642a2f8c788d902f2a2e2a2f2082c582b7",
+    "events": [
+     {
+      "type": "message",
+      "channel": "log",
+      "text": "/*color=red*/警告/*.*/ です",
+      "markup": true
+     }
+    ]
+   },
+   {
+    "line": "5b4578616d706c65436861725d203e2082b182f182c982bf82cd",
+    "events": [
+     {
+      "type": "message",
+      "channel": "priv",
+      "text": "[ExampleChar] > こんにちは",
+      "from": "ExampleChar",
+      "markup": false
+     }
+    ]
+   },
+   {
+    "line": "23757365722030303132204578616d706c65436861722020202020202020202020202020202020202020",
+    "events": [
+     {
+      "type": "userList",
+      "users": [
+       {
+        "key": "u12",
+        "name": "ExampleChar"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "map_frames",
+  "steps": [
+   {
+    "line": "236d3537204d204e2030303030616263643a00000301060209030c040f051206150718001b011e022103240427052a062d0730003301360239033c043f054206450748004b014e025103540457055a065d0760006301660269036c046f057206750778007b017e028103840487058a068d079000",
+    "events": []
+   },
+   {
+    "line": "236d3537204f2030303030313a3320332042204578616d706c6543686172202020202020202020202020202020202020202020343020745f4c6f72642020202020202020202023203430",
+    "events": []
+   },
+   {
+    "line": "236d3537204f2031303030613a32203420462097458ed2835e838d8345202020202020202020202020202020202020202020203038208e9820202020202020202020202020202a203132",
+    "events": []
+   },
+   {
+    "line": "236d3537204f2032303066663a3020362052204775617264204120202020202020202020202020202020202020202020202020303020606f626a20776569726460202020202023203035",
+    "events": []
+   },
+   {
+    "line": "236d3537202e",
+    "events": [
+     {
+      "type": "map",
+      "size": 7,
+      "dir": 0,
+      "cells": [
+       {
+        "chip": 0,
+        "attr": 0
+       },
+       {
+        "chip": 3,
+        "attr": 1
+       },
+       {
+        "chip": 6,
+        "attr": 2
+       },
+       {
+        "chip": 9,
+        "attr": 3
+       },
+       {
+        "chip": 12,
+        "attr": 4
+       },
+       {
+        "chip": 15,
+        "attr": 5
+       },
+       {
+        "chip": 18,
+        "attr": 6
+       },
+       {
+        "chip": 21,
+        "attr": 7
+       },
+       {
+        "chip": 24,
+        "attr": 0
+       },
+       {
+        "chip": 27,
+        "attr": 1
+       },
+       {
+        "chip": 30,
+        "attr": 2
+       },
+       {
+        "chip": 33,
+        "attr": 3
+       },
+       {
+        "chip": 36,
+        "attr": 4
+       },
+       {
+        "chip": 39,
+        "attr": 5
+       },
+       {
+        "chip": 42,
+        "attr": 6
+       },
+       {
+        "chip": 45,
+        "attr": 7
+       },
+       {
+        "chip": 48,
+        "attr": 0
+       },
+       {
+        "chip": 51,
+        "attr": 1
+       },
+       {
+        "chip": 54,
+        "attr": 2
+       },
+       {
+        "chip": 57,
+        "attr": 3
+       },
+       {
+        "chip": 60,
+        "attr": 4
+       },
+       {
+        "chip": 63,
+        "attr": 5
+       },
+       {
+        "chip": 66,
+        "attr": 6
+       },
+       {
+        "chip": 69,
+        "attr": 7
+       },
+       {
+        "chip": 72,
+        "attr": 0
+       },
+       {
+        "chip": 75,
+        "attr": 1
+       },
+       {
+        "chip": 78,
+        "attr": 2
+       },
+       {
+        "chip": 81,
+        "attr": 3
+       },
+       {
+        "chip": 84,
+        "attr": 4
+       },
+       {
+        "chip": 87,
+        "attr": 5
+       },
+       {
+        "chip": 90,
+        "attr": 6
+       },
+       {
+        "chip": 93,
+        "attr": 7
+       },
+       {
+        "chip": 96,
+        "attr": 0
+       },
+       {
+        "chip": 99,
+        "attr": 1
+       },
+       {
+        "chip": 102,
+        "attr": 2
+       },
+       {
+        "chip": 105,
+        "attr": 3
+       },
+       {
+        "chip": 108,
+        "attr": 4
+       },
+       {
+        "chip": 111,
+        "attr": 5
+       },
+       {
+        "chip": 114,
+        "attr": 6
+       },
+       {
+        "chip": 117,
+        "attr": 7
+       },
+       {
+        "chip": 120,
+        "attr": 0
+       },
+       {
+        "chip": 123,
+        "attr": 1
+       },
+       {
+        "chip": 126,
+        "attr": 2
+       },
+       {
+        "chip": 129,
+        "attr": 3
+       },
+       {
+        "chip": 132,
+        "attr": 4
+       },
+       {
+        "chip": 135,
+        "attr": 5
+       },
+       {
+        "chip": 138,
+        "attr": 6
+       },
+       {
+        "chip": 141,
+        "attr": 7
+       },
+       {
+        "chip": 144,
+        "attr": 0
+       }
+      ],
+      "chars": [
+       {
+        "id": 1,
+        "x": 3,
+        "y": 3,
+        "dir": "B",
+        "name": "ExampleChar",
+        "gra": "t_Lord",
+        "status": 64,
+        "gigant": "#",
+        "layer": 0,
+        "default": 64
+       },
+       {
+        "id": 10,
+        "x": 2,
+        "y": 4,
+        "dir": "F",
+        "name": "勇者タロウ",
+        "gra": "侍",
+        "status": 8,
+        "gigant": "*",
+        "layer": 1,
+        "default": 18
+       },
+       {
+        "id": 255,
+        "x": 0,
+        "y": 6,
+        "dir": "R",
+        "name": "Guard A",
+        "gra": "`obj weird`",
+        "status": 0,
+        "gigant": "#",
+        "layer": 2,
+        "default": 5
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "line": "236d3537204d20452030303030303030313a40004100420043004400450046004700480049004a004b004c004d004e004f0050005100520053005400550056005700580059005a005b005c005d005e005f0060006100620063006400650066006700680069006a006b006c006d006e006f007000",
+    "events": []
+   },
+   {
+    "line": "236d3537202e",
+    "events": [
+     {
+      "type": "map",
+      "size": 7,
+      "dir": 2,
+      "cells": [
+       {
+        "chip": 64,
+        "attr": 0
+       },
+       {
+        "chip": 65,
+        "attr": 0
+       },
+       {
+        "chip": 66,
+        "attr": 0
+       },
+       {
+        "chip": 67,
+        "attr": 0
+       },
+       {
+        "chip": 68,
+        "attr": 0
+       },
+       {
+        "chip": 69,
+        "attr": 0
+       },
+       {
+        "chip": 70,
+        "attr": 0
+       },
+       {
+        "chip": 71,
+        "attr": 0
+       },
+       {
+        "chip": 72,
+        "attr": 0
+       },
+       {
+        "chip": 73,
+        "attr": 0
+       },
+       {
+        "chip": 74,
+        "attr": 0
+       },
+       {
+        "chip": 75,
+        "attr": 0
+       },
+       {
+        "chip": 76,
+        "attr": 0
+       },
+       {
+        "chip": 77,
+        "attr": 0
+       },
+       {
+        "chip": 78,
+        "attr": 0
+       },
+       {
+        "chip": 79,
+        "attr": 0
+       },
+       {
+        "chip": 80,
+        "attr": 0
+       },
+       {
+        "chip": 81,
+        "attr": 0
+       },
+       {
+        "chip": 82,
+        "attr": 0
+       },
+       {
+        "chip": 83,
+        "attr": 0
+       },
+       {
+        "chip": 84,
+        "attr": 0
+       },
+       {
+        "chip": 85,
+        "attr": 0
+       },
+       {
+        "chip": 86,
+        "attr": 0
+       },
+       {
+        "chip": 87,
+        "attr": 0
+       },
+       {
+        "chip": 88,
+        "attr": 0
+       },
+       {
+        "chip": 89,
+        "attr": 0
+       },
+       {
+        "chip": 90,
+        "attr": 0
+       },
+       {
+        "chip": 91,
+        "attr": 0
+       },
+       {
+        "chip": 92,
+        "attr": 0
+       },
+       {
+        "chip": 93,
+        "attr": 0
+       },
+       {
+        "chip": 94,
+        "attr": 0
+       },
+       {
+        "chip": 95,
+        "attr": 0
+       },
+       {
+        "chip": 96,
+        "attr": 0
+       },
+       {
+        "chip": 97,
+        "attr": 0
+       },
+       {
+        "chip": 98,
+        "attr": 0
+       },
+       {
+        "chip": 99,
+        "attr": 0
+       },
+       {
+        "chip": 100,
+        "attr": 0
+       },
+       {
+        "chip": 101,
+        "attr": 0
+       },
+       {
+        "chip": 102,
+        "attr": 0
+       },
+       {
+        "chip": 103,
+        "attr": 0
+       },
+       {
+        "chip": 104,
+        "attr": 0
+       },
+       {
+        "chip": 105,
+        "attr": 0
+       },
+       {
+        "chip": 106,
+        "attr": 0
+       },
+       {
+        "chip": 107,
+        "attr": 0
+       },
+       {
+        "chip": 108,
+        "attr": 0
+       },
+       {
+        "chip": 109,
+        "attr": 0
+       },
+       {
+        "chip": 110,
+        "attr": 0
+       },
+       {
+        "chip": 111,
+        "attr": 0
+       },
+       {
+        "chip": 112,
+        "attr": 0
+       }
+      ],
+      "chars": [
+       {
+        "id": 1,
+        "x": 3,
+        "y": 3,
+        "dir": "B",
+        "name": "ExampleChar",
+        "gra": "t_Lord",
+        "status": 64,
+        "gigant": "#",
+        "layer": 0,
+        "default": 64
+       },
+       {
+        "id": 10,
+        "x": 2,
+        "y": 4,
+        "dir": "F",
+        "name": "勇者タロウ",
+        "gra": "侍",
+        "status": 8,
+        "gigant": "*",
+        "layer": 1,
+        "default": 18
+       },
+       {
+        "id": 255,
+        "x": 0,
+        "y": 6,
+        "dir": "R",
+        "name": "Guard A",
+        "gra": "`obj weird`",
+        "status": 0,
+        "gigant": "#",
+        "layer": 2,
+        "default": 5
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "line": "236d3537204d20532030303030303030323a40004100420043004400450046004700480049004a004b004c004d004e004f0050005100520053005400550056005700580059005a005b005c005d005e005f0060006100620063006400650066006700680069006a006b006c006d006e006f007000",
+    "events": []
+   },
+   {
+    "line": "236d3537204f2031303032613a312035204c2096ec836c8359837e202020202020202020202020202020202020202020202020303020836c8359837e202020202020202020202a203832",
+    "events": []
+   },
+   {
+    "line": "236d3537202e",
+    "events": [
+     {
+      "type": "map",
+      "size": 7,
+      "dir": 4,
+      "cells": [
+       {
+        "chip": 64,
+        "attr": 0
+       },
+       {
+        "chip": 65,
+        "attr": 0
+       },
+       {
+        "chip": 66,
+        "attr": 0
+       },
+       {
+        "chip": 67,
+        "attr": 0
+       },
+       {
+        "chip": 68,
+        "attr": 0
+       },
+       {
+        "chip": 69,
+        "attr": 0
+       },
+       {
+        "chip": 70,
+        "attr": 0
+       },
+       {
+        "chip": 71,
+        "attr": 0
+       },
+       {
+        "chip": 72,
+        "attr": 0
+       },
+       {
+        "chip": 73,
+        "attr": 0
+       },
+       {
+        "chip": 74,
+        "attr": 0
+       },
+       {
+        "chip": 75,
+        "attr": 0
+       },
+       {
+        "chip": 76,
+        "attr": 0
+       },
+       {
+        "chip": 77,
+        "attr": 0
+       },
+       {
+        "chip": 78,
+        "attr": 0
+       },
+       {
+        "chip": 79,
+        "attr": 0
+       },
+       {
+        "chip": 80,
+        "attr": 0
+       },
+       {
+        "chip": 81,
+        "attr": 0
+       },
+       {
+        "chip": 82,
+        "attr": 0
+       },
+       {
+        "chip": 83,
+        "attr": 0
+       },
+       {
+        "chip": 84,
+        "attr": 0
+       },
+       {
+        "chip": 85,
+        "attr": 0
+       },
+       {
+        "chip": 86,
+        "attr": 0
+       },
+       {
+        "chip": 87,
+        "attr": 0
+       },
+       {
+        "chip": 88,
+        "attr": 0
+       },
+       {
+        "chip": 89,
+        "attr": 0
+       },
+       {
+        "chip": 90,
+        "attr": 0
+       },
+       {
+        "chip": 91,
+        "attr": 0
+       },
+       {
+        "chip": 92,
+        "attr": 0
+       },
+       {
+        "chip": 93,
+        "attr": 0
+       },
+       {
+        "chip": 94,
+        "attr": 0
+       },
+       {
+        "chip": 95,
+        "attr": 0
+       },
+       {
+        "chip": 96,
+        "attr": 0
+       },
+       {
+        "chip": 97,
+        "attr": 0
+       },
+       {
+        "chip": 98,
+        "attr": 0
+       },
+       {
+        "chip": 99,
+        "attr": 0
+       },
+       {
+        "chip": 100,
+        "attr": 0
+       },
+       {
+        "chip": 101,
+        "attr": 0
+       },
+       {
+        "chip": 102,
+        "attr": 0
+       },
+       {
+        "chip": 103,
+        "attr": 0
+       },
+       {
+        "chip": 104,
+        "attr": 0
+       },
+       {
+        "chip": 105,
+        "attr": 0
+       },
+       {
+        "chip": 106,
+        "attr": 0
+       },
+       {
+        "chip": 107,
+        "attr": 0
+       },
+       {
+        "chip": 108,
+        "attr": 0
+       },
+       {
+        "chip": 109,
+        "attr": 0
+       },
+       {
+        "chip": 110,
+        "attr": 0
+       },
+       {
+        "chip": 111,
+        "attr": 0
+       },
+       {
+        "chip": 112,
+        "attr": 0
+       }
+      ],
+      "chars": [
+       {
+        "id": 42,
+        "x": 1,
+        "y": 5,
+        "dir": "L",
+        "name": "野ネズミ",
+        "gra": "ネズミ",
+        "status": 0,
+        "gigant": "*",
+        "layer": 1,
+        "default": 130
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "line": "236d353720572030303030313a3320332042204578616d706c6543686172202020202020202020202020202020202020202020343020745f4c6f726420202020202020202020232034302031303032613a312035204c2096ec836c8359837e202020202020202020202020202020202020202020202020303020836c8359837e202020202020202020202a203832",
+    "events": []
+   },
+   {
+    "line": "236d3537202e",
+    "events": [
+     {
+      "type": "map",
+      "size": 7,
+      "dir": 4,
+      "cells": [
+       {
+        "chip": 64,
+        "attr": 0
+       },
+       {
+        "chip": 65,
+        "attr": 0
+       },
+       {
+        "chip": 66,
+        "attr": 0
+       },
+       {
+        "chip": 67,
+        "attr": 0
+       },
+       {
+        "chip": 68,
+        "attr": 0
+       },
+       {
+        "chip": 69,
+        "attr": 0
+       },
+       {
+        "chip": 70,
+        "attr": 0
+       },
+       {
+        "chip": 71,
+        "attr": 0
+       },
+       {
+        "chip": 72,
+        "attr": 0
+       },
+       {
+        "chip": 73,
+        "attr": 0
+       },
+       {
+        "chip": 74,
+        "attr": 0
+       },
+       {
+        "chip": 75,
+        "attr": 0
+       },
+       {
+        "chip": 76,
+        "attr": 0
+       },
+       {
+        "chip": 77,
+        "attr": 0
+       },
+       {
+        "chip": 78,
+        "attr": 0
+       },
+       {
+        "chip": 79,
+        "attr": 0
+       },
+       {
+        "chip": 80,
+        "attr": 0
+       },
+       {
+        "chip": 81,
+        "attr": 0
+       },
+       {
+        "chip": 82,
+        "attr": 0
+       },
+       {
+        "chip": 83,
+        "attr": 0
+       },
+       {
+        "chip": 84,
+        "attr": 0
+       },
+       {
+        "chip": 85,
+        "attr": 0
+       },
+       {
+        "chip": 86,
+        "attr": 0
+       },
+       {
+        "chip": 87,
+        "attr": 0
+       },
+       {
+        "chip": 88,
+        "attr": 0
+       },
+       {
+        "chip": 89,
+        "attr": 0
+       },
+       {
+        "chip": 90,
+        "attr": 0
+       },
+       {
+        "chip": 91,
+        "attr": 0
+       },
+       {
+        "chip": 92,
+        "attr": 0
+       },
+       {
+        "chip": 93,
+        "attr": 0
+       },
+       {
+        "chip": 94,
+        "attr": 0
+       },
+       {
+        "chip": 95,
+        "attr": 0
+       },
+       {
+        "chip": 96,
+        "attr": 0
+       },
+       {
+        "chip": 97,
+        "attr": 0
+       },
+       {
+        "chip": 98,
+        "attr": 0
+       },
+       {
+        "chip": 99,
+        "attr": 0
+       },
+       {
+        "chip": 100,
+        "attr": 0
+       },
+       {
+        "chip": 101,
+        "attr": 0
+       },
+       {
+        "chip": 102,
+        "attr": 0
+       },
+       {
+        "chip": 103,
+        "attr": 0
+       },
+       {
+        "chip": 104,
+        "attr": 0
+       },
+       {
+        "chip": 105,
+        "attr": 0
+       },
+       {
+        "chip": 106,
+        "attr": 0
+       },
+       {
+        "chip": 107,
+        "attr": 0
+       },
+       {
+        "chip": 108,
+        "attr": 0
+       },
+       {
+        "chip": 109,
+        "attr": 0
+       },
+       {
+        "chip": 110,
+        "attr": 0
+       },
+       {
+        "chip": 111,
+        "attr": 0
+       },
+       {
+        "chip": 112,
+        "attr": 0
+       }
+      ],
+      "chars": [
+       {
+        "id": 1,
+        "x": 3,
+        "y": 3,
+        "dir": "B",
+        "name": "ExampleChar",
+        "gra": "t_Lord",
+        "status": 64,
+        "gigant": "#",
+        "layer": 0,
+        "default": 64
+       },
+       {
+        "id": 42,
+        "x": 1,
+        "y": 5,
+        "dir": "L",
+        "name": "野ネズミ",
+        "gra": "ネズミ",
+        "status": 0,
+        "gigant": "*",
+        "layer": 1,
+        "default": 130
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "line": "236d3537204d20572073686f7274",
+    "events": []
+   },
+   {
+    "line": "236d3537202e",
+    "events": [
+     {
+      "type": "map",
+      "size": 7,
+      "dir": 6,
+      "cells": [],
+      "chars": [
+       {
+        "id": 1,
+        "x": 3,
+        "y": 3,
+        "dir": "B",
+        "name": "ExampleChar",
+        "gra": "t_Lord",
+        "status": 64,
+        "gigant": "#",
+        "layer": 0,
+        "default": 64
+       },
+       {
+        "id": 42,
+        "x": 1,
+        "y": 5,
+        "dir": "L",
+        "name": "野ネズミ",
+        "gra": "ネズミ",
+        "status": 0,
+        "gigant": "*",
+        "layer": 1,
+        "default": 130
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "map_5x5",
+  "steps": [
+   {
+    "line": "236d6170204d2053203030303030303030304100420043004400450046004700480049004a004b004c004d004e004f0050005100520053005400550056005700580059002e00002d000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "events": []
+   },
+   {
+    "line": "236d6170202e",
+    "events": [
+     {
+      "type": "map",
+      "size": 5,
+      "dir": 4,
+      "cells": [
+       {
+        "chip": 65,
+        "attr": 96
+       },
+       {
+        "chip": 66,
+        "attr": 8
+       },
+       {
+        "chip": 67,
+        "attr": 0
+       },
+       {
+        "chip": 68,
+        "attr": 0
+       },
+       {
+        "chip": 69,
+        "attr": 0
+       },
+       {
+        "chip": 70,
+        "attr": 0
+       },
+       {
+        "chip": 71,
+        "attr": 0
+       },
+       {
+        "chip": 72,
+        "attr": 0
+       },
+       {
+        "chip": 73,
+        "attr": 0
+       },
+       {
+        "chip": 74,
+        "attr": 0
+       },
+       {
+        "chip": 75,
+        "attr": 0
+       },
+       {
+        "chip": 76,
+        "attr": 0
+       },
+       {
+        "chip": 77,
+        "attr": 0
+       },
+       {
+        "chip": 78,
+        "attr": 0
+       },
+       {
+        "chip": 79,
+        "attr": 0
+       },
+       {
+        "chip": 80,
+        "attr": 0
+       },
+       {
+        "chip": 81,
+        "attr": 0
+       },
+       {
+        "chip": 82,
+        "attr": 0
+       },
+       {
+        "chip": 83,
+        "attr": 0
+       },
+       {
+        "chip": 84,
+        "attr": 0
+       },
+       {
+        "chip": 85,
+        "attr": 0
+       },
+       {
+        "chip": 86,
+        "attr": 0
+       },
+       {
+        "chip": 87,
+        "attr": 0
+       },
+       {
+        "chip": 88,
+        "attr": 0
+       },
+       {
+        "chip": 89,
+        "attr": 0
+       }
+      ],
+      "chars": []
+     }
+    ]
+   },
+   {
+    "line": "236d6170204d202d",
+    "events": []
+   },
+   {
+    "line": "236d6170202e",
+    "events": [
+     {
+      "type": "map",
+      "size": 5,
+      "dir": 4,
+      "cells": [
+       {
+        "chip": 65,
+        "attr": 96
+       },
+       {
+        "chip": 66,
+        "attr": 8
+       },
+       {
+        "chip": 67,
+        "attr": 0
+       },
+       {
+        "chip": 68,
+        "attr": 0
+       },
+       {
+        "chip": 69,
+        "attr": 0
+       },
+       {
+        "chip": 70,
+        "attr": 0
+       },
+       {
+        "chip": 71,
+        "attr": 0
+       },
+       {
+        "chip": 72,
+        "attr": 0
+       },
+       {
+        "chip": 73,
+        "attr": 0
+       },
+       {
+        "chip": 74,
+        "attr": 0
+       },
+       {
+        "chip": 75,
+        "attr": 0
+       },
+       {
+        "chip": 76,
+        "attr": 0
+       },
+       {
+        "chip": 77,
+        "attr": 0
+       },
+       {
+        "chip": 78,
+        "attr": 0
+       },
+       {
+        "chip": 79,
+        "attr": 0
+       },
+       {
+        "chip": 80,
+        "attr": 0
+       },
+       {
+        "chip": 81,
+        "attr": 0
+       },
+       {
+        "chip": 82,
+        "attr": 0
+       },
+       {
+        "chip": 83,
+        "attr": 0
+       },
+       {
+        "chip": 84,
+        "attr": 0
+       },
+       {
+        "chip": 85,
+        "attr": 0
+       },
+       {
+        "chip": 86,
+        "attr": 0
+       },
+       {
+        "chip": 87,
+        "attr": 0
+       },
+       {
+        "chip": 88,
+        "attr": 0
+       },
+       {
+        "chip": 89,
+        "attr": 0
+       }
+      ],
+      "chars": []
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "map_style_pos_magnify",
+  "steps": [
+   {
+    "line": "2365782d6d6170207374796c653d7475726e",
+    "events": []
+   },
+   {
+    "line": "2365782d6d61702073697a653d3537",
+    "events": []
+   },
+   {
+    "line": "2365782d6f626a205320363420363420312096ec836c8359837e",
+    "events": []
+   },
+   {
+    "line": "2365782d6f626a20532078203120312061",
+    "events": []
+   },
+   {
+    "line": "2365782d6f626a2053203120312031",
+    "events": []
+   },
+   {
+    "line": "2365782d706f73203130203230",
+    "events": []
+   },
+   {
+    "line": "236d3537204d204e2030303030303030333a00000301060209030c040f051206150718001b011e022103240427052a062d0730003301360239033c043f054206450748004b014e025103540457055a065d0760006301660269036c046f057206750778007b017e028103840487058a068d079000",
+    "events": []
+   },
+   {
+    "line": "236d3537204f2031303032613a312035204c2096ec836c8359837e202020202020202020202020202020202020202020202020303020836c8359837e202020202020202020202a203832",
+    "events": []
+   },
+   {
+    "line": "236d3537202e",
+    "events": [
+     {
+      "type": "map",
+      "size": 7,
+      "dir": 0,
+      "cells": [
+       {
+        "chip": 0,
+        "attr": 0
+       },
+       {
+        "chip": 3,
+        "attr": 1
+       },
+       {
+        "chip": 6,
+        "attr": 2
+       },
+       {
+        "chip": 9,
+        "attr": 3
+       },
+       {
+        "chip": 12,
+        "attr": 4
+       },
+       {
+        "chip": 15,
+        "attr": 5
+       },
+       {
+        "chip": 18,
+        "attr": 6
+       },
+       {
+        "chip": 21,
+        "attr": 7
+       },
+       {
+        "chip": 24,
+        "attr": 0
+       },
+       {
+        "chip": 27,
+        "attr": 1
+       },
+       {
+        "chip": 30,
+        "attr": 2
+       },
+       {
+        "chip": 33,
+        "attr": 3
+       },
+       {
+        "chip": 36,
+        "attr": 4
+       },
+       {
+        "chip": 39,
+        "attr": 5
+       },
+       {
+        "chip": 42,
+        "attr": 6
+       },
+       {
+        "chip": 45,
+        "attr": 7
+       },
+       {
+        "chip": 48,
+        "attr": 0
+       },
+       {
+        "chip": 51,
+        "attr": 1
+       },
+       {
+        "chip": 54,
+        "attr": 2
+       },
+       {
+        "chip": 57,
+        "attr": 3
+       },
+       {
+        "chip": 60,
+        "attr": 4
+       },
+       {
+        "chip": 63,
+        "attr": 5
+       },
+       {
+        "chip": 66,
+        "attr": 6
+       },
+       {
+        "chip": 69,
+        "attr": 7
+       },
+       {
+        "chip": 72,
+        "attr": 0
+       },
+       {
+        "chip": 75,
+        "attr": 1
+       },
+       {
+        "chip": 78,
+        "attr": 2
+       },
+       {
+        "chip": 81,
+        "attr": 3
+       },
+       {
+        "chip": 84,
+        "attr": 4
+       },
+       {
+        "chip": 87,
+        "attr": 5
+       },
+       {
+        "chip": 90,
+        "attr": 6
+       },
+       {
+        "chip": 93,
+        "attr": 7
+       },
+       {
+        "chip": 96,
+        "attr": 0
+       },
+       {
+        "chip": 99,
+        "attr": 1
+       },
+       {
+        "chip": 102,
+        "attr": 2
+       },
+       {
+        "chip": 105,
+        "attr": 3
+       },
+       {
+        "chip": 108,
+        "attr": 4
+       },
+       {
+        "chip": 111,
+        "attr": 5
+       },
+       {
+        "chip": 114,
+        "attr": 6
+       },
+       {
+        "chip": 117,
+        "attr": 7
+       },
+       {
+        "chip": 120,
+        "attr": 0
+       },
+       {
+        "chip": 123,
+        "attr": 1
+       },
+       {
+        "chip": 126,
+        "attr": 2
+       },
+       {
+        "chip": 129,
+        "attr": 3
+       },
+       {
+        "chip": 132,
+        "attr": 4
+       },
+       {
+        "chip": 135,
+        "attr": 5
+       },
+       {
+        "chip": 138,
+        "attr": 6
+       },
+       {
+        "chip": 141,
+        "attr": 7
+       },
+       {
+        "chip": 144,
+        "attr": 0
+       }
+      ],
+      "chars": [
+       {
+        "id": 42,
+        "x": 1,
+        "y": 5,
+        "dir": "L",
+        "name": "野ネズミ",
+        "gra": "ネズミ",
+        "status": 0,
+        "gigant": "*",
+        "layer": 1,
+        "default": 130,
+        "magnify": {
+         "w": 64,
+         "h": 64,
+         "z": 1
+        }
+       }
+      ],
+      "style": "turn",
+      "pos": {
+       "x": 10,
+       "y": 20
+      }
+     }
+    ]
+   },
+   {
+    "line": "236d3537202e",
+    "events": [
+     {
+      "type": "map",
+      "size": 7,
+      "dir": 0,
+      "cells": [
+       {
+        "chip": 0,
+        "attr": 0
+       },
+       {
+        "chip": 3,
+        "attr": 1
+       },
+       {
+        "chip": 6,
+        "attr": 2
+       },
+       {
+        "chip": 9,
+        "attr": 3
+       },
+       {
+        "chip": 12,
+        "attr": 4
+       },
+       {
+        "chip": 15,
+        "attr": 5
+       },
+       {
+        "chip": 18,
+        "attr": 6
+       },
+       {
+        "chip": 21,
+        "attr": 7
+       },
+       {
+        "chip": 24,
+        "attr": 0
+       },
+       {
+        "chip": 27,
+        "attr": 1
+       },
+       {
+        "chip": 30,
+        "attr": 2
+       },
+       {
+        "chip": 33,
+        "attr": 3
+       },
+       {
+        "chip": 36,
+        "attr": 4
+       },
+       {
+        "chip": 39,
+        "attr": 5
+       },
+       {
+        "chip": 42,
+        "attr": 6
+       },
+       {
+        "chip": 45,
+        "attr": 7
+       },
+       {
+        "chip": 48,
+        "attr": 0
+       },
+       {
+        "chip": 51,
+        "attr": 1
+       },
+       {
+        "chip": 54,
+        "attr": 2
+       },
+       {
+        "chip": 57,
+        "attr": 3
+       },
+       {
+        "chip": 60,
+        "attr": 4
+       },
+       {
+        "chip": 63,
+        "attr": 5
+       },
+       {
+        "chip": 66,
+        "attr": 6
+       },
+       {
+        "chip": 69,
+        "attr": 7
+       },
+       {
+        "chip": 72,
+        "attr": 0
+       },
+       {
+        "chip": 75,
+        "attr": 1
+       },
+       {
+        "chip": 78,
+        "attr": 2
+       },
+       {
+        "chip": 81,
+        "attr": 3
+       },
+       {
+        "chip": 84,
+        "attr": 4
+       },
+       {
+        "chip": 87,
+        "attr": 5
+       },
+       {
+        "chip": 90,
+        "attr": 6
+       },
+       {
+        "chip": 93,
+        "attr": 7
+       },
+       {
+        "chip": 96,
+        "attr": 0
+       },
+       {
+        "chip": 99,
+        "attr": 1
+       },
+       {
+        "chip": 102,
+        "attr": 2
+       },
+       {
+        "chip": 105,
+        "attr": 3
+       },
+       {
+        "chip": 108,
+        "attr": 4
+       },
+       {
+        "chip": 111,
+        "attr": 5
+       },
+       {
+        "chip": 114,
+        "attr": 6
+       },
+       {
+        "chip": 117,
+        "attr": 7
+       },
+       {
+        "chip": 120,
+        "attr": 0
+       },
+       {
+        "chip": 123,
+        "attr": 1
+       },
+       {
+        "chip": 126,
+        "attr": 2
+       },
+       {
+        "chip": 129,
+        "attr": 3
+       },
+       {
+        "chip": 132,
+        "attr": 4
+       },
+       {
+        "chip": 135,
+        "attr": 5
+       },
+       {
+        "chip": 138,
+        "attr": 6
+       },
+       {
+        "chip": 141,
+        "attr": 7
+       },
+       {
+        "chip": 144,
+        "attr": 0
+       }
+      ],
+      "chars": [
+       {
+        "id": 42,
+        "x": 1,
+        "y": 5,
+        "dir": "L",
+        "name": "野ネズミ",
+        "gra": "ネズミ",
+        "status": 0,
+        "gigant": "*",
+        "layer": 1,
+        "default": 130,
+        "magnify": {
+         "w": 64,
+         "h": 64,
+         "z": 1
+        }
+       }
+      ],
+      "style": "turn"
+     }
+    ]
+   },
+   {
+    "line": "2365782d706f7320612031",
+    "events": []
+   }
+  ]
+ },
+ {
+  "name": "modes",
+  "steps": [
+   {
+    "line": "2361747461636b",
+    "events": [
+     {
+      "type": "mode",
+      "attack": true,
+      "magic": false,
+      "list": false,
+      "more": false
+     }
+    ]
+   },
+   {
+    "line": "2361747461636b",
+    "events": []
+   },
+   {
+    "line": "23656e642d6174",
+    "events": [
+     {
+      "type": "mode",
+      "attack": false,
+      "magic": false,
+      "list": false,
+      "more": false
+     }
+    ]
+   },
+   {
+    "line": "236d61676963",
+    "events": [
+     {
+      "type": "mode",
+      "attack": false,
+      "magic": true,
+      "list": false,
+      "more": false
+     }
+    ]
+   },
+   {
+    "line": "23656e642d6d67",
+    "events": [
+     {
+      "type": "mode",
+      "attack": false,
+      "magic": false,
+      "list": false,
+      "more": false
+     }
+    ]
+   },
+   {
+    "line": "236d6f7265",
+    "events": [
+     {
+      "type": "mode",
+      "attack": false,
+      "magic": false,
+      "list": false,
+      "more": true
+     }
+    ]
+   },
+   {
+    "line": "8ac594c282cc967b95b6",
+    "events": [
+     {
+      "type": "message",
+      "channel": "log",
+      "text": "看板の本文",
+      "markup": false
+     }
+    ]
+   },
+   {
+    "line": "23656e642d6d6f7265",
+    "events": [
+     {
+      "type": "mode",
+      "attack": false,
+      "magic": false,
+      "list": false,
+      "more": false
+     }
+    ]
+   },
+   {
+    "line": "23656e642d6d6f7265",
+    "events": []
+   }
+  ]
+ },
+ {
+  "name": "list",
+  "steps": [
+   {
+    "line": "236c697374",
+    "events": [
+     {
+      "type": "mode",
+      "attack": false,
+      "magic": false,
+      "list": true,
+      "more": false
+     },
+     {
+      "type": "list",
+      "active": true,
+      "lines": []
+     }
+    ]
+   },
+   {
+    "line": "312e208c95",
+    "events": []
+   },
+   {
+    "line": "322e208f82",
+    "events": []
+   },
+   {
+    "line": "23656e642d6c697374",
+    "events": [
+     {
+      "type": "list",
+      "active": true,
+      "lines": [
+       "1. 剣",
+       "2. 盾"
+      ]
+     }
+    ]
+   },
+   {
+    "line": "838a835883678ce382cc8d73",
+    "events": [
+     {
+      "type": "message",
+      "channel": "log",
+      "text": "リスト後の行",
+      "markup": false
+     }
+    ]
+   },
+   {
+    "line": "2365782d6c6973742d6d6f64652d656e64",
+    "events": [
+     {
+      "type": "list",
+      "active": false
+     },
+     {
+      "type": "mode",
+      "attack": false,
+      "magic": false,
+      "list": false,
+      "more": false
+     }
+    ]
+   },
+   {
+    "line": "236c697374",
+    "events": [
+     {
+      "type": "mode",
+      "attack": false,
+      "magic": false,
+      "list": true,
+      "more": false
+     },
+     {
+      "type": "list",
+      "active": true,
+      "lines": []
+     }
+    ]
+   },
+   {
+    "line": "23656e642d6c697374",
+    "events": [
+     {
+      "type": "list",
+      "active": true,
+      "lines": []
+     }
+    ]
+   },
+   {
+    "line": "236c697374",
+    "events": [
+     {
+      "type": "list",
+      "active": true,
+      "lines": []
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "edit",
+  "steps": [
+   {
+    "line": "23732d65646974",
+    "events": [
+     {
+      "type": "edit",
+      "mode": "single"
+     }
+    ]
+   },
+   {
+    "line": "236d2d65646974",
+    "events": [
+     {
+      "type": "edit",
+      "mode": "multi"
+     }
+    ]
+   },
+   {
+    "line": "232e",
+    "events": [
+     {
+      "type": "edit",
+      "mode": "end"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "chat",
+  "steps": [
+   {
+    "line": "23757365722030303132204578616d706c65436861722020202020202020202020202020202020202020",
+    "events": [
+     {
+      "type": "userList",
+      "users": [
+       {
+        "key": "u12",
+        "name": "ExampleChar"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "line": "237573657220303030332089d48e71202020202020202020202020202020202020202020202020202020",
+    "events": [
+     {
+      "type": "userList",
+      "users": [
+       {
+        "key": "u12",
+        "name": "ExampleChar"
+       },
+       {
+        "key": "u3",
+        "name": "花子"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "line": "23757365722030303132204578616d706c65436861722020202020202020202020202020202020202020",
+    "events": [
+     {
+      "type": "userList",
+      "users": [
+       {
+        "key": "u12",
+        "name": "ExampleChar"
+       },
+       {
+        "key": "u3",
+        "name": "花子"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "line": "237573657220303078312062726f6b656e20202020202020202020202020202020202020202020202020",
+    "events": []
+   },
+   {
+    "line": "23757365722073686f7274",
+    "events": []
+   },
+   {
+    "line": "4578616d706c6543686172203e2082e282a0",
+    "events": [
+     {
+      "type": "message",
+      "channel": "talk",
+      "text": "ExampleChar > やあ",
+      "from": "ExampleChar",
+      "markup": false
+     }
+    ]
+   },
+   {
+    "line": "89d48e71203e202f2a636c3d7265642a2f90d42f2a2e2a2f",
+    "events": [
+     {
+      "type": "message",
+      "channel": "talk",
+      "text": "花子 > /*cl=red*/赤/*.*/",
+      "from": "花子",
+      "markup": true
+     }
+    ]
+   },
+   {
+    "line": "4e5043203e206869",
+    "events": [
+     {
+      "type": "message",
+      "channel": "log",
+      "text": "NPC > hi",
+      "markup": false
+     }
+    ]
+   },
+   {
+    "line": "5b426f625d203e20686579",
+    "events": [
+     {
+      "type": "message",
+      "channel": "priv",
+      "text": "[Bob] > hey",
+      "from": "Bob",
+      "markup": false
+     }
+    ]
+   },
+   {
+    "line": "5b426f625d2078",
+    "events": [
+     {
+      "type": "message",
+      "channel": "log",
+      "text": "[Bob] x",
+      "markup": false
+     }
+    ]
+   },
+   {
+    "line": "5b5d203e2078",
+    "events": [
+     {
+      "type": "message",
+      "channel": "priv",
+      "text": "[] > x",
+      "from": "",
+      "markup": false
+     }
+    ]
+   },
+   {
+    "line": "3e2090e693aa",
+    "events": [
+     {
+      "type": "message",
+      "channel": "log",
+      "text": "> 先頭",
+      "markup": false
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "notice",
+  "steps": [
+   {
+    "line": "236e616d652097458ed2",
+    "events": [
+     {
+      "type": "notice",
+      "name": "勇者"
+     }
+    ]
+   },
+   {
+    "line": "236d6170736574206d616e73696f6e20",
+    "events": [
+     {
+      "type": "notice",
+      "mapset": "mansion"
+     }
+    ]
+   },
+   {
+    "line": "2365782d6e6f74696365206c616e643d46616e746173792049736c616e6420436f756e747279",
+    "events": [
+     {
+      "type": "notice",
+      "world": "Fantasy Island Country"
+     }
+    ]
+   },
+   {
+    "line": "2365782d6e6f7469636520617265613d8d6092ac82cc8ef08fea",
+    "events": [
+     {
+      "type": "notice",
+      "area": "港町の酒場"
+     }
+    ]
+   },
+   {
+    "line": "2362676d205365696a75",
+    "events": []
+   },
+   {
+    "line": "2365782d6e6f74696365206f746865723d31",
+    "events": []
+   }
+  ]
+ },
+ {
+  "name": "status",
+  "steps": [
+   {
+    "line": "23737461747573",
+    "events": [
+     {
+      "type": "status"
+     }
+    ]
+   },
+   {
+    "line": "2373746174757320745f4c6f7264203a2031203a2078203a2033",
+    "events": [
+     {
+      "type": "status",
+      "name": "t_Lord",
+      "hp": 1,
+      "mp": 3
+     }
+    ]
+   },
+   {
+    "line": "2373746174757320203a2035",
+    "events": [
+     {
+      "type": "status",
+      "hp": 5
+     }
+    ]
+   },
+   {
+    "line": "237374617475732096bc914f3a313a323a333a343a353a363a373a383a393a31303a3131",
+    "events": [
+     {
+      "type": "status",
+      "name": "名前",
+      "hp": 1,
+      "maxHp": 2,
+      "mp": 3,
+      "maxMp": 4,
+      "exp": 5,
+      "gp": 6,
+      "f": 7,
+      "w": 8,
+      "m": 9,
+      "c": 10
+     }
+    ]
+   },
+   {
+    "line": "23636f6e64202a2d2a2d2d2d2d",
+    "events": [
+     {
+      "type": "cond",
+      "poison": true,
+      "palsy": false,
+      "panic": true,
+      "confuse": false,
+      "berserk": false,
+      "silence": false,
+      "blind": false
+     }
+    ]
+   },
+   {
+    "line": "23636f6e64202a2a",
+    "events": [
+     {
+      "type": "cond",
+      "poison": true,
+      "palsy": true,
+      "panic": false,
+      "confuse": false,
+      "berserk": false,
+      "silence": false,
+      "blind": false
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "eagleeye",
+  "steps": [
+   {
+    "line": "236d617073657420666f72657374",
+    "events": [
+     {
+      "type": "notice",
+      "mapset": "forest"
+     }
+    ]
+   },
+   {
+    "line": "2365782d6561676c65657965207374617274",
+    "events": []
+   },
+   {
+    "line": "2365782d6561676c65657965204d20303220303020010203040506",
+    "events": []
+   },
+   {
+    "line": "2365782d6561676c65657965204d203032203031200708090a0b0c",
+    "events": []
+   },
+   {
+    "line": "2365782d6561676c65657965204d203032203939200101",
+    "events": []
+   },
+   {
+    "line": "2365782d6561676c6565796520706f7320312031",
+    "events": []
+   },
+   {
+    "line": "2365782d6561676c6565796520656e64",
+    "events": [
+     {
+      "type": "eagleEye",
+      "width": 3,
+      "height": 2,
+      "self": {
+       "x": 1,
+       "y": 1
+      },
+      "cells": [
+       {
+        "chip": 1,
+        "attr": 2
+       },
+       {
+        "chip": 3,
+        "attr": 4
+       },
+       {
+        "chip": 5,
+        "attr": 6
+       },
+       {
+        "chip": 7,
+        "attr": 8
+       },
+       {
+        "chip": 9,
+        "attr": 10
+       },
+       {
+        "chip": 11,
+        "attr": 12
+       }
+      ],
+      "mapset": "forest"
+     }
+    ]
+   },
+   {
+    "line": "2365782d6561676c65657965207374617274",
+    "events": []
+   },
+   {
+    "line": "2365782d6561676c6565796520656e64",
+    "events": [
+     {
+      "type": "eagleEye",
+      "width": 0,
+      "height": 0,
+      "self": {
+       "x": 0,
+       "y": 0
+      },
+      "cells": [],
+      "mapset": "forest"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "control",
+  "steps": [
+   {
+    "line": "2363682d737276203139322e302e322e312039303030",
+    "events": [
+     {
+      "type": "worldTransfer",
+      "state": "start",
+      "server": "192.0.2.1:9000"
+     }
+    ]
+   },
+   {
+    "line": "2363682d737276203139322e302e322e312078",
+    "events": []
+   },
+   {
+    "line": "2363682d737276206f6e6c79",
+    "events": []
+   },
+   {
+    "line": "236c6167",
+    "events": [
+     {
+      "type": "_internal",
+      "action": "lag"
+     }
+    ]
+   },
+   {
+    "line": "2372656d6170",
+    "events": [
+     {
+      "type": "_internal",
+      "action": "remap"
+     }
+    ]
+   },
+   {
+    "line": "23636c6f7365",
+    "events": [
+     {
+      "type": "connection",
+      "state": "closed"
+     }
+    ]
+   },
+   {
+    "line": "2378",
+    "events": [
+     {
+      "type": "connection",
+      "state": "closed"
+     }
+    ]
+   },
+   {
+    "line": "2365782d6368722d636f6e666c6963742031",
+    "events": [
+     {
+      "type": "message",
+      "channel": "system",
+      "text": "3重状態で消えています。移動してください",
+      "markup": false
+     }
+    ]
+   },
+   {
+    "line": "23756e6b6e6f776e2d636d64",
+    "events": []
+   },
+   {
+    "line": "2323206e6f74206120636f6d6d616e64",
+    "events": [
+     {
+      "type": "message",
+      "channel": "log",
+      "text": "## not a command",
+      "markup": false
+     }
+    ]
+   },
+   {
+    "line": "23206e6f74206120636f6d6d616e64",
+    "events": [
+     {
+      "type": "message",
+      "channel": "log",
+      "text": "# not a command",
+      "markup": false
+     }
+    ]
+   },
+   {
+    "line": "23",
+    "events": [
+     {
+      "type": "message",
+      "channel": "log",
+      "text": "#",
+      "markup": false
+     }
+    ]
+   },
+   {
+    "line": "",
+    "events": []
+   }
+  ]
+ }
+]

@@ -1,0 +1,112 @@
+/* ログウィンドウのスタイルシート */
+body		/* ログの大部分 */
+{
+	background:		white;		/* 背景色 */
+	color:			black;		/* 文字色 */
+	font-family:	"meiryoKe_Gothic", "meiryoKe_Console", "meiryoKe_Gothic", "MS Mゴシック Ex+", "ＭＳ ゴシック", monospace;	/* フォント名（第一希望：ＭＳ ゴシック、第２希望：monospace） */
+	font-size:		14px;		/* 文字サイズ、Windows のバグのため、奇数では等幅にならない（XPからは修正されている）*/
+	line-height:	18px;		/* 行間 */
+	margin-top:		3;			/* 上マージン */
+	margin-left:	3;			/* 左マージン */
+	margin-right:	3;			/* 右マージン */
+	margin-buttom:	3;			/* 下マージン */
+	word-break:		break-all;	/* 長い行を折り返すか */
+/*	white-space:	nowrap;		改行をしない */
+}
+
+.class_name		/* キャラクターの名前部分のフォント */
+{
+	font-family:	sans-serif;	/* この行を消せば、名前部分のフォントが通常のフォントと同じになる */
+}
+
+.class_time		/* 時刻表示のフォント */
+{
+	color:			teal;	/* 文字色 */
+	font:			12px / "MeiryoKe_PGothic", "ＭＳ Ｐゴシック", sans-serif;	/* フォント */
+}
+.class_time		/* 時刻表示のフォント */
+{
+	color:			teal;	/* 文字色 */
+	font-size:		90%;	/* 文字サイズ */
+	font-family:	"MeiryoKe_PGothic", "ＭＳ Ｐゴシック", sans-serif;	/* フォント名 */
+}
+
+.class_system_ok	/* 正常時のシステムメッセージのフォント */
+{
+	color:			teal;	/* 文字色 */
+	font-size:		12px;	/* 文字サイズ */
+	line-height:	16px%;	/* 改行幅 */
+	font-family:	"MeiryoKe_PGothic", "ＭＳ Ｐゴシック", sans-serif;	/* フォント名 */
+}
+
+.class_system_ng	/* 異常時のシステムメッセージのフォント */
+{
+	color:			red;;	/* 文字色 */
+	font-size:		12px;	/* 文字サイズ */
+	line-height:	16px;	/* 改行幅 */
+	font-family:	"MeiryoKe_PGothic", "ＭＳ Ｐゴシック", sans-serif;	/* フォント名 */
+}
+
+/* -------------*/
+/* フォントタグ */
+/* -------------*/
+/* サイズ */
+.size_large			{ font-size:32px; line-height:36px; }
+.size_small			{ font-size:10px; line-height:14px; }
+.size__9, .size_9	{ font-size:100px; line-height:104px; }
+.size__8, .size_8	{ font-size:88px; line-height:92px; }
+.size__7, .size_7	{ font-size:70px; line-height:74px; }
+.size__6, .size_6	{ font-size:56px; line-height:60px; }
+.size__5, .size_5	{ font-size:44px; line-height:48px; }
+.size__4, .size_4	{ font-size:34px; line-height:38px; }
+.size__3, .size_3	{ font-size:26px; line-height:30px; }
+.size__2, .size_2	{ font-size:20px; line-height:24px; }
+.size__1, .size_1	{ font-size:16px; line-height:20px; }
+.size__0, .size_0	{ font-size:14px; line-height:18px; }
+.size_-1			{ font-size:13px; line-height:17px; }
+.size_-2			{ font-size:12px; line-height:16px; }
+.size_-3			{ font-size:11px; line-height:15px; }
+.size_-4			{ font-size:10px; line-height:14px; }
+.size_-5			{ font-size: 9px; line-height:13px; }
+.size_-6			{ font-size: 8px; line-height:12px; }
+.size_-7			{ font-size: 7px; line-height:11px; }
+.size_-8			{ font-size: 6px; line-height:10px; }
+.size_-9			{ font-size: 5px; line-height: 9px; }
+
+/* スタイル */
+.style_bold		{ font-weight:bold;					}
+.style_italic	{ font-style:italic;				}
+.style_strike	{ text-decoration:line-through;		}
+.style_under	{ text-decoration:underline;		}
+.style_over		{ text-decoration:overline;			}
+.style_sup		{ vertical-align:super;				}
+.style_sub		{ vertical-align:sub;				}
+
+/* カラー */
+/* １文字カラー */
+.color_a_	{ color:aqua;		}
+.color_b_	{ color:blue;		}
+.color_c_	{ color:#00e0e0;	}
+.color_f_	{ color:fuchsia;	}
+.color_g_	{ color:green;		}
+.color_h_	{ color:gray;		}
+.color_k_	{ color:black;		}
+.color_l_	{ color:lime;		}
+.color_m_	{ color:maroon;		}
+.color_n_	{ color:navy;		}
+.color_o_	{ color:olive;		}
+.color_p_	{ color:purple;		}
+.color_r_	{ color:red;		}
+.color_s_	{ color:silver;		}
+.color_t_	{ color:teal;		}
+.color_w_	{ color:#d0d0ff;	}
+.color_y_	{ color:#ffd200;	}
+/* 特殊カラー */
+.color__hp,		.cl__hp,	.c__hp		{ color:green;		}
+.color_-hp,		.cl_-hp,	.c_-hp		{ color:red;		}
+.color__mp,		.cl__mp,	.c__mp		{ color:blue;		}
+.color_-mp,		.cl_-mp,	.c_-mp		{ color:red;		}
+.color_777,		.cl_777,	.c_777		{ color:#777777;	}
+.color_white,	.cl_white,	.c_white	{ color:#d0d0ff;	}
+.color_cyan,	.cl_cyan,	.c_cyan		{ color:#00e0e0;	}
+.color_yellow,	.cl_yellow,	.c_yellow	{ color:#ffd200;	}

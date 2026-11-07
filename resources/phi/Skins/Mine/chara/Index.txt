@@ -1,0 +1,16 @@
+// キャラグラが見つからなかったときに使うキャラグラを指定します。
+// グラ名=ファイル名	（スペースの入ったファイル名不可）
+人・銅像			= LANU_Swordman.bmp
+知的生物			= LANU_Oyaji.bmp
+獣					= LANU_WolfK.bmp
+狂戦士				= w_j_rakshasa.bmp
+魔法生物			= LANU_GolemJ.bmp
+アンデッド			= t_skeltonr.bmp
+精神体				= t_ghost2.bmp
+イレイザー			= LANU_Slime.bmp
+setcg使用キャラ		= LANU_Swordman.bmp
+生物				= LANU_Oyaji.bmp
+看板				= Defboardobj.bmp
+魔法エフェクト		= Defmagicobj.bmp
+アニメオブジェ		= LANU_Oyaji.bmp
+アニメなしオブジェ	= Defboardobj.bmp
