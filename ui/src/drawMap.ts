@@ -53,7 +53,15 @@ export interface DrawMapInput {
   cells0Based?: boolean;
   /** 盤面の一辺(マス)。省略時は size から決める。マッピングの外周付き表示で使う。 */
   dim?: number;
+  /**
+   * EagleEye の盤面(Philly の EagleEye.cpp classEagleEye::Draw)。アイテムはマップチップの 19 番で描き(#14)、
+   * 人はマスの床の上端に描く(Philly は YPos+16。通常のマップのキャラのように上げない)
+   */
+  eagleEye?: boolean;
 }
+
+/** EagleEye でアイテムのマスに描くマップチップ(Philly の MapChipCache->Draw(..., 19, ...)) */
+const EAGLE_EYE_ITEM_CHIP = 19;
 
 /** マークアップ除去後の名前頭文字(placeholder用)。 */
 function nameInitial(name: string): string {
@@ -134,7 +142,12 @@ export function drawMap(
     }
 
     // 3. アイテムoverlay(attribute bits 0x70)
-    if (imgs.items) {
+    if (input.eagleEye && chipImg) {
+      for (let col = 0; col < dim; col++) {
+        const cell = input.cells[cellIndex(col, row, dim)];
+        if (cell && hasItem(cell.attr)) drawChip(ctx, chipImg, EAGLE_EYE_ITEM_CHIP, col, row, cs, scale, 'stretch');
+      }
+    } else if (imgs.items) {
       for (let col = 0; col < dim; col++) {
         const cell = input.cells[cellIndex(col, row, dim)];
         if (!cell || !hasItem(cell.attr)) continue;
@@ -151,7 +164,7 @@ export function drawMap(
     // 4. キャラ(この行)。同じマスに2人いれば横にずらす(arrangeRow)
     const rowChars = input.chars.filter((c) => c.y === row && c.x >= 0 && c.x < dim);
     for (const { ch, dx } of arrangeRow(rowChars)) {
-      drawChara(ctx, ch, cs, scale, imgs, animFrame, dx * scale);
+      drawChara(ctx, ch, cs, scale, imgs, animFrame, dx * scale, input.eagleEye ? 0 : CHARA_Y_ABOVE_FLOOR * scale);
     }
   }
 
@@ -232,6 +245,7 @@ function drawChara(
   imgs: ImageRefs,
   animFrame: number,
   dx = 0,
+  raise = 0,
 ): void {
   const img = imgs.chara(charaUrl(ch));
   if (!img) {
@@ -248,7 +262,7 @@ function drawChara(
   // 拡大表示(scale=2)は通常キャラも右側32×32フレームを使い等倍中央配置。
   const r = charaSrcRect(ch.dir, ch.gigant, animFrame, scale === 2);
   const baseX = ch.x * cs + Math.floor((cs - r.sw) / 2) + dx;
-  const baseY = ch.y * cs + Math.floor((cs - CHARA_H) / 2) - CHARA_Y_ABOVE_FLOOR * scale;
+  const baseY = ch.y * cs + Math.floor((cs - CHARA_H) / 2) - raise;
 
   // 巨大キャラ magnify(#ex-obj): 描画原点補正 + 拡大サイズ。scale で拡大。
   if (ch.magnify) {

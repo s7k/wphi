@@ -32,7 +32,7 @@ function EagleEyeWindow() {
     const mapset = ev.mapset ?? "";
     drawMap(
       ctx,
-      { size: board.dim, dim: board.dim, mapset, cells: board.cells, chars: board.chars },
+      { size: board.dim, dim: board.dim, mapset, cells: board.cells, chars: board.chars, eagleEye: true },
       { chip: image(assetUrl("chip", { mapset })), items: image(assetUrl("items")), chara: image },
       0,
     );
