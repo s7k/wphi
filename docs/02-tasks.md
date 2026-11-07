@@ -38,6 +38,7 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
   - [x] 魔法を唱える操作の後に届く cast の一覧を出さない(Philly の NextListCancel)。空のリストも出さない
   - [ ] 9 で続きのページ(`#more`)を送る処理と、番号のずれ(ListOffset)・範囲外の番号でリストを閉じる処理(ListEndTenKeyCertainly)
   - [ ] マップ窓のリストをクリックで選ぶ
+  - [ ] リストの書き出し(Philly の「書き出し」ボタン)
 - [x] s-edit(1行入力)と m-edit(看板などの複数行入力。Philly の MEditForm)。S(write)から開く。s-edit は Philly と同じく入力欄で答える
   - [ ] 看板エディタを別窓にする(今は main 窓の中に重ねている。窓の配置と一緒に決める)
   - [ ] タグメニュー(`TagMenu.xml`)とタグの無効化

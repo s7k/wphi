@@ -23,7 +23,12 @@ export function ListOverlay(props: { list: ListState; onChange: (l: ListState) =
     <div className="list-overlay">
       <ul>
         {l.lines.map((line, i) => (
-          <li key={i} className={i === l.cursor ? "cursor" : undefined}>
+          <li
+            key={i}
+            className={i === l.cursor ? "cursor" : undefined}
+            // ダブルクリックで OK(Philly の ListBox の OnDblClick)
+            onDoubleClick={() => props.onSend(listOk({ ...l, cursor: i }))}
+          >
             <label>
               <input type="checkbox" checked={l.checked[i] ?? false} onChange={() => toggle(i)} />
               {stripTags(line)}
@@ -31,10 +36,13 @@ export function ListOverlay(props: { list: ListState; onChange: (l: ListState) =
           </li>
         ))}
       </ul>
+      {/* ボタン名は Philly と同じ(MainForm.cpp)。More は9件目(続きの印)がある時だけ押せる */}
       <div className="list-buttons">
-        <button onClick={() => props.onSend(listOk(l))}>送る</button>
-        <button onClick={() => props.onSend("-")}>すべて</button>
-        <button onClick={() => props.onSend(".")}>取り消し</button>
+        <button onClick={() => props.onSend(listOk(l))}>O K</button>
+        <button onClick={() => props.onSend(".")}>Cancel</button>
+        <button disabled={l.lines.length < 9} onClick={() => props.onSend("9")}>
+          More
+        </button>
       </div>
     </div>
   );
