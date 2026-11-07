@@ -15,6 +15,17 @@ export type Tiles = Record<string, MapCell>;
 /** 通常マップ(7x7)の外側に足す記録地図の幅の上限(マス) */
 export const AUTOMAP_RING = 4;
 
+/**
+ * マップの欄(幅 w・高さ h ピクセル)に出す外周の幅(マス)。
+ * 外周の一番外のマスは、半分以上見えれば欄の端で切れても出す。収まる分だけにすると、既定の大きさの map 窓
+ * (マップの欄が約 284px、外周1マスに要るのは 288px)で外周が出ない。中央の 7x7 は切らない
+ */
+export function ringFor(w: number, h: number, chip: number): number {
+  const side = Math.min(w, h);
+  if (side < 7 * chip) return 0;
+  return Math.min(AUTOMAP_RING, Math.round((side / chip - 7) / 2));
+}
+
 export const storageKey = (world: string) => `phi_automap:${world}`;
 
 export function loadTiles(world: string): Tiles {

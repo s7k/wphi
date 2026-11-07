@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { absorb, compose } from "./automap.ts";
+import { absorb, compose, ringFor } from "./automap.ts";
 import type { MapEvent } from "./protocol";
 
 const Q = "?".charCodeAt(0);
@@ -48,4 +48,14 @@ test("外周に記録地図を置き、中央の '?' も記録で埋める", () 
   // キャラは外周の幅だけずれる
   assert.deepEqual([m.chars[0].x, m.chars[0].y], [4, 4]);
   assert.equal(compose(now, tiles, 0), null);
+});
+
+test("外周の幅は一番外のマスが半分以上見えれば出す", () => {
+  assert.equal(ringFor(0, 0, 32), 0);
+  assert.equal(ringFor(224, 400, 32), 0);
+  // 既定の map 窓のマップの欄(約 284px)でも外周1マス
+  assert.equal(ringFor(284, 400, 32), 1);
+  assert.equal(ringFor(270, 400, 32), 1);
+  assert.equal(ringFor(250, 400, 32), 0);
+  assert.equal(ringFor(2000, 2000, 32), 4);
 });

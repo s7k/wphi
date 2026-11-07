@@ -8,7 +8,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { assetUrl } from "./asset";
-import { AUTOMAP_RING, compose, loadTiles, storageKey, type Tiles } from "./automap.ts";
+import { compose, ringFor, loadTiles, storageKey, type Tiles } from "./automap.ts";
 import { drawMap, type ImageRefs } from "./drawMap";
 import { KEY_EVENT, MOUSE_EVENT, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { mouseDir } from "./mouseDir.ts";
@@ -99,8 +99,7 @@ function MapWindow() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const cells = Math.floor(Math.min(area.w, area.h) / CHIP_SIZE);
-  const ring = Math.max(0, Math.min(AUTOMAP_RING, Math.floor((cells - 7) / 2)));
+  const ring = ringFor(area.w, area.h, CHIP_SIZE);
   const automap = map ? compose(map, tiles, ring) : null;
   const dim = automap?.dim ?? (map ? gridDim(map.size) : 7);
   const northFix = !map || (map.size === 7 && map.style !== "turn");
