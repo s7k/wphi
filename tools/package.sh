@@ -10,7 +10,8 @@ set -euo pipefail
 
 os="${1:?windows・linux・macos のどれかを渡す}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
-version="$(node -p "require('$root/src-tauri/tauri.conf.json').version")"
+# Windows の Git Bash の /d/... のパスは Node が読めないので、直下からの相対パスで読む
+version="$(cd "$root" && node -p "require('./src-tauri/tauri.conf.json').version")"
 out="$root/dist-zip"
 stage="$out/WPHI"
 rm -rf "$stage"
