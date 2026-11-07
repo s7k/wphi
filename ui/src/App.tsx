@@ -156,17 +156,25 @@ export function App() {
   const mapStates = useRef(new Map<number, MapState>());
   const activeRef = useRef<number | null>(null);
   activeRef.current = active;
-  // map 窓へは 16ms にまとめて送る。#m57 と #status がそれぞれ 0.2 秒ごとに届き、1つ届くたびに MapState 全体を送っていた
-  const mapStateTimer = useRef<number | undefined>(undefined);
+  // map 窓へは、続けて届いた分を次のタスクでまとめて送る。#m57 と #status がそれぞれ 0.2 秒ごとに届き、1つ届くたびに MapState 全体を送っていた。
+  // setTimeout を使わない。map 窓にフォーカスがある間 main 窓は裏の窓になり、WebView2 がタイマーを 1 秒ごとに間引くと地図が止まって見える(#44)
+  const mapStatePort = useRef<MessageChannel | null>(null);
+  const mapStateQueued = useRef(false);
   const mapStateSession = useRef<number | null>(null);
   const sendMapState = (session: number | null) => {
     mapStateSession.current = session;
-    mapStateTimer.current ??= window.setTimeout(() => {
-      mapStateTimer.current = undefined;
-      const s = mapStateSession.current;
-      const state = s === null ? undefined : mapStates.current.get(s);
-      emitTo("map", MAP_STATE_EVENT, state ?? { session: -1, mapset: "" }).catch((e) => console.error(e));
-    }, 16);
+    if (mapStateQueued.current) return;
+    mapStateQueued.current = true;
+    if (!mapStatePort.current) {
+      mapStatePort.current = new MessageChannel();
+      mapStatePort.current.port1.onmessage = () => {
+        mapStateQueued.current = false;
+        const s = mapStateSession.current;
+        const state = s === null ? undefined : mapStates.current.get(s);
+        emitTo("map", MAP_STATE_EVENT, state ?? { session: -1, mapset: "" }).catch((e) => console.error(e));
+      };
+    }
+    mapStatePort.current.port2.postMessage(null);
   };
   useEffect(() => sendMapState(active), [active]);
   // 前に出したタブの未読の印を消す
