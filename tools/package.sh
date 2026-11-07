@@ -74,8 +74,9 @@ rm -f "$out/$zip_name"
 case "$os" in
   # macOS の .app は ditto で固める(実行権限や拡張属性を保つ)
   macos) (cd "$out" && ditto -c -k --keepParent WPHI "$zip_name") ;;
-  # Windows の CI(Git Bash)には zip が無いので PowerShell で固める
-  windows) (cd "$out" && powershell -NoProfile -Command "Compress-Archive -Path WPHI -DestinationPath '$zip_name' -Force") ;;
+  # Windows の CI(Git Bash)には zip が無いので 7-Zip で固める。
+  # PowerShell の Compress-Archive はパスの区切りを \ にし、macOS や Linux の展開ツールが警告を出す
+  windows) (cd "$out" && 7z a -tzip -bso0 "$zip_name" WPHI) ;;
   *) (cd "$out" && zip -qr "$zip_name" WPHI) ;;
 esac
 echo "$out/$zip_name"
