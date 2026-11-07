@@ -1,7 +1,7 @@
 // マップ窓の下のステータス表示。配置と色は Philly の classStatus(CharacterCommon.cpp)と
 // スキンの HpMpPanel.bmp・HpMpBar.bmp・Status.bmp に合わせ、文字がにじまないよう HTML で描く。
 // Status.bmp の teal の地は古く見えるので使わず、文字の色で見分ける。
-import { sendLine } from "./keyInput";
+import { sendLines } from "./keyInput";
 import type { CondEvent, StatusEvent } from "./protocol";
 
 /** バーの割合(0〜100) */
@@ -36,7 +36,7 @@ export function StatusPanel(props: {
   const hp = s?.hp ?? 0;
   const mp = s?.mp ?? 0;
   const value = (v: number | undefined) => <span className="status-value">{v ?? ""}</span>;
-  const send = (text: string) => props.session >= 0 && sendLine(props.session, text);
+  const send = (text: string) => props.session >= 0 && sendLines(props.session, text);
   return (
     <div className="status-panel" title={s?.exp !== undefined ? `Exp:${s.exp}` : undefined}>
       <div className="hpmp-labels">

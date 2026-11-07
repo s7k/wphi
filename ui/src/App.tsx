@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { SENT_EVENT } from "./keyInput";
-import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, type ForwardedKey } from "./keyInput";
+import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, menuAction, moveInput } from "./keys.ts";
 import { assetUrl } from "./asset";
 import { absorb, AUTOMAP_EVENT, loadTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
@@ -263,7 +263,7 @@ export function App() {
       // F8〜F12 と Alt+G(設定で決まる文字列)
       const shortcut = shortcutText(e, settingsRef.current, !!list);
       if (shortcut !== null) {
-        if (!e.repeat) sendLine(session, shortcut);
+        if (!e.repeat) sendLines(session, shortcut);
         return true;
       }
       const action = keyAction(e, ctx);
@@ -589,7 +589,7 @@ export function App() {
             <BoardEditor
               name={tab.label}
               onSend={(text) => {
-                sendLine(tab.session, text);
+                sendLines(tab.session, text);
                 update(tab.session, (t) => ({ ...t, board: false }));
               }}
               onCancel={() => {

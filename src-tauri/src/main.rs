@@ -346,11 +346,29 @@ fn connect(
     Ok(no)
 }
 
+/// 1行を送る。改行を含む文字列は送らない。UI のどこかに穴があっても、1回の送信にサーバのコマンドの行を
+/// 差し込ませない為(#54)。複数行を送るのは send_lines だけにする
 #[tauri::command]
 async fn send_line(session: u32, text: String, sessions: State<'_, Sessions>) -> Result<(), String> {
+    send(&sessions, session, vec![text]).await
+}
+
+/// 複数行を順に送る(看板の本文、F8〜F12 と Alt+G の \n)。
+#[tauri::command]
+async fn send_lines(session: u32, lines: Vec<String>, sessions: State<'_, Sessions>) -> Result<(), String> {
+    send(&sessions, session, lines).await
+}
+
+async fn send(sessions: &Sessions, session: u32, lines: Vec<String>) -> Result<(), String> {
+    if lines.iter().any(|l| l.contains(['\r', '\n'])) {
+        return Err("改行を含む行は送れません".into());
+    }
     let tx = sessions.senders.lock().unwrap().get(&session).cloned();
     let tx = tx.ok_or("接続していません")?;
-    tx.send(text).await.map_err(|_| "接続が切れています".to_string())
+    for l in lines {
+        tx.send(l).await.map_err(|_| "接続が切れています".to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -542,6 +560,7 @@ fn main() {
             register_character,
             connect,
             send_line,
+            send_lines,
             disconnect,
             log_css,
             log_html,

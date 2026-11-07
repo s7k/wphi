@@ -29,6 +29,12 @@ export function sendLine(session: number, text: string) {
   window.dispatchEvent(new CustomEvent(SENT_EVENT, { detail: { session, text } }));
 }
 
+/** 改行を含む文字列(看板の本文、F8〜F12)を1行ずつ順に送る。sendLine は改行を含む文字列を送らない */
+export function sendLines(session: number, text: string) {
+  invoke("send_lines", { session, lines: text.split(/\r?\n/) }).catch(console.error);
+  window.dispatchEvent(new CustomEvent(SENT_EVENT, { detail: { session, text } }));
+}
+
 /** 移動以外のキー操作を行う */
 export function runKeyAction(
   action: KeyAction,
@@ -45,7 +51,7 @@ export function runKeyAction(
   if ("send" in action) {
     if (action.confirm && !window.confirm(action.confirm)) return;
     if (action.cancelList) hooks.cancelList(action.cancelList);
-    sendLine(session, action.send);
+    sendLines(session, action.send);
   } else if ("toggleMap" in action) hooks.toggleMap();
   else if ("write" in action) {
     sendLine(session, "write");
