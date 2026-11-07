@@ -2,6 +2,7 @@
 
 mod assets;
 mod characters;
+mod jsonfile;
 mod menu;
 mod register;
 mod session;
@@ -46,31 +47,31 @@ fn list_characters(app: tauri::AppHandle) -> Result<Store, String> {
 /// キャラを登録する。`id` が空なら ID はそのまま(接続先だけを変える)。
 #[tauri::command]
 fn save_character(app: tauri::AppHandle, character: Character, id: String) -> Result<(), String> {
-    let path = store_path(&app)?;
-    let mut store = Store::load(&path);
-    if !id.is_empty() {
-        characters::set_id(&character.label, &id)?;
-    }
-    store.upsert(character);
-    store.save(&path)
+    Store::update(&store_path(&app)?, |store| {
+        if !id.is_empty() {
+            characters::set_id(&character.label, &id)?;
+        }
+        store.upsert(character);
+        Ok(())
+    })
 }
 
 #[tauri::command]
 fn delete_character(app: tauri::AppHandle, label: String) -> Result<(), String> {
-    let path = store_path(&app)?;
-    let mut store = Store::load(&path);
-    store.characters.retain(|c| c.label != label);
-    store.open_tabs.retain(|l| *l != label);
-    characters::delete_id(&label);
-    store.save(&path)
+    Store::update(&store_path(&app)?, |store| {
+        store.characters.retain(|c| c.label != label);
+        store.open_tabs.retain(|l| *l != label);
+        characters::delete_id(&label);
+        Ok(())
+    })
 }
 
 #[tauri::command]
 fn set_open_tabs(app: tauri::AppHandle, labels: Vec<String>) -> Result<(), String> {
-    let path = store_path(&app)?;
-    let mut store = Store::load(&path);
-    store.open_tabs = labels;
-    store.save(&path)
+    Store::update(&store_path(&app)?, |store| {
+        store.open_tabs = labels;
+        Ok(())
+    })
 }
 
 /// 画像を探す場所。取り込んだ Philly フォルダ → アプリを置いたフォルダ → 実行ファイルに埋め込んだ同梱の分の順。
@@ -148,16 +149,16 @@ fn import_philly(
     folder: String,
     assets: State<'_, Mutex<Arc<Assets>>>,
 ) -> Result<Vec<String>, String> {
-    let path = store_path(&app)?;
-    let mut store = Store::load(&path);
-    store.philly_folder = Some(folder.clone());
-    let mut labels = Vec::new();
-    for p in characters::read_philly(std::path::Path::new(&folder))? {
-        characters::set_id(&p.character.label, &p.id)?;
-        labels.push(p.character.label.clone());
-        store.upsert(p.character);
-    }
-    store.save(&path)?;
+    let labels = Store::update(&store_path(&app)?, |store| {
+        store.philly_folder = Some(folder.clone());
+        let mut labels = Vec::new();
+        for p in characters::read_philly(std::path::Path::new(&folder))? {
+            characters::set_id(&p.character.label, &p.id)?;
+            labels.push(p.character.label.clone());
+            store.upsert(p.character);
+        }
+        Ok(labels)
+    })?;
     *assets.lock().unwrap() = Arc::new(load_assets(&app)?);
     *app.state::<Mutex<Arc<sounds::Sounds>>>().lock().unwrap() = Arc::new(load_sounds(&app));
     Ok(labels)
@@ -222,11 +223,10 @@ fn import_philly_settings(app: tauri::AppHandle) -> Result<settings::Settings, S
         .ok_or("先に Philly フォルダからキャラを取り込んでください")?;
     let ini = std::path::Path::new(&folder).join("Config").join("Philly.ini");
     let bytes = std::fs::read(&ini).map_err(|e| format!("{}: {e}", ini.display()))?;
-    let path = settings_path(&app)?;
-    let mut s = settings::Settings::load(&path);
-    s.import_philly_ini(&bytes);
-    s.save(&path)?;
-    Ok(s)
+    jsonfile::update(&settings_path(&app)?, |s: &mut settings::Settings| {
+        s.import_philly_ini(&bytes);
+        Ok(s.clone())
+    })
 }
 
 /// 新規キャラ作成で選べる初期グラの名前。
@@ -248,15 +248,15 @@ async fn register_character(
 ) -> Result<String, String> {
     match register::register(&host, port, &name, &pass, image, &mail).await? {
         register::Outcome::Created(id) => {
-            let path = store_path(&app)?;
-            let mut store = Store::load(&path);
-            characters::set_id(&name, &id)?;
-            store.upsert(Character {
-                label: name.clone(),
-                host,
-                port,
-            });
-            store.save(&path)?;
+            Store::update(&store_path(&app)?, |store| {
+                characters::set_id(&name, &id)?;
+                store.upsert(Character {
+                    label: name.clone(),
+                    host,
+                    port,
+                });
+                Ok(())
+            })?;
             Ok(name)
         }
         register::Outcome::Rejected(fields) => {
@@ -295,12 +295,14 @@ fn connect(
     tauri::async_runtime::spawn(session::run(Login { host, port, id }, rx, move |ev| {
         // 世界移動したら、登録したキャラの接続先を書き換える(Philly の RewriteSaveData)
         if let UiEvent::Ui(session::UiOnly::WorldMoved { host, port }) = &ev {
-            let mut s = Store::load(&store);
-            if let Some(c) = s.characters.iter_mut().find(|c| c.label == label) {
-                c.host = host.clone();
-                c.port = *port;
-            }
-            if let Err(e) = s.save(&store) {
+            let r = Store::update(&store, |s| {
+                if let Some(c) = s.characters.iter_mut().find(|c| c.label == label) {
+                    c.host = host.clone();
+                    c.port = *port;
+                }
+                Ok(())
+            });
+            if let Err(e) = r {
                 eprintln!("接続先を保存出来ません: {e}");
             }
         }

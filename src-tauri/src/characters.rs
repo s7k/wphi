@@ -31,18 +31,17 @@ pub struct Store {
 
 impl Store {
     pub fn load(path: &Path) -> Store {
-        std::fs::read_to_string(path)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
+        crate::jsonfile::load(path)
     }
 
+    #[cfg(test)]
     pub fn save(&self, path: &Path) -> Result<(), String> {
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-        }
-        let json = serde_json::to_string_pretty(self).map_err(|e| e.to_string())?;
-        std::fs::write(path, json).map_err(|e| format!("{}: {e}", path.display()))
+        crate::jsonfile::save(path, self)
+    }
+
+    /// 読んで書き換えて保存する(`jsonfile::update`)。
+    pub fn update<R>(path: &Path, f: impl FnOnce(&mut Store) -> Result<R, String>) -> Result<R, String> {
+        crate::jsonfile::update(path, f)
     }
 
     pub fn find(&self, label: &str) -> Option<&Character> {

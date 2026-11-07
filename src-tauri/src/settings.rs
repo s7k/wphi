@@ -41,18 +41,11 @@ impl Default for Settings {
 
 impl Settings {
     pub fn load(path: &Path) -> Settings {
-        std::fs::read_to_string(path)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
+        crate::jsonfile::load(path)
     }
 
     pub fn save(&self, path: &Path) -> Result<(), String> {
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-        }
-        let json = serde_json::to_string_pretty(self).map_err(|e| e.to_string())?;
-        std::fs::write(path, json).map_err(|e| format!("{}: {e}", path.display()))
+        crate::jsonfile::save(path, self)
     }
 
     /// Philly.ini(cp932)の対応する項目を取り込む。無い項目は今の値のまま。
