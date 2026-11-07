@@ -58,7 +58,15 @@ export type CondEvent = {
   blind: boolean;
 };
 
-export type NoticeEvent = { type: "notice"; name?: string; mapset?: string; world?: string; area?: string };
+export type NoticeEvent = {
+  type: "notice";
+  name?: string;
+  mapset?: string;
+  world?: string;
+  area?: string;
+  /** [番号, マップセット](#mapset-define) */
+  mapsetDefine?: [number, string];
+};
 
 export type ModeEvent = { type: "mode"; attack: boolean; magic: boolean; list: boolean; more: boolean };
 
@@ -104,6 +112,8 @@ export type MapState = {
   status?: StatusEvent;
   cond?: CondEvent;
   mode?: ModeEvent;
+  /** #mapset-define の番号 1〜3 → マップセット(Philly の MapChipDefine。0 は mapset) */
+  defines?: string[];
   /** 表示中のリストの行(マップ窓の右の領域にも出す。Philly.ini の ListInMap) */
   list?: string[];
   /** リストのチェック(main 窓のリストと同じ) */

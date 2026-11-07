@@ -206,6 +206,8 @@ function MapWindow() {
     ctx.translate(0, MAP_TOP);
     const imgs: ImageRefs = {
       chip: image(assetUrl("chip", { mapset: state.mapset })),
+      // 1〜3 は #mapset-define のマップセット。決まっていなければスキンの既定のチップ(Philly の DefineChipClear)
+      chipOf: (d) => image(assetUrl("chip", { mapset: d === 0 ? state.mapset : (state.defines?.[d] ?? "") })),
       items: image(assetUrl("items")),
       chara: image,
     };
@@ -225,7 +227,7 @@ function MapWindow() {
       if (on) ctx.fillRect((i % automap.dim) * CHIP_SIZE, Math.floor(i / automap.dim) * CHIP_SIZE, CHIP_SIZE, CHIP_SIZE);
     });
     // 描き直すのはマップ・地形・アニメ・画像の読み込み・大きさが変わった時だけ。#status だけの変化では描かない
-  }, [mapKey, automap, frame, loaded, state?.mapset, dim]);
+  }, [mapKey, automap, frame, loaded, state?.mapset, state?.defines?.join(), dim]);
 
   // 名前の一覧は上の行から順に並べる(CharacterNameList.cpp の SetNameList)
   const names = (map?.chars ?? [])

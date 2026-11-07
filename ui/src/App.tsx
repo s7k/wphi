@@ -426,7 +426,11 @@ export function App() {
         break;
       case "notice":
         if (ev.mapset !== undefined) s.mapset = ev.mapset;
-        else if (ev.world !== undefined) s.world = ev.world;
+        else if (ev.mapsetDefine) {
+          const defines = [...(s.defines ?? [])];
+          defines[ev.mapsetDefine[0]] = ev.mapsetDefine[1];
+          s.defines = defines;
+        } else if (ev.world !== undefined) s.world = ev.world;
         else if (ev.area !== undefined) s.area = ev.area;
         else return;
         break;

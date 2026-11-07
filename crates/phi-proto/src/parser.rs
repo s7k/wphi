@@ -65,6 +65,10 @@ pub struct Notice {
     pub world: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub area: Option<String>,
+    /// `#mapset-define <番号> <マップセット>`。属性の下位2ビットが番号のマスは、このマップセットのチップで描く。
+    /// 0 は `#mapset` の分。`default` はスキンの既定のチップ(Philly の RegistMapChipDefine)
+    #[serde(rename = "mapsetDefine", skip_serializing_if = "Option::is_none")]
+    pub mapset_define: Option<(u8, String)>,
 }
 
 /// `#status 名前 : HP : MaxHP : MP : MaxMP : Exp : GP : F : W : M : C`。数値に出来ない項目は省く。
@@ -581,6 +585,16 @@ impl Parser {
                 ..Default::default()
             })];
         }
+        if let Some(rest) = text.strip_prefix("#mapset-define ") {
+            let mut it = rest.split_whitespace();
+            if let (Some(no), Some(mapset)) = (it.next().and_then(|n| n.parse::<u8>().ok()), it.next()) {
+                return vec![Event::Notice(Notice {
+                    mapset_define: Some((no % 4, mapset.to_string())),
+                    ..Default::default()
+                })];
+            }
+            return Vec::new();
+        }
         if let Some(world) = text.strip_prefix("#ex-notice land=") {
             return vec![Event::Notice(Notice {
                 world: Some(world.into()),
@@ -891,6 +905,26 @@ mod tests {
     use super::*;
 
     /// 看板の本文に書かれたコマンドを実行しない(Philly と同じ)
+    #[test]
+    fn mapset_define() {
+        let mut p = Parser::new();
+        assert_eq!(
+            p.feed(b"#mapset-define 1 castle"),
+            vec![Event::Notice(Notice {
+                mapset_define: Some((1, "castle".into())),
+                ..Default::default()
+            })]
+        );
+        assert_eq!(
+            p.feed(b"#mapset-define 6 default"),
+            vec![Event::Notice(Notice {
+                mapset_define: Some((2, "default".into())),
+                ..Default::default()
+            })]
+        );
+        assert!(p.feed(b"#mapset-define x").is_empty());
+    }
+
     #[test]
     fn commands_inside_more_are_log() {
         let mut p = Parser::new();

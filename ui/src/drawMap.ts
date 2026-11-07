@@ -39,6 +39,8 @@ import {
 export interface ImageRefs {
   /** mapsetチップシート(透過PNG)。 */
   chip?: HTMLImageElement | null;
+  /** 属性の下位2ビット(#mapset-define の番号)のチップシート。無ければ chip を使う */
+  chipOf?: (define: number) => HTMLImageElement | null | undefined;
   /** items.png。 */
   items?: HTMLImageElement | null;
   /** キャラグラの URL → 画像。未ロードは undefined、読めなかった時は null。 */
@@ -94,6 +96,8 @@ export function drawMap(
   ctx.fillRect(0, 0, dim * cs, dim * cs);
 
   const chipImg = imgs.chip;
+  // マスのチップシート(Philly の DefineNo = Attribute & 0x03)
+  const chipFor = (cell: MapCell) => (imgs.chipOf ? imgs.chipOf(cell.attr & 0x03) : chipImg) ?? null;
   const half = cs / 2; // 16(等倍) / 32(拡大)
   // 水有無グリッド(水縁エフェクト用)。チップ画像があれば1回構築。
   const water = chipImg ? buildWaterGrid(input.cells, dim) : null;
@@ -104,9 +108,10 @@ export function drawMap(
     if (chipImg) {
       for (let col = 0; col < dim; col++) {
         const cell = input.cells[cellIndex(col, row, dim)];
-        if (!cell) continue;
+        const img = cell && chipFor(cell);
+        if (!cell || !img) continue;
         for (const idx of chipIndices(cell.chip)) {
-          drawChip(ctx, chipImg, idx, col, row, cs, scale);
+          drawChip(ctx, img, idx, col, row, cs, scale);
         }
       }
     }
@@ -115,7 +120,8 @@ export function drawMap(
     if (chipImg && water) {
       for (let col = 0; col < dim; col++) {
         const cell = input.cells[cellIndex(col, row, dim)];
-        if (!cell || cell.chip !== WATER_BYTE) continue;
+        const img = cell && chipFor(cell);
+        if (!cell || !img || cell.chip !== WATER_BYTE) continue;
         // water配列はgrid座標(row,col)を左上に [row..row+2][col..col+2] 参照。
         const patterns = waterQuarterPatterns(water, row, col);
         const cellX = col * cs;
@@ -127,7 +133,7 @@ export function drawMap(
           if (!sr) continue;
           const dstX = cellX + (q & 1) * half;
           const dstY = cellY + ((q >> 1) & 1) * half;
-          ctx.drawImage(chipImg, sr.sx, sr.sy, sr.sw, sr.sh, dstX, dstY, half, half);
+          ctx.drawImage(img, sr.sx, sr.sy, sr.sw, sr.sh, dstX, dstY, half, half);
         }
       }
     }
@@ -136,8 +142,8 @@ export function drawMap(
     if (chipImg) {
       for (let col = 0; col < dim; col++) {
         const cell = input.cells[cellIndex(col, row, dim)];
-        if (!cell || !hasBoard(cell.attr)) continue;
-        drawChip(ctx, chipImg, boardChipIndex(cell.chip), col, row, cs, scale, 'stretch');
+        const img = cell && hasBoard(cell.attr) && chipFor(cell);
+        if (img) drawChip(ctx, img, boardChipIndex(cell!.chip), col, row, cs, scale, 'stretch');
       }
     }
 
@@ -145,7 +151,8 @@ export function drawMap(
     if (input.eagleEye && chipImg) {
       for (let col = 0; col < dim; col++) {
         const cell = input.cells[cellIndex(col, row, dim)];
-        if (cell && hasItem(cell.attr)) drawChip(ctx, chipImg, EAGLE_EYE_ITEM_CHIP, col, row, cs, scale, 'stretch');
+        const img = cell && hasItem(cell.attr) && chipFor(cell);
+        if (img) drawChip(ctx, img, EAGLE_EYE_ITEM_CHIP, col, row, cs, scale, 'stretch');
       }
     } else if (imgs.items) {
       for (let col = 0; col < dim; col++) {
