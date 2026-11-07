@@ -2871,6 +2871,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-opener",
  "tokio",
+ "webkit2gtk",
 ]
 
 [[package]]

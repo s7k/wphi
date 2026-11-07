@@ -74,11 +74,31 @@ fn prefer_x11_ime() {
     }
 }
 
+/// wry は Linux で IME の preedit を無効にしている(wry 0.57 `webkitgtk/mod.rs` の `set_webview_settings`)。
+/// 無効のままだと未確定の文字が入力欄に出ないので、有効に戻す。
+/// wry が無効にしたのは fcitx の候補の窓をカーソル位置に合わせる為で、ibus(X11)では有効でも候補の位置は合う。
+#[cfg(target_os = "linux")]
+fn enable_ime_preedit(window: &tauri::WebviewWindow) {
+    let _ = window.with_webview(|webview| {
+        use webkit2gtk::{InputMethodContextExt, WebViewExt};
+        if let Some(ctx) = webview.inner().input_method_context() {
+            ctx.set_enable_preedit(true);
+        }
+    });
+}
+
 fn main() {
     #[cfg(target_os = "linux")]
     prefer_x11_ime();
 
     tauri::Builder::default()
+        .setup(|_app| {
+            #[cfg(target_os = "linux")]
+            if let Some(window) = _app.get_webview_window("main") {
+                enable_ime_preedit(&window);
+            }
+            Ok(())
+        })
         .plugin(tauri_plugin_opener::init())
         .manage(Sessions::default())
         .invoke_handler(tauri::generate_handler![connect, send_line, disconnect, log_css])
