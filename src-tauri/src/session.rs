@@ -45,6 +45,9 @@ pub enum UiOnly {
         /// 元の受信テキスト。効果音の照合に使い、UI には送らない。照合しない行は空
         #[serde(skip)]
         text: String,
+        /// タスクバーを点滅させない行(Philly の NotFlashRegexp)。main.rs が決める
+        #[serde(skip_serializing_if = "std::ops::Not::not")]
+        no_flash: bool,
     },
     /// 効果音を鳴らす(Philly の SoundPlay)。file が false ならタスクバーの点滅
     Sound { no: usize, file: bool },
@@ -311,6 +314,7 @@ fn system(ok: bool, text: &str) -> UiEvent {
         html: format!(r#"<font class="{class}">{text}</font>"#),
         from: None,
         text: String::new(),
+        no_flash: false,
     })
 }
 
@@ -322,6 +326,7 @@ fn log_event(m: Message, opts: &LogOptions, in_more: bool) -> UiEvent {
         html: to_html(&m.text, opts),
         from: m.from,
         text: if in_more { String::new() } else { m.text },
+        no_flash: false,
     })
 }
 

@@ -339,10 +339,12 @@ fn connect(
                 eprintln!("接続先を保存出来ません: {e}");
             }
         }
-        // 効果音(Philly の SoundPlay)。システムの行は照合しない
-        let sound = match &ev {
-            UiEvent::Ui(session::UiOnly::Log { text, .. }) if !text.is_empty() => {
+        // 効果音(Philly の SoundPlay)と、タスクバーを点滅させない行。システムの行は照合しない
+        let mut ev = ev;
+        let sound = match &mut ev {
+            UiEvent::Ui(session::UiOnly::Log { text, no_flash, .. }) if !text.is_empty() => {
                 let sounds = app.state::<Mutex<Arc<sounds::Sounds>>>().lock().unwrap().clone();
+                *no_flash = sounds.no_flash(text);
                 sounds.find(text).map(|no| (no, sounds.has_file(no)))
             }
             _ => None,

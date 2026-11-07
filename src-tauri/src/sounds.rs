@@ -18,7 +18,14 @@ pub struct Rule {
 #[derive(Default)]
 pub struct Sounds {
     rules: Vec<Rule>,
+    /// タスクバーを点滅させない行(Philly の Config/NotFlashRegexp.ini)。None なら Philly の既定の規則
+    not_flash: Option<Vec<Regex>>,
 }
+
+/// NotFlashRegexp.ini の既定(Philly の Config.cpp)。DM の発言と接続者数の通知では点滅させない
+const NOT_FLASH_DEFAULT: [&str; 2] = [r"/^(?:\/\*.*?\*\/)?DM >/", "/現在の接続者数 >>/"];
+static NOT_FLASH: std::sync::LazyLock<Vec<Regex>> =
+    std::sync::LazyLock::new(|| NOT_FLASH_DEFAULT.iter().filter_map(|s| perl_regex(s)).collect());
 
 /// Philly の BREGEXP の `/パターン/フラグ` を fancy-regex に直す。対応するフラグは i・s・m・x。
 fn perl_regex(s: &str) -> Option<Regex> {
@@ -60,7 +67,20 @@ impl Sounds {
                 Some(Rule { re, file })
             })
             .collect();
-        Sounds { rules }
+        // 1行目は説明。ファイルが無ければ既定の規則
+        let not_flash = std::fs::read(philly.join("Config").join("NotFlashRegexp.ini"))
+            .ok()
+            .map(|b| codec::decode(&b).lines().skip(1).filter_map(perl_regex).collect());
+        Sounds { rules, not_flash }
+    }
+
+    /// タスクバーを点滅させない行か(Philly の PersonalThread.cpp の NotFlashRegexp)
+    pub fn no_flash(&self, text: &str) -> bool {
+        self.not_flash
+            .as_deref()
+            .unwrap_or(&NOT_FLASH)
+            .iter()
+            .any(|r| r.is_match(text).unwrap_or(false))
     }
 
     /// 一致した規則の番号。
@@ -81,6 +101,15 @@ impl Sounds {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn no_flash_defaults() {
+        let s = Sounds::default();
+        assert!(s.no_flash("DM > ようこそ"));
+        assert!(s.no_flash("/*cl=red*/DM > ようこそ"));
+        assert!(s.no_flash("現在の接続者数 >> 3"));
+        assert!(!s.no_flash("勇者 > こんにちは"));
+    }
 
     #[test]
     fn perl_regex_flags() {

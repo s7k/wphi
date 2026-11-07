@@ -63,7 +63,7 @@ export type NoticeEvent = { type: "notice"; name?: string; mapset?: string; worl
 export type ModeEvent = { type: "mode"; attack: boolean; magic: boolean; list: boolean; more: boolean };
 
 export type UiEvent =
-  | { type: "log"; channel: string; html: string; from?: string }
+  | { type: "log"; channel: string; html: string; from?: string; noFlash?: boolean }
   | { type: "error"; message: string }
   | { type: "connection"; state: "closed" }
   /** 効果音。file が false ならタスクバーの点滅 */

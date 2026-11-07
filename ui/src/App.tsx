@@ -50,6 +50,8 @@ type Tab = {
   logSave: boolean;
   /** 裏にいる間に発言か priv が届いた */
   unread: boolean;
+  /** 裏にいる間に HP か MP が減った */
+  hurt: boolean;
 };
 
 /**
@@ -160,7 +162,7 @@ export function App() {
   useEffect(() => sendMapState(active), [active]);
   // 前に出したタブの未読の印を消す
   useEffect(() => {
-    if (active !== null) update(active, (t) => (t.unread ? { ...t, unread: false } : t));
+    if (active !== null) update(active, (t) => (t.unread || t.hurt ? { ...t, unread: false, hurt: false } : t));
   }, [active]);
   // リンクで WebView を遷移させず、既定のブラウザで開く。ログ・priv・看板のプレビューのどこで押しても同じにする。
   // 遷移させると main 窓が外部のページに置き換わり、ID の入力を求める偽の画面に使える(#49)
@@ -385,9 +387,15 @@ export function App() {
         if (s.world && s.world !== "???" && !s.cond?.blind) recordAutomap(s.world, ev);
         if (session === activeRef.current) mover.current?.onMap();
         break;
-      case "status":
+      case "status": {
+        // 裏のタブで HP か MP が減ったら、タブに印を付ける
+        const old = s.status;
+        const down = (a?: number, b?: number) => a !== undefined && b !== undefined && b < a;
+        if (session !== activeRef.current && old && (down(old.hp, ev.hp) || down(old.mp, ev.mp)))
+          update(session, (t) => (t.hurt ? t : { ...t, hurt: true }));
         s.status = ev;
         break;
+      }
       case "cond":
         s.cond = ev;
         break;
@@ -443,11 +451,12 @@ export function App() {
    * 裏のタブには未読の印を付け、窓が前に無ければタスクバーを点滅させる。
    * Philly の既定は GtOnly=on(> のある行だけ)、Loud=off(大声では点滅しない)
    */
-  function notifyTalk(session: number, channel: string, html: string) {
+  function notifyTalk(session: number, channel: string, html: string, noFlash: boolean) {
     if (channel !== "talk" && channel !== "priv") return;
     const loud = /^(?:<[^>]*>)*\(/.test(html);
     if (session !== activeRef.current) update(session, (t) => (t.unread ? t : { ...t, unread: true }));
-    if (!loud && !document.hasFocus())
+    // DM の発言などは点滅させない(Philly の NotFlashRegexp.ini。Rust 側で照合する)
+    if (!loud && !noFlash && !document.hasFocus())
       getCurrentWindow().requestUserAttention(UserAttentionType.Informational).catch(console.error);
   }
 
@@ -512,7 +521,7 @@ export function App() {
       switch (ev.type) {
         case "log":
           append(session, ev.html);
-          notifyTalk(session, ev.channel, ev.html);
+          notifyTalk(session, ev.channel, ev.html, !!ev.noFlash);
           if (ev.channel === "priv" && ev.from) addPriv(session, ev.from, ev.html);
           // リピート移動中に壁に当たった時(Philly の PersonalThread.cpp の RecvCannotGo)
           if (session === activeRef.current && /DM<\/font> &gt; (進めません\.|Can not go\.)/.test(ev.html))
@@ -596,6 +605,7 @@ export function App() {
         privActive: null,
         logSave: false,
         unread: false,
+        hurt: false,
       },
     ]);
     setActive(session);
@@ -749,6 +759,11 @@ function TabBar(props: {
           className={t.session === props.active ? "tab active" : t.unread ? "tab unread" : "tab"}
         >
           <button className="tab-label" onClick={() => props.onSelect(t.session)}>
+            {t.session !== props.active && t.hurt && (
+              <span className="tab-hurt" title="HP か MP が減りました">
+                ♥
+              </span>
+            )}
             {t.label}
           </button>
           <button className="tab-close" title="切断して閉じる" onClick={() => props.onClose(t.session)}>

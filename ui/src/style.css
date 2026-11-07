@@ -705,3 +705,9 @@ body {
   gap: 4px;
   margin-bottom: 8px;
 }
+
+/* 裏にいる間に HP か MP が減ったタブの印 */
+.tab-hurt {
+  margin-right: 3px;
+  color: #d00;
+}
