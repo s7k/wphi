@@ -255,3 +255,35 @@ mod tests {
         assert!(a.get("chara", &query(&[("gra", "none"), ("code", "99")])).is_some());
     }
 }
+
+#[cfg(test)]
+mod bench {
+    use super::*;
+
+    /// 同梱の全キャラグラとチップを変換する時間を測る。
+    /// `cargo test --release -p rust-philly convert_time -- --ignored --nocapture` で実行する。
+    #[test]
+    #[ignore]
+    fn convert_time() {
+        let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/phi"));
+        let names: Vec<String> = std::fs::read_dir(root.join("chara"))
+            .unwrap()
+            .filter_map(|e| e.ok()?.file_name().to_str()?.strip_suffix(".bmp").map(str::to_string))
+            .collect();
+        let a = Assets::new(vec![root]);
+        let start = std::time::Instant::now();
+        let chip = a.get("chip", &HashMap::new()).unwrap();
+        let chip_time = start.elapsed();
+        let start = std::time::Instant::now();
+        for n in &names {
+            a.get("chara", &[("gra".to_string(), n.clone())].into()).unwrap();
+        }
+        let all = start.elapsed();
+        println!(
+            "chip: {chip_time:?} ({} bytes), chara: {} 件で {all:?}、1件あたり {:?}",
+            chip.len(),
+            names.len(),
+            all / names.len() as u32
+        );
+    }
+}
