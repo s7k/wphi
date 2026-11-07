@@ -1,16 +1,17 @@
 // キャラグラが見つからなかったときに使うキャラグラを指定します。
+// WPHI: LANU 系をやめ、PCGL のキャラグラ(resources/phi/chara)を指すよう書き換えた(2026-11-07)
 // グラ名=ファイル名	（スペースの入ったファイル名不可）
-人・銅像			= LANU_Swordman.bmp
-知的生物			= LANU_Oyaji.bmp
-獣					= LANU_WolfK.bmp
+人・銅像			= t_man.bmp
+知的生物			= t_elf.bmp
+獣					= t_dog.bmp
 狂戦士				= w_j_rakshasa.bmp
-魔法生物			= LANU_GolemJ.bmp
+魔法生物			= t_golem1.bmp
 アンデッド			= t_skeltonr.bmp
 精神体				= t_ghost2.bmp
-イレイザー			= LANU_Slime.bmp
-setcg使用キャラ		= LANU_Swordman.bmp
-生物				= LANU_Oyaji.bmp
+イレイザー			= tak_bslime.bmp
+setcg使用キャラ		= t_man.bmp
+生物				= t_elf.bmp
 看板				= Defboardobj.bmp
 魔法エフェクト		= Defmagicobj.bmp
-アニメオブジェ		= LANU_Oyaji.bmp
+アニメオブジェ		= t_elf.bmp
 アニメなしオブジェ	= Defboardobj.bmp

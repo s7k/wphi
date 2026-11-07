@@ -39,6 +39,7 @@ const DEFAULT_GRA: &[(u32, &str)] = &[
 ];
 
 /// WPHI で既定グラを上書きする種別(2026-11-07 に作者が指定)。chara/<グラ名>.bmp が無ければスキンの Index.txt に戻る。
+/// 無ければ種別の既定グラ(同梱の Index.txt では tak_bslime)に戻る。
 const DEFAULT_GRA_OVERRIDE: &[(u32, &str)] = &[(0x07, "t_eraser")];
 
 pub struct Assets {
@@ -99,6 +100,9 @@ impl Assets {
         Some(colorkey(&found, TEAL))
     }
 
+    /// 種別の既定グラ。WPHI の上書きを先に見て、次にスキンの `Chara/Index.txt` を探す場所の順に見る。
+    /// Index.txt のファイルはスキンの `Chara` から探し、無ければ `chara` から探す
+    /// (同梱の Index.txt は PCGL のキャラグラを指している)。
     fn default_chara(&self, code: u32) -> Option<image::DynamicImage> {
         let overridden = DEFAULT_GRA_OVERRIDE
             .iter()
@@ -111,16 +115,19 @@ impl Assets {
             .iter()
             .find(|(c, _)| *c == code)
             .map_or("知的生物", |(_, k)| k);
-        let index = codec::decode(&self.read(&format!("Skins/{SKIN}/Chara/Index.txt"))?);
-        let file = index
-            .lines()
-            .filter(|l| !l.trim_start().starts_with("//"))
-            .find_map(|l| {
-                l.split_once('=')
-                    .filter(|(k, _)| k.trim() == key)
-                    .map(|(_, v)| v.trim().to_string())
-            })?;
-        self.open(&format!("Skins/{SKIN}/Chara/{file}"))
+        self.roots.iter().find_map(|root| {
+            let index = codec::decode(&std::fs::read(find_path(root, &format!("Skins/{SKIN}/Chara/Index.txt"))?).ok()?);
+            let file = index
+                .lines()
+                .filter(|l| !l.trim_start().starts_with("//"))
+                .find_map(|l| {
+                    l.split_once('=')
+                        .filter(|(k, _)| k.trim() == key)
+                        .map(|(_, v)| v.trim().to_string())
+                })?;
+            self.open(&format!("Skins/{SKIN}/Chara/{file}"))
+                .or_else(|| self.open(&format!("chara/{file}")))
+        })
     }
 
     /// マップチップ。`chip/<mapset>.bmp` が無ければスキンの `chip/Default.bmp`。
@@ -136,6 +143,11 @@ impl Assets {
     }
 
     fn read(&self, rel: &str) -> Option<Vec<u8>> {
+        // LANU 系のグラフィックスは使わない(2026-11-07 に作者が指定)。どこにあっても読まず、次の候補へ進む
+        let name = rel.rsplit('/').next().unwrap_or(rel);
+        if name.to_lowercase().starts_with("lanu_") {
+            return None;
+        }
         self.roots
             .iter()
             .find_map(|root| std::fs::read(find_path(root, rel)?).ok())
@@ -263,10 +275,33 @@ mod tests {
         assert_eq!(decode(&board), direct);
         // 表に無い種別は知的生物
         assert!(a.get("chara", &query(&[("gra", "none"), ("code", "99")])).is_some());
-        // イレイザー(0x07)は t_eraser。同梱に無いのでスキンの LANU_Slime.bmp に戻る
+        // イレイザー(0x07)は t_eraser。同梱に無いので同梱の Index.txt の tak_bslime に戻る
         let eraser = a.get("chara", &query(&[("gra", "none"), ("code", "7")])).unwrap();
-        let slime = colorkey(&a.open("Skins/Mine/Chara/LANU_Slime.bmp").unwrap(), TEAL);
+        let slime = colorkey(&a.open("chara/tak_bslime.bmp").unwrap(), TEAL);
         assert_eq!(decode(&eraser), slime);
+        // 人・銅像(0x00)は t_man
+        let man = a.get("chara", &query(&[("gra", "none"), ("code", "0")])).unwrap();
+        assert_eq!(decode(&man), colorkey(&a.open("chara/t_man.bmp").unwrap(), TEAL));
+    }
+
+    /// LANU 系は、利用者の Philly フォルダにあっても読まない
+    #[test]
+    fn never_reads_lanu() {
+        let root = std::env::temp_dir().join(format!("wphi-lanu-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("chara")).unwrap();
+        std::fs::copy(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/phi/chara/t_man.bmp"),
+            root.join("chara/LANU_Test.bmp"),
+        )
+        .unwrap();
+        let a = Assets::new(vec![root.clone()]);
+        assert!(a.open("chara/LANU_Test.bmp").is_none());
+        assert!(
+            a.get("chara", &query(&[("gra", "LANU_Test"), ("code", "64")]))
+                .is_none()
+        );
+        std::fs::remove_dir_all(&root).unwrap();
     }
 }
 

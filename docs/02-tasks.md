@@ -52,7 +52,8 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 
 ## P4
 
-- [x] イレイザー(種別 0x07)の既定グラを t_eraser にする(作者の指定。無ければスキンの LANU_Slime.bmp)。`src-tauri/src/assets.rs` の DEFAULT_GRA_OVERRIDE
+- [x] LANU 系のグラフィックスを使わない(作者の指定)。同梱スキンから消し、同梱の `Index.txt` の既定グラを PCGL のキャラグラ(t_man・t_elf・t_dog・t_golem1・tak_bslime)に付け替えた。利用者の Philly フォルダにあっても読まない
+- [x] イレイザー(種別 0x07)の既定グラを t_eraser にする(作者の指定。無ければ同梱の Index.txt の tak_bslime.bmp)。`src-tauri/src/assets.rs` の DEFAULT_GRA_OVERRIDE
 
 - [x] メニューバー(`MainForm.dfm` の構成、`Style/Menu.txt` で表示を切り替える)。ファイル・操作・行動・魔法・表示の項目はキーと同じ操作にした
   - [ ] キャラクターとツールのメニュー、操作のメニューの大声・全タブ・ログ保存の切り替え

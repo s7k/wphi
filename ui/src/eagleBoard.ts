@@ -6,7 +6,7 @@ const UNKNOWN = "?".charCodeAt(0);
 /** 人がいるマスの属性(EagleEye.cpp) */
 const PERSON = 0x58;
 /**
- * 人のマスに描くキャラグラ。Philly はスキンの既定グラ「人・銅像」(LANU_Swordman.bmp)を描くが、
+ * 人のマスに描くキャラグラ。Philly はスキンの既定グラ「人・銅像」を描くが、
  * WPHI は t_man にする(2026-11-07 に作者が指定)。無ければ種別 0x40 の解決で既定グラに戻る
  */
 const PERSON_GRA = "t_man";
