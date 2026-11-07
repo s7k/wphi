@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { KeyAction, KeyContext, MoveKey } from "./keys.ts";
+import type { AskOptions, KeyAction, KeyContext, MoveKey } from "./keys.ts";
 import type { MapState } from "./protocol";
 
 
@@ -46,9 +46,18 @@ export function runKeyAction(
     toggleMap: () => void;
     /** 次に届くリストを n 個出さない(Philly の NextListCancel) */
     cancelList: (n: number) => void;
+    /** 語や数を聞く。取り消したら null */
+    ask: (opts: AskOptions) => Promise<string | null>;
   },
 ) {
-  if ("send" in action) {
+  if ("ask" in action) {
+    hooks.ask(action.ask).then((text) => {
+      const t = text?.trim() ?? "";
+      if (t === "" || (action.ask.numeric && !/^\d+$/.test(t))) return;
+      if (action.cancelList) hooks.cancelList(action.cancelList);
+      sendLines(session, action.send.replace("{}", t));
+    });
+  } else if ("send" in action) {
     if (action.confirm && !window.confirm(action.confirm)) return;
     if (action.cancelList) hooks.cancelList(action.cancelList);
     sendLines(session, action.send);
@@ -57,11 +66,7 @@ export function runKeyAction(
     sendLine(session, "write");
     hooks.openBoard();
   }
-  else if ("pay" in action) {
-    // ponytail: ブラウザ標準の入力ダイアログ。Philly の金額ダイアログ(IntInputDialog)に寄せるのは後
-    const amount = window.prompt("支払い金額");
-    if (amount !== null && /^\d+$/.test(amount.trim())) sendLine(session, `pay ${amount.trim()}`);
-  } else if ("focusInput" in action) hooks.focusInput();
+  else if ("focusInput" in action) hooks.focusInput();
   else hooks.nextTab();
 }
 

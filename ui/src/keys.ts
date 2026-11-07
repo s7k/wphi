@@ -16,13 +16,18 @@ export type KeyAction =
   | { send: string; confirm?: string; cancelList?: number }
   /** マップ窓の表示を切り替える(Shift+F5) */
   | { toggleMap: true }
-  /** 支払い金額を聞いてから `pay <金額>` を送る */
-  | { pay: true }
+  /**
+   * 語や数を聞いてから、send の {} を答えに置き換えて送る(Philly の Pay・Search・Appear・Disappear)。
+   * 答えが空なら送らない。numeric は数だけを受け付ける(Philly の IntInputDialog)
+   */
+  | { ask: AskOptions; send: string; cancelList?: number }
   /** 看板を書く。write を送り、看板エディタを開く(Command.cpp の Write) */
   | { write: true }
   /** 入力欄へフォーカスを移す */
   | { focusInput: true }
   | { nextTab: true };
+
+export type AskOptions = { title: string; label: string; numeric?: boolean };
 
 /** キーを押した時の状態。 */
 export type KeyContext = {
@@ -113,7 +118,7 @@ const NONE: Record<string, KeyAction> = {
   KeyH: { send: "hi" },
   KeyM: { send: "check\nlook" },
   KeyN: { send: "n" },
-  KeyP: { pay: true },
+  KeyP: { ask: { title: "支払い金額", label: "支払う金額", numeric: true }, send: "pay {}" },
   KeyQ: { send: "equip" },
   KeyR: { send: "spells" },
   KeyS: { write: true },
@@ -163,7 +168,7 @@ const SHIFT: Record<string, KeyAction> = {
   Numpad7: { send: "#ex-map size=57" },
 };
 
-/** Alt(KeyBindAlt)。G(AltGWord)と S(看板の検索)は設定やダイアログが要るので後で作る */
+/** Alt(KeyBindAlt)。G(AltGWord)は設定の文字列なので shortcutText で扱う */
 const ALT: Record<string, KeyAction> = {
   KeyA: { send: "cast\nanalyze", cancelList: 1 },
   KeyB: {
@@ -178,17 +183,21 @@ const ALT: Record<string, KeyAction> = {
   KeyL: { send: "cast\nwizard lock\nsee", cancelList: 1 },
   KeyP: { send: "cast\nparty eye", cancelList: 1 },
   KeyR: { send: "cast\nreturn", cancelList: 1, confirm: "call 位置に帰還します。\n持っているアイテムを失う可能性があります。\nよろしいですか？" },
+  KeyS: { ask: { title: "看板検索", label: "検索する言葉を入力してください" }, send: "cast\nsearch\n{}", cancelList: 1 },
   KeyU: { send: "cast\nunlock\nsee", cancelList: 1 },
   KeyW: { send: "cast\nwizard eye", cancelList: 1 },
   ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((n) => [`Digit${n}`, { send: `cast\n${n}`, cancelList: 1 }])),
 };
 
-/** Shift+Alt(KeyBindShiftAlt)。C・A・U は名前を聞くダイアログが要るので後で作る */
+/** Shift+Alt(KeyBindShiftAlt) */
 const SHIFT_ALT: Record<string, KeyAction> = {
   KeyW: { send: "cast\nwizard light", cancelList: 1 },
   KeyE: { send: "#ex-switch eagleeye=text\ncast\neagle eye\n#ex-switch eagleeye=form", cancelList: 1 },
   KeyL: { send: "cast\nlist", cancelList: 1 },
   KeyD: { send: "cast\ndestroy", cancelList: 1 },
+  KeyC: { send: "cast\ncharge spell", cancelList: 1 },
+  KeyA: { ask: { title: "召喚", label: "召喚するNPCの名前を入力してください" }, send: "cast\nappear {}", cancelList: 1 },
+  KeyU: { ask: { title: "送喚", label: "送喚するNPCの名前を入力してください" }, send: "cast\ndisappear {}", cancelList: 1 },
 };
 
 const CTRL: Record<string, KeyAction> = {

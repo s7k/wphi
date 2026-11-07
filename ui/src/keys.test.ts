@@ -32,7 +32,7 @@ test("北固定と回転で移動のコマンドが変わる", () => {
 
 test("行動キーと修飾キー", () => {
   assert.deepEqual(act(key("KeyQ"), north), { send: "equip" });
-  assert.deepEqual(act(key("KeyP"), north), { pay: true });
+  assert.deepEqual(act(key("KeyP"), north), { ask: { title: "支払い金額", label: "支払う金額", numeric: true }, send: "pay {}" });
   assert.deepEqual(act(key("KeyT", { shift: true }), north), { send: "#ex-map style=solid" });
   assert.deepEqual(act(key("Digit5", { shift: true }), north), { send: "#ex-map size=40" });
   assert.deepEqual(act(key("Tab", { ctrl: true }), north), { nextTab: true });

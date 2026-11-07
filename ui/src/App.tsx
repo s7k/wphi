@@ -7,7 +7,8 @@ import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { SENT_EVENT } from "./keyInput";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
-import { keyAction, listKeyAction, menuAction, moveInput } from "./keys.ts";
+import { keyAction, listKeyAction, menuAction, moveInput, type AskOptions } from "./keys.ts";
+import { AskDialog } from "./AskDialog";
 import { assetUrl } from "./asset";
 import { absorb, AUTOMAP_EVENT, loadTiles, removeTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { BoardEditor } from "./BoardEditor";
@@ -99,6 +100,9 @@ export function App() {
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // 語や数を聞いている間のダイアログ(AskDialog)。答えは resolve で返す
+  const [asking, setAsking] = useState<{ opts: AskOptions; resolve: (text: string | null) => void } | null>(null);
+  const ask = (opts: AskOptions) => new Promise<string | null>((resolve) => setAsking({ opts, resolve }));
   // ログを最下行に固定する(既定 on。off は Philly の「ログスクロール停止」)
   const [logFollow, setLogFollow] = useState(true);
   useEffect(() => {
@@ -271,7 +275,7 @@ export function App() {
       // 押し続けによる自動リピートは送らない
       const openBoard = () => update(session, (t) => ({ ...t, board: true }));
       const cancelList = (n: number) => (listFlow(session).cancel += n);
-      if (!e.repeat) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList });
+      if (!e.repeat) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList, ask });
       return true;
     };
     const onDom = (e: globalThis.KeyboardEvent) => {
@@ -308,7 +312,7 @@ export function App() {
       const action = menuAction(id);
       const openBoard = () => update(session, (t) => ({ ...t, board: true }));
       const cancelList = (n: number) => (listFlow(session).cancel += n);
-      if (action) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList });
+      if (action) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList, ask });
     });
     // マップのマウス操作(Philly の MapForm.cpp の FormMouseDown)
     const mouse = listen<ForwardedMouse>(MOUSE_EVENT, (e) => {
@@ -608,6 +612,15 @@ export function App() {
 
   return (
     <div className="main">
+      {asking && (
+        <AskDialog
+          opts={asking.opts}
+          onAnswer={(text) => {
+            asking.resolve(text);
+            setAsking(null);
+          }}
+        />
+      )}
       {settingsOpen && (
         <SettingsPanel settings={settings} onSaved={setSettings} onClose={() => setSettingsOpen(false)} />
       )}

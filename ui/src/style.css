@@ -677,3 +677,31 @@ body {
 .name-list.list li.checked {
   background: #c8dcff;
 }
+
+/* 語や数を聞くダイアログ(AskDialog) */
+.ask-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 20%);
+}
+.ask-dialog {
+  min-width: 280px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid #808080;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
+}
+.ask-dialog h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.ask-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
