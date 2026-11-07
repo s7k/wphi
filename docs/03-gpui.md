@@ -78,7 +78,7 @@ Dioxus に移っても、Chrome と WebKit の違いの懸念は残る。
 map 窓にフォーカスがある間、main 窓は裏の窓になる。
 WebView2 が main 窓のタイマーを間引くと、移動の間隔が延びる(推測。未検証)。
 
-v0.1.5 で、WebView2 の起動オプションに `--disable-background-timer-throttling`、`--disable-renderer-backgrounding`、`--disable-backgrounding-occluded-windows` を足した(`src-tauri/tauri.conf.json` の `additionalBrowserArgs`)。
+v0.1.6 で、WebView2 の起動オプションに `--disable-background-timer-throttling`、`--disable-renderer-backgrounding`、`--disable-backgrounding-occluded-windows` を足した(`src-tauri/tauri.conf.json` の `additionalBrowserArgs`)。
 これで直らなければ、次を試す。
 
 1. main 窓の tick と `send_line` の時刻をログに出し、map 窓と main 窓のどちらにフォーカスがある時に間隔が延びるかを比べる
