@@ -95,6 +95,8 @@ export function App() {
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // ログを最下行に固定する(既定 on。off は Philly の「ログスクロール停止」)
+  const [logFollow, setLogFollow] = useState(true);
   useEffect(() => {
     invoke<Settings>("get_settings").then(setSettings).catch(console.error);
   }, []);
@@ -508,7 +510,7 @@ export function App() {
       {tab ? (
         <div className="main-body">
         <div className="log-area">
-          <LogView key={tab.session} lines={tab.lines} />
+          <LogView key={tab.session} lines={tab.lines} follow={logFollow} />
           {tab.board && (
             <BoardEditor
               name={tab.label}
@@ -575,6 +577,8 @@ export function App() {
       )}
       {tab && (
         <InputEditor
+          logFollow={logFollow}
+          onLogFollow={setLogFollow}
           logSave={tab.logSave}
           onLogSave={(on) => {
             update(tab.session, (t) => ({ ...t, logSave: on }));
@@ -641,15 +645,27 @@ function TabBar(props: {
   );
 }
 
-function LogView(props: { lines: string[] }) {
+/**
+ * ログ欄。follow が on の時は、ログが増えるたびと、中の画像が読み込まれて高さが変わるたびに最下行へ移る。
+ * off は Philly の「ログスクロール停止」に当たる
+ */
+function LogView(props: { lines: string[]; follow: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  const follow = useRef(props.follow);
+  follow.current = props.follow;
 
-  // 末尾を表示している時だけ追従する
-  const atBottom = useRef(true);
-  useEffect(() => {
+  const toBottom = () => {
     const el = ref.current;
-    if (el && atBottom.current) el.scrollTop = el.scrollHeight;
-  }, [props.lines]);
+    if (el && follow.current) el.scrollTop = el.scrollHeight;
+  };
+  useEffect(toBottom, [props.lines, props.follow]);
+  useEffect(() => {
+    if (!inner.current) return;
+    const ro = new ResizeObserver(toBottom);
+    ro.observe(inner.current);
+    return () => ro.disconnect();
+  }, []);
 
   // リンクで WebView を遷移させず、既定のブラウザで開く
   function onClick(e: MouseEvent) {
@@ -667,15 +683,13 @@ function LogView(props: { lines: string[] }) {
       // フォーカスを受けると「移動モード」になり、キーが操作になる
       tabIndex={0}
       onClick={onClick}
-      onScroll={(e) => {
-        const el = e.currentTarget;
-        atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 4;
-      }}
     >
-      {props.lines.map((html, i) => (
-        // html は phi-proto の tag_to_html がエスケープ済みで作ったもの
-        <div key={i} dangerouslySetInnerHTML={{ __html: html }} />
-      ))}
+      <div ref={inner}>
+        {props.lines.map((html, i) => (
+          // html は phi-proto の tag_to_html がエスケープ済みで作ったもの
+          <div key={i} dangerouslySetInnerHTML={{ __html: html }} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -692,6 +706,8 @@ function InputEditor(props: {
   onPriv: () => void;
   logSave: boolean;
   onLogSave: (on: boolean) => void;
+  logFollow: boolean;
+  onLogFollow: (on: boolean) => void;
 }) {
   const [loud, setLoud] = useState(false);
   const [allTab, setAllTab] = useState(false);
@@ -750,6 +766,10 @@ function InputEditor(props: {
         <label className={allTab ? "toggle on" : "toggle"}>
           <input type="checkbox" checked={allTab} onChange={(e) => setAllTab(e.target.checked)} />
           全タブ発言
+        </label>
+        <label className={props.logFollow ? "toggle on" : "toggle"} title="ログが増えたら最下行へ移る">
+          <input type="checkbox" checked={props.logFollow} onChange={(e) => props.onLogFollow(e.target.checked)} />
+          下に固定
         </label>
         <label className={props.logSave ? "toggle on" : "toggle"}>
           <input type="checkbox" checked={props.logSave} onChange={(e) => props.onLogSave(e.target.checked)} />

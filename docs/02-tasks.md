@@ -63,6 +63,7 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 - [ ] BGM(MIDI)
 - [x] タスクバーの点滅と裏タブの未読表示。発言と priv が届いた時だけ(GtOnly=on)、大声では点滅しない(Loud=off)
   - [ ] 点滅させない正規表現(`NotTaskBarFlashRegexp.ini`)と、裏タブで HP・MP が減った時の印
+- [x] ログを最下行に固定する切り替え(既定 on。off は Philly の「ログスクロール停止」)。スクロールバーを常に出す
 - [x] ログの保存(LogAutoSave)。入力欄のツールバーでタブごとに切り替え、`<アプリのログフォルダ>/<表示名>/<yyyymmdd>.html` に Log.css 付きで書く
   - [ ] テキストでの保存(LogSaveHtml=off)と、保存フォルダを開くボタン
 
