@@ -42,7 +42,7 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
   - [x] マップ窓のリストをクリックで選ぶ #9
   - [ ] リストの書き出し(Philly の「書き出し」ボタン)#10
 - [x] s-edit(1行入力)と m-edit(看板などの複数行入力。Philly の MEditForm)。S(write)から開く。s-edit は Philly と同じく入力欄で答える
-  - [ ] タグメニュー(`TagMenu.xml`)とタグの無効化 #11
+  - [x] タグメニュー(既定の `TagMenu.xml` と同じ項目を入力欄と看板エディタの右クリックに出す)。利用者の TagMenu.xml の読み込みとタグの無効化はまだ #11
 - [x] priv(Philly の PrivForm)。相手の組ごとに会話を分け、`priv <番号> /*to=相手*/本文` を相手ごとと自分に送る。3人以上の会話も宛先のタグで見分ける。`#ulist` で番号を取り直す
   - [x] `#ulist` の返事を待ってから送る(Philly の RequestUlistWait は最大 60 秒待つ)#12
 - [x] EagleEye 窓(Philly の EagleEyeForm)。受けたら窓を出す。人のマス(属性 0x58)には t_man を重ねる(Philly はスキンの既定グラ「人・銅像」。作者の指定で変えた)
