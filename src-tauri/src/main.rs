@@ -1,15 +1,18 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod assets;
 mod characters;
 mod session;
 
 use std::{
     collections::HashMap,
     sync::{
-        Mutex,
+        Arc, Mutex,
         atomic::{AtomicU32, Ordering},
     },
 };
+
+use assets::Assets;
 
 use characters::{Character, Store};
 use session::{Login, UiEvent};
@@ -66,11 +69,31 @@ fn set_open_tabs(app: tauri::AppHandle, labels: Vec<String>) -> Result<(), Strin
     store.save(&path)
 }
 
+/// 画像を探す場所。取り込んだ Philly フォルダ → 同梱の `resources/phi` の順。
+fn load_assets(app: &tauri::AppHandle) -> Result<Assets, String> {
+    let bundled = app.path().resource_dir().map_err(|e| e.to_string())?.join("phi");
+    let store = Store::load(&store_path(app)?);
+    Ok(Assets::new(
+        store
+            .philly_folder
+            .map(Into::into)
+            .into_iter()
+            .chain([bundled])
+            .collect(),
+    ))
+}
+
 /// Philly フォルダの `*.chara/.phirc` を登録する。登録した表示名を返す。
+/// フォルダは覚えておき、以後の画像もここから先に探す。
 #[tauri::command]
-fn import_philly(app: tauri::AppHandle, folder: String) -> Result<Vec<String>, String> {
+fn import_philly(
+    app: tauri::AppHandle,
+    folder: String,
+    assets: State<'_, Mutex<Arc<Assets>>>,
+) -> Result<Vec<String>, String> {
     let path = store_path(&app)?;
     let mut store = Store::load(&path);
+    store.philly_folder = Some(folder.clone());
     let mut labels = Vec::new();
     for p in characters::read_philly(std::path::Path::new(&folder))? {
         characters::set_id(&p.character.label, &p.id)?;
@@ -78,7 +101,26 @@ fn import_philly(app: tauri::AppHandle, folder: String) -> Result<Vec<String>, S
         store.upsert(p.character);
     }
     store.save(&path)?;
+    *assets.lock().unwrap() = Arc::new(load_assets(&app)?);
     Ok(labels)
+}
+
+/// `phi-asset://localhost/<種類>?...` に PNG を返す。種類は chara・chip・items。
+fn asset_response(app: &tauri::AppHandle, uri: &str) -> tauri::http::Response<Vec<u8>> {
+    let not_found = || tauri::http::Response::builder().status(404).body(Vec::new()).unwrap();
+    let Ok(url) = tauri::Url::parse(uri) else {
+        return not_found();
+    };
+    let kind = url.path().trim_start_matches('/').to_string();
+    let query = url.query_pairs().into_owned().collect();
+    let assets = app.state::<Mutex<Arc<Assets>>>().lock().unwrap().clone();
+    match assets.get(&kind, &query) {
+        Some(png) => tauri::http::Response::builder()
+            .header("Content-Type", "image/png")
+            .body(png)
+            .unwrap(),
+        None => not_found(),
+    }
 }
 
 /// 登録したキャラで接続する。ID はキーチェーンから読み、UI には渡さない。
@@ -165,12 +207,16 @@ fn main() {
     prefer_x11_ime();
 
     tauri::Builder::default()
-        .setup(|_app| {
+        .setup(|app| {
+            app.manage(Mutex::new(Arc::new(load_assets(app.handle())?)));
             #[cfg(target_os = "linux")]
-            if let Some(window) = _app.get_webview_window("main") {
+            if let Some(window) = app.get_webview_window("main") {
                 enable_ime_preedit(&window);
             }
             Ok(())
+        })
+        .register_uri_scheme_protocol("phi-asset", |ctx, req| {
+            asset_response(ctx.app_handle(), &req.uri().to_string())
         })
         .plugin(tauri_plugin_opener::init())
         .manage(Sessions::default())

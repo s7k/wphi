@@ -24,6 +24,9 @@ pub struct Store {
     pub characters: Vec<Character>,
     /// 終了時に開いていたタブの表示名(Philly の TabSession.ini)。
     pub open_tabs: Vec<String>,
+    /// 取り込んだ Philly フォルダ。画像もここから先に探す。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub philly_folder: Option<String>,
 }
 
 impl Store {

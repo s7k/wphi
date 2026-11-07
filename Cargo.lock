@@ -3101,6 +3101,7 @@ dependencies = [
 name = "rust-philly"
 version = "0.1.0"
 dependencies = [
+ "image",
  "keyring",
  "phi-proto",
  "serde",
