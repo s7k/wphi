@@ -23,6 +23,20 @@ const ANIMATION_MS = 500;
 /** 回転マップの時のタイトルの向き(MakeMap.cpp の DrawDirectionAnime) */
 const DIRECTION_TITLE: Record<number, string> = { 0: "【北】", 2: "【東】", 4: "【南】", 6: "【西】" };
 
+/** 押したことにするキー → スキンのカーソル(Philly の MapForm.cpp の Screen->Cursors) */
+const SKIN_CURSOR: Record<string, string> = {
+  "8": "MouseUp",
+  "2": "MouseDown",
+  "4": "MouseLeft",
+  "6": "MouseRight",
+  "8,4": "MouseUpLeft",
+  "8,6": "MouseUpRight",
+  "2,4": "MouseDownLeft",
+  "2,6": "MouseDownRight",
+  "7": "MouseTurnLeft",
+  "9": "MouseTurnRight",
+};
+
 /** キャラの向き(B R F L) → turn の方角 */
 const FACING: Record<string, string> = { B: "n", R: "e", F: "s", L: "w" };
 
@@ -150,7 +164,9 @@ function MapWindow() {
   const onMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     turnTo(e);
     const d = dirAt(e);
-    setCursor(d?.cursor ?? "default");
+    // スキンのカーソル。読めなければ CSS の矢印のカーソル
+    const skin = d && SKIN_CURSOR[d.keys.join()];
+    setCursor(d ? (skin ? `url("${assetUrl("cursor", { name: skin })}"), ${d.cursor}` : d.cursor) : "default");
     if (!mouseDown.current || !d || d.keys.join() === lastKeys.current) return;
     lastKeys.current = d.keys.join();
     sendMouse({ type: "move", keys: d.keys });

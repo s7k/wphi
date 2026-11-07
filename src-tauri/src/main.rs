@@ -197,7 +197,7 @@ fn import_philly(
     Ok(labels)
 }
 
-/// `phi-asset://localhost/<種類>?...` に PNG を返す。種類は chara・chip・items。
+/// `phi-asset://localhost/<種類>?...` に PNG を返す。種類は chara・chip・items。sound は WAV、cursor はスキンのカーソル
 fn asset_response(app: &tauri::AppHandle, uri: &str) -> tauri::http::Response<Vec<u8>> {
     let not_found = || tauri::http::Response::builder().status(404).body(Vec::new()).unwrap();
     let Ok(url) = tauri::Url::parse(uri) else {
@@ -221,6 +221,19 @@ fn asset_response(app: &tauri::AppHandle, uri: &str) -> tauri::http::Response<Ve
         };
     }
     let assets = app.state::<Mutex<Arc<Assets>>>().lock().unwrap().clone();
+    if kind == "cursor" {
+        let name = url
+            .query_pairs()
+            .find(|(k, _)| k == "name")
+            .map(|(_, v)| v.into_owned());
+        return match name.and_then(|n| assets.cursor(&n)) {
+            Some(b) => tauri::http::Response::builder()
+                .header("Content-Type", "image/x-icon")
+                .body(b)
+                .unwrap(),
+            None => not_found(),
+        };
+    }
     match assets.get(&kind, &query) {
         Some(png) => tauri::http::Response::builder()
             .header("Content-Type", "image/png")

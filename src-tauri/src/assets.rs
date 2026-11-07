@@ -189,6 +189,25 @@ impl Assets {
         image::load_from_memory_with_format(&self.read(rel)?, ImageFormat::Bmp).ok()
     }
 
+    /// スキンのマウスカーソル(`Cursor/<名前>.cur`。Philly の MapForm.cpp)。名前は Philly が使う物だけ
+    pub fn cursor(&self, name: &str) -> Option<Vec<u8>> {
+        const NAMES: [&str; 10] = [
+            "MouseUp",
+            "MouseDown",
+            "MouseLeft",
+            "MouseRight",
+            "MouseUpLeft",
+            "MouseUpRight",
+            "MouseDownLeft",
+            "MouseDownRight",
+            "MouseTurnLeft",
+            "MouseTurnRight",
+        ];
+        NAMES
+            .contains(&name)
+            .then(|| self.read(&format!("Skins/{SKIN}/Cursor/{name}.cur")))?
+    }
+
     fn read(&self, rel: &str) -> Option<Vec<u8>> {
         if !safe_rel(rel) || is_lanu(rel) {
             return None;
@@ -376,6 +395,14 @@ mod tests {
             .unwrap();
         assert_eq!(a.cache.lock().unwrap().len(), 2);
         assert_eq!(a.converted.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn cursors_from_bundled_skin() {
+        let a = bundled_only();
+        assert!(a.cursor("MouseUp").is_some());
+        assert!(a.cursor("../MouseUp").is_none());
+        assert!(a.cursor("Title").is_none());
     }
 
     /// LANU 系は、利用者の Philly フォルダにあっても読まない
