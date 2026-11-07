@@ -184,11 +184,14 @@ body {
   position: absolute;
 }
 
-/* ImageMapSide。Philly は 70px だが、名前が切れないよう名前の長さに合わせて広げる */
+/*
+ * ImageMapSide。Philly は 70px だが、名前が読めるよう 150px にする。
+ * 幅は中身に関係なく決めておく。中身(名前の一覧とリスト)に合わせて広げると、リストが出た時に
+ * マップの欄が狭くなり、拡張マップの見える範囲が変わってしまう。収まらない行は省略し、マウスを乗せると全体を出す
+ */
 .map-side {
-  min-width: 70px;
-  width: max-content;
-  max-width: 45%;
+  flex: none;
+  width: 150px;
   display: flex;
   flex-direction: column;
   align-items: center;
