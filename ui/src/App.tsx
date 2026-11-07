@@ -22,6 +22,7 @@ import { PrivPanel, type PrivConv } from "./PrivPanel";
 import { ListOverlay } from "./ListOverlay";
 import { listNo, listOk, moreNo, newList, type ListState } from "./list.ts";
 import { MoveRepeat } from "./moveRepeat.ts";
+import { trace } from "./trace.ts";
 import { EAGLE_EYE_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
@@ -171,6 +172,7 @@ export function App() {
         mapStateQueued.current = false;
         const s = mapStateSession.current;
         const state = s === null ? undefined : mapStates.current.get(s);
+        trace("main emit");
         emitTo("map", MAP_STATE_EVENT, state ?? { session: -1, mapset: "" }).catch((e) => console.error(e));
       };
     }
@@ -225,7 +227,14 @@ export function App() {
       undefined,
       { startMs: settings.repeatStartMs, endMs: settings.repeatEndMs },
     );
-    const timer = setInterval(() => mover.current?.tick(), 50);
+    // tick の間隔が延びたら記録する(裏の窓のタイマーの間引き)
+    let lastTick = performance.now();
+    const timer = setInterval(() => {
+      const now = performance.now();
+      if (now - lastTick > 150) trace(`main tick-gap ${Math.round(now - lastTick)}`);
+      lastTick = now;
+      mover.current?.tick();
+    }, 50);
     return () => clearInterval(timer);
   }, [active, settings.repeatStartMs, settings.repeatEndMs]);
 
@@ -278,6 +287,7 @@ export function App() {
       }
       const move = moveInput(e, ctx);
       if (move) {
+        trace(`main ${e.type} ${e.code}${e.repeat ? " repeat" : ""}`);
         if (e.type === "keydown") mover.current?.keyDown(move.key, move.mods, e.repeat);
         else mover.current?.keyUp(move.key);
         return true;
@@ -328,6 +338,11 @@ export function App() {
       if (id === "next-tab") return nextTab();
       if (id === "new-tab") return setActive(null);
       if (id === "open-config-dir") return void invoke("open_config_dir").catch((e) => setError(String(e)));
+      if (id === "trace")
+        return void invoke<boolean>("trace_on")
+          .then((v) => invoke<string | null>("set_trace", { on: !v }))
+          .then((path) => window.alert(path ? `時刻の記録を始めました。\n${path}` : "時刻の記録を止めました。"))
+          .catch((e) => setError(String(e)));
       if (id === "version") return void getVersion().then((v) => window.alert(`WPHI ${v}`));
       if (session === null) return;
       // 入力欄のツールバーと同じ切り替え。状態は InputEditor が持つ
@@ -406,6 +421,7 @@ export function App() {
     switch (ev.type) {
       case "map":
         s.map = ev;
+        trace("main map");
         // 拡張マップ。世界ごとに見えた地形を貯める。盲目中は視界が霧で埋まるので貯めない
         if (s.world && s.world !== "???" && !s.cond?.blind) recordAutomap(s.world, ev);
         if (session === activeRef.current) mover.current?.onMap();

@@ -142,6 +142,9 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                 }
                 let mut moving_to = None;
                 'lines: for line in lines.feed(&buf[..n]) {
+                    if crate::trace::on() {
+                        crate::trace::write(&format!("recv {}", crate::trace::head(&String::from_utf8_lossy(&line))));
+                    }
                     for ev in parser.feed(&line) {
                         match ev {
                             Event::Internal { action: InternalAction::Lag } => reply.push("#end-lag".into()),

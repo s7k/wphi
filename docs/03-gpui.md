@@ -81,7 +81,7 @@ WebView2 が main 窓のタイマーを間引くと、移動の間隔が延び�
 v0.1.6 で、WebView2 の起動オプションに `--disable-background-timer-throttling`、`--disable-renderer-backgrounding`、`--disable-backgrounding-occluded-windows` を足した(`src-tauri/tauri.conf.json` の `additionalBrowserArgs`)。
 これで直らなければ、次を試す。
 
-1. main 窓の tick と `send_line` の時刻をログに出し、map 窓と main 窓のどちらにフォーカスがある時に間隔が延びるかを比べる
+1. main 窓の tick と `send_line` の時刻をログに出し、map 窓と main 窓のどちらにフォーカスがある時に間隔が延びるかを比べる。v0.1.8 で、ツールのメニューの「時刻の記録を始める・止める」から記録出来るようにした(`src-tauri/src/trace.rs`)
 2. 押しっぱなし移動のリピートを Rust 側(tokio)へ移し、map 窓から keydown・keyup を直接 Rust へ送る
 
 ## 移す場合に作り直す物

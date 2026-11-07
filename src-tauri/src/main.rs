@@ -8,6 +8,7 @@ mod register;
 mod session;
 mod settings;
 mod sounds;
+mod trace;
 
 use std::{
     collections::HashMap,
@@ -391,6 +392,7 @@ async fn send(sessions: &Sessions, session: u32, lines: Vec<String>) -> Result<(
     let tx = sessions.senders.lock().unwrap().get(&session).cloned();
     let tx = tx.ok_or("接続していません")?;
     for l in lines {
+        trace::write(&format!("send {}", trace::head(&l)));
         tx.send(l).await.map_err(|_| "接続が切れています".to_string())?;
     }
     Ok(())
@@ -534,6 +536,32 @@ async fn open_config_dir(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// 時刻の記録(#44)を始めるか止める。始めた時は書き出すファイルを返す。全部の窓へ phi-trace で知らせる
+#[tauri::command]
+fn set_trace(app: tauri::AppHandle, on: bool) -> Result<Option<String>, String> {
+    use tauri::Emitter;
+    let path = if on {
+        let dir = app.path().app_log_dir().map_err(|e| e.to_string())?;
+        Some(trace::start(&dir).map_err(|e| e.to_string())?.display().to_string())
+    } else {
+        trace::stop();
+        None
+    };
+    let _ = app.emit("phi-trace", on);
+    Ok(path)
+}
+
+#[tauri::command]
+fn trace_on() -> bool {
+    trace::on()
+}
+
+/// UI の出来事を記録する。at は UI の時計の UNIX 時刻のミリ秒(受け渡しの遅れを含めない為)
+#[tauri::command]
+fn trace(at: f64, what: String) {
+    trace::write_at(at, &what);
+}
+
 /// 表示名のログの保存先のフォルダを、OS のファイルマネージャで開く。無ければ作る
 #[tauri::command]
 async fn open_log_dir(app: tauri::AppHandle, label: String) -> Result<(), String> {
@@ -666,7 +694,10 @@ fn main() {
             disconnect,
             log_css,
             log_html,
-            append_log
+            append_log,
+            set_trace,
+            trace_on,
+            trace
         ])
         .run(tauri::generate_context!())
         .expect("Tauri の起動に失敗した");

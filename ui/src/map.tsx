@@ -10,6 +10,7 @@ import { createRoot } from "react-dom/client";
 import { assetUrl } from "./asset";
 import { AUTOMAP_EVENT, compose, ringFor, loadTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { drawMap, type ImageRefs } from "./drawMap";
+import { trace } from "./trace.ts";
 import { KEY_EVENT, MOUSE_EVENT, sendLine, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
 import { CHIP_SIZE, MAP_TOP, gridDim } from "./mapRender";
@@ -57,6 +58,7 @@ function MapWindow() {
     hideOnClose();
     const unlisten = listen<MapState>(MAP_STATE_EVENT, (e) => {
       const s = e.payload;
+      trace("map recv");
       const p = prevStatus.current;
       // イベントのたびに別のオブジェクトで届くので、中身で比べる。#status が届くたびに1つ前の値になる
       if (JSON.stringify(s.status) !== JSON.stringify(p.now)) prevStatus.current = { now: s.status, old: p.now ?? s.status };
@@ -79,6 +81,7 @@ function MapWindow() {
       // Tab や Space でマップ窓の中が動かないようにする
       e.preventDefault();
       const { code, shiftKey, ctrlKey, altKey, metaKey, repeat } = e;
+      trace(`map ${e.type} ${code}${repeat ? " repeat" : ""}`);
       forward({ type: e.type as "keydown" | "keyup", code, shiftKey, ctrlKey, altKey, metaKey, repeat });
     };
     const onBlur = () =>
@@ -199,6 +202,7 @@ function MapWindow() {
   useEffect(() => {
     const ctx = mapCanvas.current?.getContext("2d");
     if (!ctx || !map || !state) return;
+    trace("map draw");
     // 上の余白を黒で塗り、マップはその下から描く(一番上の行のはみ出しは余白に出る)
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = "#000";
