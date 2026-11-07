@@ -3,7 +3,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { boardText } from "./boardText.ts";
-import { TagMenu, type TagMenuAt } from "./TagMenu";
+import { TagMenu, type TagMenuAt } from "./TagMenuPopup";
 
 function previewHeader(name: string): string {
   const d = new Date();

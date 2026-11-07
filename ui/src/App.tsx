@@ -10,7 +10,7 @@ import { SENT_EVENT } from "./keyInput";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, menuAction, moveInput, type AskOptions } from "./keys.ts";
 import { AskDialog } from "./AskDialog";
-import { TagMenu, type TagMenuAt } from "./TagMenu";
+import { TagMenu, type TagMenuAt } from "./TagMenuPopup";
 import { assetUrl } from "./asset";
 import { absorb, AUTOMAP_EVENT, loadTiles, removeTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { BoardEditor } from "./BoardEditor";
