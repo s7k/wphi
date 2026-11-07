@@ -42,7 +42,12 @@ pub enum UiOnly {
         html: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         from: Option<String>,
+        /// 元の受信テキスト。効果音の照合に使い、UI には送らない
+        #[serde(skip)]
+        text: String,
     },
+    /// 効果音を鳴らす(Philly の SoundPlay)。file が false ならタスクバーの点滅
+    Sound { no: usize, file: bool },
     /// 接続できない、切れた、応答が無いなど。
     Error { message: String },
     /// 世界移動が済み、接続先が変わった。登録したキャラの接続先もこれで書き換える。
@@ -305,6 +310,7 @@ fn system(ok: bool, text: &str) -> UiEvent {
         channel: Channel::System,
         html: format!(r#"<font class="{class}">{text}</font>"#),
         from: None,
+        text: String::new(),
     })
 }
 
@@ -313,6 +319,7 @@ fn log_event(m: Message, opts: &LogOptions) -> UiEvent {
         channel: m.channel,
         html: to_html(&m.text, opts),
         from: m.from,
+        text: m.text,
     })
 }
 

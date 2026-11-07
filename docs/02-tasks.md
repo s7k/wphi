@@ -55,7 +55,9 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 - [ ] 窓の吸い付きと位置記憶(Windows のみ)
 - [x] 設定画面と `Philly.ini` の取り込み。今の項目はフルキー移動、リピートの時間、F8〜F12、Alt+G。設定フォルダの `settings.json` に置く
   - [ ] 他の項目(ログ表示、通知、フォントなど)の設定と取り込み
-- [ ] 効果音(`SoundRegexp.ini`)と BGM(MIDI)
+- [x] 効果音。Philly フォルダの `Config/SoundRegexp.ini` と `SoundFile.ini` を読み、受信した行に最初に一致した規則の WAV を鳴らす(ファイルが空ならタスクバーの点滅)。設定で切り替える
+  - [ ] `#more` の間は鳴らさない(Philly は #more の外だけで照合する)
+- [ ] BGM(MIDI)
 - [x] タスクバーの点滅と裏タブの未読表示。発言と priv が届いた時だけ(GtOnly=on)、大声では点滅しない(Loud=off)
   - [ ] 点滅させない正規表現(`NotTaskBarFlashRegexp.ini`)と、裏タブで HP・MP が減った時の印
 - [x] ログの保存(LogAutoSave)。入力欄のツールバーでタブごとに切り替え、`<アプリのログフォルダ>/<表示名>/<yyyymmdd>.html` に Log.css 付きで書く

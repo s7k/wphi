@@ -29,6 +29,10 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
           フルキーの 789 uio jkl m をテンキーとして使う(フルキー移動)
         </label>
         <label>
+          <input type="checkbox" checked={s.soundPlay} onChange={(e) => set("soundPlay", e.target.checked)} />
+          ログに出てきた文字列で効果音を鳴らす(Philly の Config/SoundRegexp.ini と SoundFile.ini)
+        </label>
+        <label>
           移動キーを押してからリピートに入るまで(ms)
           <input type="number" value={s.repeatStartMs} onChange={(e) => set("repeatStartMs", Number(e.target.value))} />
         </label>

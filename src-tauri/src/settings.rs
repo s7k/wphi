@@ -21,6 +21,8 @@ pub struct Settings {
     pub list_shortcuts: [String; 5],
     /// Alt+G で送る言葉([Shortcut] AltGWord)
     pub alt_g_word: String,
+    /// ログに出てきた文字列で効果音を鳴らす([Sound] SoundPlay)
+    pub sound_play: bool,
 }
 
 impl Default for Settings {
@@ -32,6 +34,7 @@ impl Default for Settings {
             shortcuts: Default::default(),
             list_shortcuts: Default::default(),
             alt_g_word: String::new(),
+            sound_play: true,
         }
     }
 }
@@ -76,6 +79,9 @@ impl Settings {
         }
         if let Some(v) = get("Shortcut", "AltGWord") {
             self.alt_g_word = v.clone();
+        }
+        if let Some(v) = get("Sound", "SoundPlay") {
+            self.sound_play = on(v);
         }
     }
 }

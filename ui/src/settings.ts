@@ -7,6 +7,8 @@ export type Settings = {
   shortcuts: string[];
   listShortcuts: string[];
   altGWord: string;
+  /** ログに出てきた文字列で効果音を鳴らす(Philly.ini の SoundPlay) */
+  soundPlay: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -16,6 +18,7 @@ export const DEFAULT_SETTINGS: Settings = {
   shortcuts: ["", "", "", "", ""],
   listShortcuts: ["", "", "", "", ""],
   altGWord: "",
+  soundPlay: true,
 };
 
 /** Philly.ini の文字列の \n を改行にする */

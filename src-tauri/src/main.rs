@@ -5,6 +5,7 @@ mod characters;
 mod register;
 mod session;
 mod settings;
+mod sounds;
 
 use std::{
     collections::HashMap,
@@ -85,6 +86,15 @@ fn load_assets(app: &tauri::AppHandle) -> Result<Assets, String> {
     ))
 }
 
+/// 効果音の規則。Philly フォルダが無ければ鳴らさない。
+fn load_sounds(app: &tauri::AppHandle) -> sounds::Sounds {
+    store_path(app)
+        .ok()
+        .and_then(|p| Store::load(&p).philly_folder)
+        .map(|f| sounds::Sounds::load(std::path::Path::new(&f)))
+        .unwrap_or_default()
+}
+
 /// Philly フォルダの `*.chara/.phirc` を登録する。登録した表示名を返す。
 /// フォルダは覚えておき、以後の画像もここから先に探す。
 #[tauri::command]
@@ -104,6 +114,7 @@ fn import_philly(
     }
     store.save(&path)?;
     *assets.lock().unwrap() = Arc::new(load_assets(&app)?);
+    *app.state::<Mutex<Arc<sounds::Sounds>>>().lock().unwrap() = Arc::new(load_sounds(&app));
     Ok(labels)
 }
 
@@ -115,6 +126,21 @@ fn asset_response(app: &tauri::AppHandle, uri: &str) -> tauri::http::Response<Ve
     };
     let kind = url.path().trim_start_matches('/').to_string();
     let query = url.query_pairs().into_owned().collect();
+    if kind == "sound" {
+        let sounds = app.state::<Mutex<Arc<sounds::Sounds>>>().lock().unwrap().clone();
+        let wav = url
+            .query_pairs()
+            .find(|(k, _)| k == "no")
+            .and_then(|(_, v)| v.parse().ok())
+            .and_then(|no| sounds.wav(no));
+        return match wav {
+            Some(b) => tauri::http::Response::builder()
+                .header("Content-Type", "audio/wav")
+                .body(b)
+                .unwrap(),
+            None => not_found(),
+        };
+    }
     let assets = app.state::<Mutex<Arc<Assets>>>().lock().unwrap().clone();
     match assets.get(&kind, &query) {
         Some(png) => tauri::http::Response::builder()
@@ -233,8 +259,19 @@ fn connect(
                 eprintln!("接続先を保存出来ません: {e}");
             }
         }
+        // 効果音(Philly の SoundPlay)。システムの行は照合しない
+        let sound = match &ev {
+            UiEvent::Ui(session::UiOnly::Log { text, .. }) if !text.is_empty() => {
+                let sounds = app.state::<Mutex<Arc<sounds::Sounds>>>().lock().unwrap().clone();
+                sounds.find(text).map(|no| (no, sounds.has_file(no)))
+            }
+            _ => None,
+        };
         // UI の窓が閉じていれば送れないだけなので、失敗は無視する
         let _ = on_event.send(ev);
+        if let Some((no, file)) = sound {
+            let _ = on_event.send(UiEvent::Ui(session::UiOnly::Sound { no, file }));
+        }
     }));
     Ok(no)
 }
@@ -353,6 +390,7 @@ fn main() {
     tauri::Builder::default()
         .setup(|app| {
             app.manage(Mutex::new(Arc::new(load_assets(app.handle())?)));
+            app.manage(Mutex::new(Arc::new(load_sounds(app.handle()))));
             #[cfg(target_os = "linux")]
             if let Some(window) = app.get_webview_window("main") {
                 enable_ime_preedit(&window);

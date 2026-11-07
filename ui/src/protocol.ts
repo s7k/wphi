@@ -66,6 +66,8 @@ export type UiEvent =
   | { type: "log"; channel: string; html: string; from?: string }
   | { type: "error"; message: string }
   | { type: "connection"; state: "closed" }
+  /** 効果音。file が false ならタスクバーの点滅 */
+  | { type: "sound"; no: number; file: boolean }
   /** 世界移動が済んだ */
   | { type: "worldMoved"; host: string; port: number }
   | MapEvent

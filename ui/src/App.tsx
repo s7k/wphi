@@ -7,6 +7,7 @@ import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, moveInput } from "./keys.ts";
+import { assetUrl } from "./asset";
 import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, shortcutText, type Settings } from "./settings.ts";
 import { SettingsPanel } from "./SettingsPanel";
@@ -380,6 +381,12 @@ export function App() {
           break;
         case "error":
           append(session, systemNg(ev.message));
+          break;
+        case "sound":
+          // Philly の SoundPlay。ファイルの無い規則はタスクバーの点滅
+          if (!settingsRef.current.soundPlay) break;
+          if (ev.file) new Audio(assetUrl("sound", { no: String(ev.no) })).play().catch(console.error);
+          else getCurrentWindow().requestUserAttention(UserAttentionType.Informational).catch(console.error);
           break;
         case "connection":
           update(session, (t) => ({ ...t, closed: true }));
