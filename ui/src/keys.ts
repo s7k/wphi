@@ -11,6 +11,8 @@ export type KeyAction =
   | { send: string }
   /** 支払い金額を聞いてから `pay <金額>` を送る */
   | { pay: true }
+  /** 看板を書く。write を送り、看板エディタを開く(Command.cpp の Write) */
+  | { write: true }
   /** 入力欄へフォーカスを移す */
   | { focusInput: true }
   | { nextTab: true };
@@ -106,8 +108,7 @@ const NONE: Record<string, KeyAction> = {
   KeyP: { pay: true },
   KeyQ: { send: "equip" },
   KeyR: { send: "spells" },
-  // ponytail: 看板の複数行入力(m-edit)の窓は P3。今は write を送るだけ
-  KeyS: { send: "write" },
+  KeyS: { write: true },
   KeyT: { send: "#ex-map style=turn" },
   KeyV: { send: "sort" },
   KeyW: { send: "unequip" },

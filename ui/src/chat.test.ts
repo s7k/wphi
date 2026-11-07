@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { boardText } from "./boardText.ts";
 import { afterSend, caretLine, EDIT_MAX_LINE, prepareLine } from "./chat.ts";
 
 const plain = { ctrl: false, loud: false, lastLine: true };
@@ -27,4 +28,8 @@ test("カーソルの行と送った後", () => {
   const after = afterSend(full, full.length);
   assert.equal(after.value.split("\n").length, EDIT_MAX_LINE);
   assert.ok(after.value.startsWith("1\n"));
+});
+
+test("看板の送る行", () => {
+  assert.equal(boardText("一行目\r\n\r\n三行目"), "一行目\n \n三行目\n.");
 });

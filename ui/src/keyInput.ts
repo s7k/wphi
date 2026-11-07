@@ -27,8 +27,16 @@ export function sendLine(session: number, text: string) {
 }
 
 /** 移動以外のキー操作を行う */
-export function runKeyAction(action: KeyAction, session: number, hooks: { focusInput: () => void; nextTab: () => void }) {
+export function runKeyAction(
+  action: KeyAction,
+  session: number,
+  hooks: { focusInput: () => void; nextTab: () => void; openBoard: () => void },
+) {
   if ("send" in action) sendLine(session, action.send);
+  else if ("write" in action) {
+    sendLine(session, "write");
+    hooks.openBoard();
+  }
   else if ("pay" in action) {
     // ponytail: ブラウザ標準の入力ダイアログ。Philly の金額ダイアログ(IntInputDialog)に寄せるのは後
     const amount = window.prompt("支払い金額");

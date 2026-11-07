@@ -7,6 +7,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { isTextTarget, KEY_EVENT, keyContext, runKeyAction, sendLine, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, moveInput } from "./keys.ts";
+import { BoardEditor } from "./BoardEditor";
 import { ListOverlay, listOk, type ListState } from "./ListOverlay";
 import { MoveRepeat } from "./moveRepeat.ts";
 import { MAP_STATE_EVENT, type MapState, type UiEvent } from "./protocol";
@@ -23,6 +24,8 @@ type Tab = {
   closed: boolean;
   /** 表示中のリスト(#list 〜 #end-list) */
   list: ListState | null;
+  /** 看板エディタを開いているか */
+  board: boolean;
 };
 
 /** Philly のログバッファに合わせ、古い行から捨てる */
@@ -162,7 +165,8 @@ export function App() {
       const action = keyAction(e, ctx);
       if (!action) return false;
       // 押し続けによる自動リピートは送らない
-      if (!e.repeat) runKeyAction(action, session, { focusInput, nextTab });
+      const openBoard = () => update(session, (t) => ({ ...t, board: true }));
+      if (!e.repeat) runKeyAction(action, session, { focusInput, nextTab, openBoard });
       return true;
     };
     const onDom = (e: globalThis.KeyboardEvent) => {
@@ -261,6 +265,11 @@ export function App() {
         case "connection":
           update(session, (t) => ({ ...t, closed: true }));
           break;
+        case "edit":
+          // #m-edit で看板エディタを開き、#. で閉じる。#s-edit は Philly も何もしない(入力欄で答える)
+          if (ev.mode === "multi") update(session, (t) => ({ ...t, board: true }));
+          else if (ev.mode === "end") update(session, (t) => ({ ...t, board: false }));
+          break;
         case "list":
           if (!ev.active) update(session, (t) => ({ ...t, list: null }));
           else {
@@ -273,7 +282,7 @@ export function App() {
           onMapEvent(session, ev);
       }
     };
-    setTabs((ts) => [...ts, { session, label, lines: [], closed: false, list: null }]);
+    setTabs((ts) => [...ts, { session, label, lines: [], closed: false, list: null, board: false }]);
     setActive(session);
   }
 
@@ -293,6 +302,20 @@ export function App() {
       {tab ? (
         <div className="log-area">
           <LogView key={tab.session} lines={tab.lines} />
+          {tab.board && (
+            <BoardEditor
+              name={tab.label}
+              onSend={(text) => {
+                sendLine(tab.session, text);
+                update(tab.session, (t) => ({ ...t, board: false }));
+              }}
+              onCancel={() => {
+                // 閉じる時は .! を送って書くのをやめる(MEditForm.cpp の FormClose)
+                sendLine(tab.session, ".!");
+                update(tab.session, (t) => ({ ...t, board: false }));
+              }}
+            />
+          )}
           {tab.list && (
             <ListOverlay
               list={tab.list}

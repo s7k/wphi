@@ -173,6 +173,12 @@ fn disconnect(session: u32, sessions: State<'_, Sessions>) {
     sessions.senders.lock().unwrap().remove(&session);
 }
 
+/// ログと同じ HTML にする(看板エディタのプレビュー。Philly の MEditForm も TagToHtml を使う)。
+#[tauri::command]
+fn log_html(text: String) -> String {
+    phi_proto::tag_to_html::to_html(&text, &phi_proto::tag_to_html::LogOptions::default())
+}
+
 /// スキンのログ用スタイルシート(Philly の `Skins/<スキン>/Style/Log.css`)。
 #[tauri::command]
 fn log_css(app: tauri::AppHandle) -> Result<String, String> {
@@ -241,7 +247,8 @@ fn main() {
             connect,
             send_line,
             disconnect,
-            log_css
+            log_css,
+            log_html
         ])
         .run(tauri::generate_context!())
         .expect("Tauri の起動に失敗した");

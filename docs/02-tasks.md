@@ -31,7 +31,9 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 - [x] リスト(`#list` 〜 `#end-list`)の表示と選択。番号キーで選び、0 は取り消し(`Command.cpp` の ListModeSend と KeyBindListMode)。ログの上のチェックリストとマップ窓の右の領域に出す
   - [ ] 9 で続きのページ(`#more`)を送る処理と、番号のずれ(ListOffset)・範囲外の番号でリストを閉じる処理(ListEndTenKeyCertainly)
   - [ ] マップ窓のリストをクリックで選ぶ
-- [ ] s-edit(1行入力)と m-edit(看板などの複数行入力。Philly の MEditForm)。S(write)から開く
+- [x] s-edit(1行入力)と m-edit(看板などの複数行入力。Philly の MEditForm)。S(write)から開く。s-edit は Philly と同じく入力欄で答える
+  - [ ] 看板エディタを別窓にする(今は main 窓の中に重ねている。窓の配置と一緒に決める)
+  - [ ] タグメニュー(`TagMenu.xml`)とタグの無効化
 - [ ] priv 窓(Philly の PrivForm)。相手ごとに窓を開き、`priv <番号> <本文>` で送る
 - [ ] EagleEye 窓(Philly の EagleEyeForm)
 - [x] 世界移動(`#ch-srv` → `#reserve` → `#rsv-ok` → `#trans` → `#trs-ok` → `#ch-srv-ok`)。Philly の `PersonalThread.cpp` classTransportCharacter に合わせた(移動後は `#open` を送らない、失敗時の通知先も Philly と同じ)。移動先は登録したキャラにも書き戻す
