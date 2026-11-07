@@ -16,7 +16,8 @@ import { SettingsPanel } from "./SettingsPanel";
 import { NewCharacter } from "./NewCharacter";
 import { partnersKey, privLines, privPartners, usersFromEvent, type User } from "./priv.ts";
 import { PrivPanel, type PrivConv } from "./PrivPanel";
-import { ListOverlay, listOk, type ListState } from "./ListOverlay";
+import { ListOverlay } from "./ListOverlay";
+import { listNo, listOk, moreNo, newList, type ListState } from "./list.ts";
 import { MoveRepeat } from "./moveRepeat.ts";
 import { EAGLE_EYE_EVENT, MAP_STATE_EVENT, type MapState, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
@@ -213,7 +214,12 @@ export function App() {
       const listAction = list && e.type === "keydown" ? listKeyAction(e, ctx) : null;
       if (list && listAction) {
         if (e.repeat && !("listCursor" in listAction) && !("listToggle" in listAction)) return true;
-        if ("send" in listAction) closeListAndSend(session, listAction.send);
+        if ("listNo" in listAction) {
+          const r = listNo(list, listAction.listNo);
+          if (r && "ok" in r) closeListAndSend(session, listOk(list));
+          else if (r?.close) closeListAndSend(session, r.send);
+          else if (r) sendLine(session, r.send);
+        } else if ("send" in listAction) closeListAndSend(session, listAction.send);
         else if ("listOk" in listAction) closeListAndSend(session, listOk(list));
         else if ("focusInput" in listAction) focusInput();
         else updateList(session, (l) => moveListCursor(l, listAction));
@@ -253,12 +259,12 @@ export function App() {
     document.addEventListener("keyup", onDom);
     window.addEventListener("blur", onBlur);
     const forwarded = listen<ForwardedKey>(KEY_EVENT, (e) => onKey(e.payload));
-    // リスト表示中に何かを送ったら、続きのページの番号(9)でない限りリストを閉じる(Philly の SendTextListCancel)。
+    // リスト表示中に何かを送ったら、続きのページの番号(ずれ+9)でない限りリストを閉じる(Philly の SendTextListCancel)。
     // v5y は「番号ではありません」でリストを取り消しても、リストの終わりを送ってこない
     const onSent = (e: Event) => {
       const { session, text } = (e as CustomEvent<{ session: number; text: string }>).detail;
-      if (text.trim() === "9") return;
-      if (!tabsRef.current.find((t) => t.session === session)?.list) return;
+      const list = tabsRef.current.find((t) => t.session === session)?.list;
+      if (!list || text.trim() === moreNo(list)) return;
       update(session, (t) => ({ ...t, list: null }));
       onMapEvent(session, { type: "list", active: false });
     };
@@ -489,7 +495,7 @@ export function App() {
           const cancel = flow.cancel > 0;
           if (cancel) flow.cancel--;
           if (lines.length === 0 || cancel) break;
-          update(session, (t) => ({ ...t, list: { lines, checked: lines.map(() => false), cursor: 0 } }));
+          update(session, (t) => ({ ...t, list: newList(lines) }));
           onMapEvent(session, ev);
           break;
         }
@@ -557,6 +563,7 @@ export function App() {
               list={tab.list}
               onChange={(l) => updateList(tab.session, () => l)}
               onSend={(text) => closeListAndSend(tab.session, text)}
+              onMore={(text) => sendLine(tab.session, text)}
             />
           )}
         </div>

@@ -243,6 +243,8 @@ export function keyAction(e: KeyInput, ctx: KeyContext): KeyAction | null {
 /** リスト表示中のキー操作(Command.cpp の KeyBindListMode。修飾キーなしの時だけ) */
 export type ListKeyAction =
   | { send: string }
+  /** 番号(1〜9)。送る番号はページのずれを足して決める(list.ts の listNo) */
+  | { listNo: number }
   /** チェックした番号をまとめて送る */
   | { listOk: true }
   /** カーソルの行のチェックを切り替えて次の行へ */
@@ -274,7 +276,7 @@ export function listKeyAction(e: KeyInput, ctx: KeyContext): ListKeyAction | nul
   const n = normalize(e, ctx);
   if (!n || n.mods !== "none") return null;
   const digit = /^(?:Digit|Numpad)([1-9])$/.exec(n.code);
-  if (digit) return { send: digit[1] };
+  if (digit) return { listNo: Number(digit[1]) };
   return LIST[n.code] ?? null;
 }
 
