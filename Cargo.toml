@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/phi-proto", "tools/png2phibmp"]
+members = ["crates/phi-proto", "src-tauri", "tools/png2phibmp"]
 
 [workspace.package]
 edition = "2024"
