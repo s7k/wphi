@@ -29,6 +29,9 @@ import { pushLine, type LogLine } from "./logLines.ts";
 type Character = { label: string; host: string; port: number };
 type Store = { characters: Character[]; openTabs: string[] };
 
+/** 最後の #user からこれだけ何も届かなければ、#ulist の返事が届き終わった事にする */
+const ULIST_QUIET_MS = 300;
+
 type Tab = {
   session: number;
   label: string;
@@ -478,20 +481,50 @@ export function App() {
     });
   }
 
-  // #ulist はセッションごとに 10 秒に1回まで(PrivForm.cpp の RequestUlistWait)
+  // #ulist はセッションごとに 10 秒に1回まで(PrivForm.cpp の RequestUlistWait)。
+  // 送ったら #user の行が届き終わるまで待ってから then を呼ぶ(最大 60 秒)。v5y は一覧の終わりを送らないので、
+  // 最後の #user から ULIST_QUIET_MS 何も届かなければ終わった事にする
   const lastUlist = useRef(new Map<number, number>());
-  function requestUlist(session: number) {
+  const ulistWaits = useRef(new Map<number, { thens: (() => void)[]; timer: number }>());
+  function requestUlist(session: number, then?: () => void) {
+    const wait = ulistWaits.current.get(session);
+    if (wait) {
+      if (then) wait.thens.push(then);
+      return;
+    }
     const now = performance.now();
-    if (now - (lastUlist.current.get(session) ?? -Infinity) < 10_000) return;
+    if (now - (lastUlist.current.get(session) ?? -Infinity) < 10_000) {
+      then?.();
+      return;
+    }
     lastUlist.current.set(session, now);
+    ulistWaits.current.set(session, { thens: then ? [then] : [], timer: window.setTimeout(() => ulistDone(session), 60_000) });
     sendLine(session, "#ulist");
   }
+  function ulistDone(session: number) {
+    const wait = ulistWaits.current.get(session);
+    if (!wait) return;
+    window.clearTimeout(wait.timer);
+    ulistWaits.current.delete(session);
+    wait.thens.forEach((f) => f());
+  }
+  /** #user が届いた。待っていれば、少し待って届き終わった事にする */
+  function ulistArrived(session: number) {
+    const wait = ulistWaits.current.get(session);
+    if (!wait) return;
+    window.clearTimeout(wait.timer);
+    wait.timer = window.setTimeout(() => ulistDone(session), ULIST_QUIET_MS);
+  }
 
-  function sendPriv(t: Tab, to: string[], text: string) {
-    const { lines, failed } = privLines(to, text, t.users, t.self);
-    lines.forEach((l) => sendLine(t.session, l));
-    for (const name of failed) append(t.session, systemNg(`「${name}」さんに送信できませんでした。`));
-    requestUlist(t.session);
+  /** priv を送る。先に #ulist で番号を取り直す(Philly の PrivForm.cpp の SendPrivMessage) */
+  function sendPriv(session: number, to: string[], text: string) {
+    requestUlist(session, () => {
+      const t = tabsRef.current.find((t) => t.session === session);
+      if (!t) return;
+      const { lines, failed } = privLines(to, text, t.users, t.self);
+      lines.forEach((l) => sendLine(session, l));
+      for (const name of failed) append(session, systemNg(`「${name}」さんに送信できませんでした。`));
+    });
   }
 
   /** リストで選んだ時と取り消した時。v5y は #ex-list-mode-end を送らないので、送った時点でリストを閉じる */
@@ -541,6 +574,7 @@ export function App() {
           break;
         case "userList":
           update(session, (t) => ({ ...t, users: usersFromEvent(ev.users) }));
+          ulistArrived(session);
           break;
         case "notice":
           if (ev.name) {
@@ -685,7 +719,7 @@ export function App() {
                 return { ...t, privs, privActive: key };
               })
             }
-            onSend={(to, text) => sendPriv(tab, to, text)}
+            onSend={(to, text) => sendPriv(tab.session, to, text)}
             onClose={() => update(tab.session, (t) => ({ ...t, privOpen: false }))}
           />
         )}
