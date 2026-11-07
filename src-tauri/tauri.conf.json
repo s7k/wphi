@@ -15,14 +15,16 @@
         "label": "main",
         "title": "WPHI",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows"
       },
       {
         "label": "map",
         "title": "マップ",
         "url": "map.html",
         "width": 437,
-        "height": 481
+        "height": 481,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows"
       },
       {
         "label": "eagleeye",
@@ -30,7 +32,8 @@
         "url": "eagleeye.html",
         "width": 496,
         "height": 520,
-        "visible": false
+        "visible": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows"
       }
     ],
     "security": {
