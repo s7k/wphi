@@ -237,7 +237,7 @@ function drawChara(
     // 未ロード: 頭文字を暫定描画。
     ctx.save();
     ctx.fillStyle = '#ff0';
-    ctx.font = `bold ${14 * scale}px monospace`;
+    ctx.font = `bold ${14 * scale}px "Segoe UI", "Noto Sans CJK JP", "Yu Gothic UI", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(nameInitial(ch.name), ch.x * cs + cs / 2, ch.y * cs + cs / 2);
@@ -283,7 +283,7 @@ function drawCharaNames(
   if (perCell.size === 0) return;
 
   ctx.save();
-  ctx.font = `bold ${9 * scale}px monospace`;
+  ctx.font = `bold ${9 * scale}px "Segoe UI", "Noto Sans CJK JP", "Yu Gothic UI", sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   for (const { x, y, name } of perCell.values()) {

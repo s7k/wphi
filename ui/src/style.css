@@ -1,4 +1,17 @@
 /* Philly の MainForm(タブ・ログ・入力欄・ステータスバー)に合わせた配置 */
+
+/* 近代的なフォント。英数字は Segoe UI、日本語は Windows の游ゴシック UI・BIZ UDPゴシック、Linux の Noto Sans CJK JP */
+:root {
+  --ui-font: "Segoe UI Variable Text", "Segoe UI", "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic UI", "BIZ UDPGothic",
+    "Meiryo UI", system-ui, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
 html,
 body,
 #root {
@@ -9,7 +22,8 @@ body,
 body {
   background: #f0f0f0;
   color: #000;
-  font: 13px sans-serif;
+  font: 13px var(--ui-font);
+  font-feature-settings: "palt";
 }
 
 .main {
@@ -37,14 +51,20 @@ body {
   background: #fff;
 }
 
-/* 背景・文字色・フォントはスキンの Log.css が決める */
+/* 背景・文字色・文字の大きさはスキンの Log.css が決める。書体だけはこちらの近代的なフォントで上書きする */
 .phi-log {
   flex: 1;
   overflow-y: auto;
 }
 
+.main .phi-log,
+.main .phi-log .class_name,
+.main .phi-log .class_time {
+  font-family: var(--ui-font);
+}
+
 .input-line {
-  font: 14px monospace;
+  font: 14px var(--ui-font);
   padding: 2px;
 }
 
@@ -97,15 +117,12 @@ body {
   min-height: 0;
 }
 
-/* Philly の ImageMap は窓に合わせて拡大縮小する(Philly.ini の AntiAlias=off なので補間しない) */
+/* マップは等倍で中央に置く */
 .map-canvas {
   flex: 1;
   min-width: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  object-fit: none;
   background: #000;
-  image-rendering: pixelated;
 }
 
 /* ImageMapSide。幅は MapForm.dfm の 70px */
@@ -113,56 +130,194 @@ body {
   width: 70px;
   display: flex;
   flex-direction: column;
-  border-left: 3px solid #d4d0c8;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 0 0 3px;
 }
 
-.direction {
-  box-sizing: border-box;
+.compass {
   border: 1px outset #fff;
   padding: 1px;
 }
 
 /* 北固定の時は押し込んだボタンの見た目(MakeMap.cpp の DrawButtonFrameOn) */
-.direction.pressed {
+.compass.pressed {
   border-style: inset;
-  padding: 2px 0 0 2px;
+  background: #c0bcb4;
 }
 
-.direction-image {
-  width: 50px;
-  height: 50px;
-  image-rendering: pixelated;
+.compass text {
+  font: bold 9px var(--ui-font);
+  fill: #555;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.compass .compass-n {
+  fill: #c00;
 }
 
 .name-list {
   flex: 1;
+  align-self: stretch;
+  min-height: 0;
   margin: 0;
-  padding: 4px 5px;
+  padding: 2px 4px;
   list-style: none;
-  overflow: hidden;
+  overflow-y: auto;
   background: #fff;
   border: 2px inset #fff;
-  font: bold 14px sans-serif;
+  font: bold 13px var(--ui-font);
   line-height: 17px;
   white-space: nowrap;
 }
 
-.status-canvas {
-  display: block;
+/* 下のステータス(ImageStatus。高さ 50px) */
+.status-panel {
+  display: flex;
+  align-items: stretch;
+  height: 50px;
+  gap: 2px;
+  padding: 0 2px;
+}
+
+.hpmp-labels {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  width: 18px;
+  font: bold 13px var(--ui-font);
+}
+
+.label-hp {
+  color: #2040d0;
+}
+
+.label-mp {
+  color: #a020a0;
+}
+
+.bars {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  min-width: 0;
+}
+
+.bar {
+  position: relative;
+  display: flex;
+  height: 15px;
+  border: 2px inset #fff;
+  /* 空き(HpMpBar.bmp の3列目) */
+  background: linear-gradient(#737271, #484747 25%, #030303 50%, #313030 75%, #737271);
+}
+
+.bar-fill.hp {
+  background: linear-gradient(#006e36, #0db35e 25%, #31d782 50%, #1dc36e 75%, #008341);
+}
+
+.bar-fill.mp {
+  background: linear-gradient(#0249fb, #039fe5 25%, #04dfd4 50%, #04bbde 75%, #0262f4);
+}
+
+/* 毒(HP)とパニック(MP) */
+.bar-fill.bad {
+  background: linear-gradient(#6b0589, #8d2290 25%, #721597 50%, #5a1997 75%, #55206a);
+}
+
+.bar-lost {
+  background: #f00;
+}
+
+.bar-text {
+  position: absolute;
+  inset: 0;
+  text-align: center;
+  font: bold 12px/15px var(--ui-font);
+  color: #fff;
+  text-shadow: -1px 0 #555, 1px 0 #555, 0 -1px #555, 0 1px #555;
+}
+
+/* Status.bmp の F・W・M・C・Gp と CHK・SKL */
+.fwmc {
+  display: grid;
+  grid-template-columns: 18px 30px 18px 30px;
+  grid-auto-rows: 1fr;
+  align-items: center;
+  gap: 1px 2px;
+  padding: 2px;
+  background: #008080;
+}
+
+.fwmc > span[class^="label-"] {
+  font: bold 13px var(--ui-font);
+  text-align: center;
+  text-shadow: 1px 1px #000;
+}
+
+.label-f {
+  color: #ff4040;
+}
+
+.label-w {
+  color: #c070ff;
+}
+
+.label-m {
+  color: #40d060;
+}
+
+.label-c {
+  color: #40b0ff;
+}
+
+.label-gp {
+  color: #e0c040;
+}
+
+.status-value,
+.bar-text {
+  font-variant-numeric: tabular-nums;
+}
+
+.status-value {
+  background: #fff;
+  border: 1px inset #fff;
+  font: bold 11px/12px var(--ui-font);
+  text-align: right;
+  padding-right: 1px;
+  overflow: hidden;
+}
+
+.status-button {
+  padding: 0;
+  font: 9px/12px var(--ui-font);
+  background: #008080;
+  border: 1px outset #40a0a0;
+  color: #000;
+}
+
+.status-button:active {
+  border-style: inset;
 }
 
 .map-status-bar {
   height: 22px;
   display: flex;
   align-items: center;
-  gap: 0;
+  gap: 2px;
   padding: 0 2px;
   border-top: 1px solid #a0a0a0;
 }
 
-.cond-icon {
+.cond-badge {
   width: 18px;
   height: 18px;
+  font: bold 14px/18px var(--ui-font);
+  text-align: center;
+  color: #000;
 }
 
 /* 入力欄の外にフォーカスがある時は Philly の移動モード(EditBackgroundDisableColor = clBtnFace) */

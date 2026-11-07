@@ -60,15 +60,7 @@ impl Assets {
     /// `phi-asset://` のパスとクエリから PNG を返す。見つからなければ `None`。
     pub fn get(&self, kind: &str, query: &HashMap<String, String>) -> Option<Vec<u8>> {
         let q = |k: &str| query.get(k).map(String::as_str).unwrap_or("");
-        let key = format!(
-            "{kind}?{}&{}&{}&{}&{}&{}",
-            q("name"),
-            q("gra"),
-            q("code"),
-            q("mapset"),
-            q("file"),
-            q("key")
-        );
+        let key = format!("{kind}?{}&{}&{}&{}", q("name"), q("gra"), q("code"), q("mapset"));
         if let Some(png) = self.cache.lock().unwrap().get(&key) {
             return Some(png.clone());
         }
@@ -76,7 +68,6 @@ impl Assets {
             "chara" => self.chara(q("name"), q("gra"), q("code").parse().unwrap_or(0x01))?,
             "chip" => mask_h(&self.chip(q("mapset"))?),
             "items" => mask_v(&self.open(&format!("Skins/{SKIN}/Images/Items.bmp"))?),
-            "skin" => self.skin(q("file"), q("key"))?,
             _ => return None,
         };
         let mut png = Vec::new();
@@ -120,20 +111,6 @@ impl Assets {
                     .map(|(_, v)| v.trim().to_string())
             })?;
         self.open(&format!("Skins/{SKIN}/Chara/{file}"))
-    }
-
-    /// スキンの `Images` の画像(HP/MP パネル、方角など)。透過色は Philly の `ImageStore.cpp` に合わせて呼び出し側が選ぶ。
-    fn skin(&self, file: &str, key: &str) -> Option<RgbaImage> {
-        // UI から渡る名前なので、Images の中のファイル名だけを許す
-        if file.is_empty() || !file.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-            return None;
-        }
-        let img = self.open(&format!("Skins/{SKIN}/Images/{file}.bmp"))?;
-        Some(match key {
-            "teal" => colorkey(&img, TEAL),
-            "white" => colorkey(&img, [255, 255, 255]),
-            _ => img.to_rgba8(),
-        })
     }
 
     /// マップチップ。`chip/<mapset>.bmp` が無ければスキンの `chip/Default.bmp`。
@@ -257,21 +234,6 @@ mod tests {
         assert_eq!(items.dimensions(), (960, 32));
         // 透明と不透明の両方がある
         assert!(chip.pixels().any(|p| p.0[3] == 0) && chip.pixels().any(|p| p.0[3] == 255));
-    }
-
-    #[test]
-    fn skin_images_only_from_images_folder() {
-        let a = bundled();
-        let panel = decode(
-            &a.get("skin", &query(&[("file", "HpMpPanel"), ("key", "teal")]))
-                .unwrap(),
-        );
-        assert_eq!(panel.dimensions(), (20, 50));
-        assert!(
-            a.get("skin", &query(&[("file", "../Title"), ("key", "none")]))
-                .is_none()
-        );
-        assert!(a.get("skin", &query(&[("file", "")])).is_none());
     }
 
     #[test]
