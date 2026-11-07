@@ -37,3 +37,19 @@ export function mouseDir(x: number, y: number, w: number, h: number, northFix: b
   if (t < 7 * PI_8) return { keys: ["2", "4"], cursor: "sw-resize" };
   return { keys: ["4"], cursor: "w-resize" };
 }
+
+/**
+ * 北固定で Shift か Ctrl を押しながらマウスを向けた時に向く方角(Philly の MapForm.cpp の NorthFixTurn)。
+ * 中心から縦横とも 20px 以内なら null
+ */
+export function northFixTurn(x: number, y: number, w: number, h: number): "n" | "e" | "s" | "w" | null {
+  const dx = x - w / 2;
+  const dy = y - h / 2;
+  if (Math.abs(dx) <= 20 && Math.abs(dy) <= 20) return null;
+  const t = Math.atan2(dy, dx);
+  if (t < (-3 * Math.PI) / 4) return "w";
+  if (t < -Math.PI / 4) return "n";
+  if (t < Math.PI / 4) return "e";
+  if (t < (3 * Math.PI) / 4) return "s";
+  return "w";
+}

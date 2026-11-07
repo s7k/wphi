@@ -10,8 +10,8 @@ import { createRoot } from "react-dom/client";
 import { assetUrl } from "./asset";
 import { AUTOMAP_EVENT, compose, ringFor, loadTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { drawMap, type ImageRefs } from "./drawMap";
-import { KEY_EVENT, MOUSE_EVENT, type ForwardedKey, type ForwardedMouse } from "./keyInput";
-import { mouseDir } from "./mouseDir.ts";
+import { KEY_EVENT, MOUSE_EVENT, sendLine, type ForwardedKey, type ForwardedMouse } from "./keyInput";
+import { mouseDir, northFixTurn } from "./mouseDir.ts";
 import { CHIP_SIZE, MAP_TOP, gridDim } from "./mapRender";
 import { MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
@@ -22,6 +22,9 @@ import "./style.css";
 const ANIMATION_MS = 500;
 /** 回転マップの時のタイトルの向き(MakeMap.cpp の DrawDirectionAnime) */
 const DIRECTION_TITLE: Record<number, string> = { 0: "【北】", 2: "【東】", 4: "【南】", 6: "【西】" };
+
+/** キャラの向き(B R F L) → turn の方角 */
+const FACING: Record<string, string> = { B: "n", R: "e", F: "s", L: "w" };
 
 const stripTags = (s: string) => s.replace(/\/\*.*?\*\//g, "").trim();
 
@@ -131,7 +134,21 @@ function MapWindow() {
   };
   // 押したまま動かした時は、向きが変わった時だけ main 窓へ送る
   const lastKeys = useRef("");
+  // 北固定で Shift か Ctrl を押しながら動かすと、マウスの方を向く(#6)。同じ向きは続けて送らない
+  const lastTurn = useRef<string | null>(null);
+  const turnTo = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!northFix || !(e.shiftKey || e.ctrlKey) || mouseDown.current || !map || !state) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const size = dim * CHIP_SIZE;
+    const to = northFixTurn(e.clientX - r.left, e.clientY - r.top - MAP_TOP, size, size);
+    const c = Math.floor(map.size / 2);
+    const now = FACING[map.chars.find((ch) => ch.x === c && ch.y === c)?.dir ?? ""];
+    if (!to || to === now || to === lastTurn.current) return;
+    lastTurn.current = to;
+    sendLine(state.session, `turn ${to}`);
+  };
   const onMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    turnTo(e);
     const d = dirAt(e);
     setCursor(d?.cursor ?? "default");
     if (!mouseDown.current || !d || d.keys.join() === lastKeys.current) return;
