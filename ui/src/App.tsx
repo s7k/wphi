@@ -726,7 +726,7 @@ function InputEditor(props: {
           ログ保存
         </label>
         <button className="toggle" onClick={props.onPriv}>
-          プリブ
+          priv
         </button>
       </div>
       <textarea

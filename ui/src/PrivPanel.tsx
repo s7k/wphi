@@ -31,7 +31,7 @@ export function PrivPanel(props: {
   return (
     <div className="priv-panel">
       <div className="priv-head">
-        <span>プリブ</span>
+        <span>priv</span>
         <button onClick={props.onClose}>×</button>
       </div>
       <div className="priv-convs">
