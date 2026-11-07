@@ -1,7 +1,8 @@
 //! main 窓のメニューバー(Philly の MainForm.dfm の MainMenu)。
 //!
 //! 項目を選ぶと、項目の id を MENU_EVENT で main 窓へ送り、UI が操作にする。
-//! キーの操作は UI が持っているので、メニューにはショートカットキーを付けない(二重に送らない為)。
+//! キーの操作は UI が持っているので、メニューにはショートカットキーを登録しない(二重に送らない為)。
+//! 代わりに Philly と同じく、項目名にキーを書き添える。
 //! スキンの `Style/Menu.txt` で `off` にしたメニューは出さない(Philly と同じく起動時にだけ読む)。
 
 use tauri::{
@@ -47,27 +48,27 @@ const MENUS: Table = &[
     (
         "魔法",
         &[
-            ("wizard-eye", "Wizard eye"),
-            ("wizard-light", "Wizard light"),
-            ("list", "List"),
-            ("eagle-eye", "Eagle eye"),
-            ("identify", "Identify"),
+            ("wizard-eye", "Wizard eye (Alt+W)"),
+            ("wizard-light", "Wizard light (Shift+Alt+W)"),
+            ("list", "List (Shift+Alt+L)"),
+            ("eagle-eye", "Eagle eye (Alt+E)"),
+            ("identify", "Identify (Alt+I)"),
             ("-", ""),
-            ("wizard-lock", "Wizard lock"),
-            ("unlock", "Unlock"),
+            ("wizard-lock", "Wizard lock (Alt+L)"),
+            ("unlock", "Unlock (Alt+U)"),
             ("-", ""),
-            ("detect", "Detect..."),
-            ("create", "Create..."),
-            ("destroy", "Destroy..."),
+            ("detect", "Detect... (Alt+D)"),
+            ("create", "Create... (Alt+C)"),
+            ("destroy", "Destroy... (Shift+Alt+D)"),
             ("-", ""),
-            ("analyze", "Analyze..."),
-            ("forget", "Forget..."),
+            ("analyze", "Analyze... (Alt+A)"),
+            ("forget", "Forget... (Alt+F)"),
             ("-", ""),
-            ("call", "Call"),
-            ("return", "Return"),
+            ("call", "Call (Alt+B)"),
+            ("return", "Return (Alt+R)"),
         ],
     ),
-    ("表示", &[("map", "マップ")]),
+    ("表示", &[("map", "マップ (Shift+F5)")]),
 ];
 
 /// `Menu.txt` の `off,<メニュー名>` の行。
