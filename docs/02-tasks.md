@@ -6,7 +6,8 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 
 ## P0・P1 の残り
 
-- [ ] 実サーバの受信を記録し、`crates/phi-proto/tests/golden` の正解データに足す。記録の仕組み(開発用の受信ログ)から作る
+- [x] 実サーバの受信を記録する仕組み(`WPHI_RECORD=<フォルダ> npm run tauri dev` で受信した生のバイト列を書く)
+- [ ] 記録した受信から、名前と本文を置き換えた正解データを作って `crates/phi-proto/tests/golden` に足す(実機での記録が要る)
 - [ ] cp932 の変換結果を Windows の `WideCharToMultiByte` と照合する(Windows 実機が要る)
 
 ## P2 の残り(キー・マウス)

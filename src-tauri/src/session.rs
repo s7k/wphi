@@ -102,6 +102,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
     let mut lines = LineBuffer::new();
     let mut parser = Parser::new();
     let opts = LogOptions::default();
+    let mut record = recorder(&login);
     let mut buf = vec![0u8; 32 * 1024];
     let mut last_recv = Instant::now();
     let mut keepalive_sent = false;
@@ -127,6 +128,10 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                 last_recv = Instant::now();
                 keepalive_sent = false;
                 warned = false;
+                if let Some(f) = record.as_mut() {
+                    use std::io::Write;
+                    let _ = f.write_all(&buf[..n]);
+                }
                 let mut moving_to = None;
                 'lines: for line in lines.feed(&buf[..n]) {
                     for ev in parser.feed(&line) {
@@ -192,6 +197,20 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
     emit(UiEvent::Proto(Event::Connection {
         state: phi_proto::parser::ConnectionState::Closed,
     }));
+}
+
+/// 開発用。環境変数 `WPHI_RECORD` にフォルダを指定すると、受信した生のバイト列を
+/// `<フォルダ>/<接続先>_<ポート>_<UNIX 時刻>.bin` に書く。phi-proto の正解データを作る元にする。
+/// 他のプレイヤーの発言も入るので、正解データに使う時は名前と本文を置き換えてからコミットする。
+fn recorder(login: &Login) -> Option<std::fs::File> {
+    let dir = std::env::var_os("WPHI_RECORD")?;
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+    let path = std::path::Path::new(&dir).join(format!("{}_{}_{secs}.bin", login.host, login.port));
+    std::fs::create_dir_all(&dir).ok()?;
+    std::fs::File::create(path).ok()
 }
 
 /// 世界移動(Philly の PersonalThread.cpp classTransportCharacter::ChSrv)。成功したら移動先の接続を返す。

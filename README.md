@@ -16,6 +16,9 @@ npm test            # UI のテスト(キー操作の表)
 npm run tauri dev   # アプリを起動する
 ```
 
+実サーバの受信を調べる時は、`WPHI_RECORD=<フォルダ> npm run tauri dev` で起動する。
+受信した生のバイト列が接続ごとにファイルに残る。他のプレイヤーの発言も入るので、コミットしない。
+
 GNOME(Wayland)と ibus の組み合わせでは、Wayland のままだと IME の変換候補がカーソルから離れた位置に出る。
 この為 Linux では、`GDK_BACKEND` と `GTK_IM_MODULE` が未設定ならアプリが `x11` と `ibus` を選ぶ(`src-tauri/src/main.rs` の `prefer_x11_ime`)。
 `GTK_IM_MODULE` は `XMODIFIERS` が ibus を指す時だけ設定する。
