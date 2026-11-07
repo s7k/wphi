@@ -48,7 +48,9 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../resources/phi/": "phi/"
+      "../resources/phi/PCGL.txt": "licenses/PCGL.txt",
+      "../resources/phi/PCGL.utf8.txt": "licenses/PCGL.utf8.txt",
+      "../resources/phi/README.md": "licenses/GRAPHICS.md"
     },
     "category": "Game",
     "shortDescription": "PHI のクライアント",

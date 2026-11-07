@@ -76,6 +76,7 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 - [x] 新規キャラ作成(`#ex-register`。phi-client-web の `register.py` を移植した)。キャラ選択の画面で初期グラを選び、作ったキャラはそのまま一覧とキーチェーンに入る。改行や制御文字での行の差し込みは送る前に拒否する
   - [ ] 実サーバでの確認
 - [x] Windows(NSIS)・Linux(deb・AppImage)・macOS(dmg、ユニバーサル)の配布物を GitHub Actions で作る設定(`.github/workflows/build.yml`)。Linux 版は手元でビルドして起動を確かめた
+  - [x] 同梱のグラフィックスとスキンを実行ファイルに埋め込み、配布物に並べない(Windows の zip に phi が出ていた為)。PCGL の全文と出所の説明だけを licenses に入れる
   - [x] 展開してそのまま使える zip(アプリと空の chara・chip)を作る(`tools/package.sh`)。アプリを置いたフォルダも画像を探す場所に加えた
   - [ ] GitHub にリポジトリを作って push し、CI で3つとも作れるか確かめる
   - [ ] 署名するか(未決。今は Windows は署名なし、macOS はアドホック署名)

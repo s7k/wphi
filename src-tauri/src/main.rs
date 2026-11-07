@@ -73,10 +73,9 @@ fn set_open_tabs(app: tauri::AppHandle, labels: Vec<String>) -> Result<(), Strin
     store.save(&path)
 }
 
-/// 画像を探す場所。取り込んだ Philly フォルダ → アプリを置いたフォルダ → 同梱の `resources/phi` の順。
+/// 画像を探す場所。取り込んだ Philly フォルダ → アプリを置いたフォルダ → 実行ファイルに埋め込んだ同梱の分の順。
 /// 配布の zip には、アプリの隣に空の `chara` と `chip` を入れてある(`tools/package.sh`)。
 fn load_assets(app: &tauri::AppHandle) -> Result<Assets, String> {
-    let bundled = app.path().resource_dir().map_err(|e| e.to_string())?.join("phi");
     let store = Store::load(&store_path(app)?);
     let portable = std::env::current_exe()
         .ok()
@@ -87,7 +86,6 @@ fn load_assets(app: &tauri::AppHandle) -> Result<Assets, String> {
             .map(Into::into)
             .into_iter()
             .chain(portable)
-            .chain([bundled])
             .collect(),
     ))
 }
@@ -371,7 +369,7 @@ fn append_log(app: tauri::AppHandle, label: String, date: String, html: String) 
         .open(&path)
         .map_err(|e| format!("{}: {e}", path.display()))?;
     if new {
-        let css = log_css(app.clone()).unwrap_or_default();
+        let css = log_css().unwrap_or_default();
         let title = label.replace('&', "&amp;").replace('<', "&lt;");
         write!(
             f,
@@ -391,13 +389,9 @@ fn log_html(text: String) -> String {
 
 /// スキンのログ用スタイルシート(Philly の `Skins/<スキン>/Style/Log.css`)。
 #[tauri::command]
-fn log_css(app: tauri::AppHandle) -> Result<String, String> {
-    let path = app
-        .path()
-        .resource_dir()
-        .map_err(|e| e.to_string())?
-        .join("phi/Skins/Mine/Style/Log.css");
-    std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))
+fn log_css() -> Result<String, String> {
+    let css = assets::bundled("Skins/Mine/Style/Log.css").ok_or("同梱の Log.css がありません")?;
+    Ok(String::from_utf8_lossy(css).into_owned())
 }
 
 /// GNOME(Wayland)と ibus では、Wayland のまま動かすと IME の変換候補がカーソルから離れた位置に出る。
@@ -439,12 +433,8 @@ fn main() {
             app.manage(Mutex::new(Arc::new(load_assets(app.handle())?)));
             app.manage(Mutex::new(Arc::new(load_sounds(app.handle()))));
             // メニューバーは main 窓だけに付ける
-            let menu_txt = app
-                .path()
-                .resource_dir()
-                .ok()
-                .and_then(|d| std::fs::read(d.join("phi/Skins/Mine/Style/Menu.txt")).ok())
-                .map(|b| phi_proto::codec::decode(&b))
+            let menu_txt = assets::bundled("Skins/Mine/Style/Menu.txt")
+                .map(phi_proto::codec::decode)
                 .unwrap_or_default();
             if let Some(main) = app.get_webview_window("main") {
                 main.set_menu(menu::build(app.handle(), &menu_txt)?)?;

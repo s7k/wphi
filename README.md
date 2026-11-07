@@ -34,8 +34,9 @@ GNOME(Wayland)と ibus の組み合わせでは、Wayland のままだと IME �
 Artifacts には、インストーラなどの他に、展開してそのまま使える zip(`WPHI-<版>-<OS>.zip`)が入る。
 zip は `tools/package.sh windows|linux|macos` で、ビルドの後に手元でも作れる。
 
-zip の中はアプリと空の `chara`・`chip` で、WPHI はアプリを置いたフォルダの `chara`・`chip` からも画像を探す。
+zip の中はアプリと空の `chara`・`chip`、`README.txt`、`licenses`(PCGL の全文)で、WPHI はアプリを置いたフォルダの `chara`・`chip` からも画像を探す。
 探す順は、取り込んだ Philly フォルダ → アプリを置いたフォルダ → 同梱の分。
+同梱の分は実行ファイルに埋め込んであり、配布物にはファイルとして並べない。
 
 | OS | アプリを置いたフォルダ |
 |---|---|

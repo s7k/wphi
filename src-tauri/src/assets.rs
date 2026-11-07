@@ -1,7 +1,8 @@
 //! Philly の BMP を読み、透過を付けた PNG を `phi-asset://` で UI に返す。
 //!
-//! 探す場所は利用者の Philly フォルダ(登録されていれば)→ 同梱の `resources/phi` の順。
-//! どちらも Philly と同じフォルダ構成なので、相対パスは共通にしてある。
+//! 探す場所は利用者の Philly フォルダ(登録されていれば)→ アプリを置いたフォルダ → 同梱の分の順。
+//! 同梱の分(`resources/phi`)は実行ファイルに埋め込む(BUNDLED)。配布物の中にファイルとして並べない為である。
+//! どれも Philly と同じフォルダ構成なので、相対パスは共通にしてある。
 //! 透過方式は phi-client-web の `docs/06-graphics-transparency.md` と同じ。
 
 use std::{
@@ -12,7 +13,25 @@ use std::{
 };
 
 use image::{ImageFormat, Rgba, RgbaImage};
+use include_dir::{Dir, include_dir};
 use phi_proto::codec;
+
+/// 同梱のグラフィックスとスキン(`resources/phi`)。ライセンスの文書だけは別にファイルとしても配る(tauri.conf.json)
+static BUNDLED: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../resources/phi");
+
+/// 同梱の分から、大文字と小文字を無視して読む。
+pub fn bundled(rel: &str) -> Option<&'static [u8]> {
+    let same = |p: &Path, part: &str| {
+        p.file_name()
+            .is_some_and(|n| n.to_string_lossy().to_lowercase() == part.to_lowercase())
+    };
+    let (dirs, file) = rel.rsplit_once('/').unwrap_or(("", rel));
+    let mut dir = &BUNDLED;
+    for part in dirs.split('/').filter(|p| !p.is_empty()) {
+        dir = dir.dirs().find(|d| same(d.path(), part))?;
+    }
+    dir.files().find(|f| same(f.path(), file)).map(|f| f.contents())
+}
 
 /// 使っているスキン(Philly.ini の `SkinName`)。スキンの切り替えは P4。
 const SKIN: &str = "Mine";
@@ -47,7 +66,7 @@ pub struct Assets {
 }
 
 impl Assets {
-    /// `roots` は先に探す方から並べる。
+    /// `roots` は先に探す方から並べる。同梱の分は最後に探す。
     pub fn new(roots: Vec<PathBuf>) -> Self {
         let aliases = load_aliases(&roots);
         Self {
@@ -104,8 +123,14 @@ impl Assets {
             .iter()
             .find(|(c, _)| *c == code)
             .map_or("知的生物", |(_, k)| k);
-        self.roots.iter().find_map(|root| {
-            let index = codec::decode(&std::fs::read(find_path(root, &format!("Skins/{SKIN}/Chara/Index.txt"))?).ok()?);
+        let index_rel = format!("Skins/{SKIN}/Chara/Index.txt");
+        let indexes = self
+            .roots
+            .iter()
+            .filter_map(|root| std::fs::read(find_path(root, &index_rel)?).ok())
+            .chain(bundled(&index_rel).map(<[u8]>::to_vec));
+        indexes.into_iter().find_map(|index| {
+            let index = codec::decode(&index);
             let file = index
                 .lines()
                 .filter(|l| !l.trim_start().starts_with("//"))
@@ -140,6 +165,7 @@ impl Assets {
         self.roots
             .iter()
             .find_map(|root| std::fs::read(find_path(root, rel)?).ok())
+            .or_else(|| bundled(rel).map(<[u8]>::to_vec))
     }
 }
 
@@ -221,11 +247,8 @@ fn masked([r, g, b]: [u8; 3], mask: [u8; 3]) -> Rgba<u8> {
 mod tests {
     use super::*;
 
-    fn bundled() -> Assets {
-        Assets::new(vec![PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../resources/phi"
-        ))])
+    fn bundled_only() -> Assets {
+        Assets::new(vec![])
     }
 
     fn decode(png: &[u8]) -> RgbaImage {
@@ -238,7 +261,7 @@ mod tests {
 
     #[test]
     fn chip_and_items_from_bundled_skin() {
-        let a = bundled();
+        let a = bundled_only();
         let chip = decode(&a.get("chip", &query(&[("mapset", "no-such-mapset")])).unwrap());
         assert_eq!(chip.dimensions(), (512, 96));
         let items = decode(&a.get("items", &HashMap::new()).unwrap());
@@ -249,7 +272,7 @@ mod tests {
 
     #[test]
     fn chara_falls_back_like_philly() {
-        let a = bundled();
+        let a = bundled_only();
         // 同梱にあるグラ名はそのまま使う
         let npc = decode(
             &a.get("chara", &query(&[("name", "x"), ("gra", "npc2"), ("code", "1")]))
@@ -279,17 +302,17 @@ mod tests {
         let root = std::env::temp_dir().join(format!("wphi-lanu-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(root.join("chara")).unwrap();
+        // 既定グラ(setcg は t_man)と見分けられるよう、別の絵を LANU の名前で置く
         std::fs::copy(
-            concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/phi/chara/t_man.bmp"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/phi/chara/t_dog.bmp"),
             root.join("chara/LANU_Test.bmp"),
         )
         .unwrap();
         let a = Assets::new(vec![root.clone()]);
         assert!(a.open("chara/LANU_Test.bmp").is_none());
-        assert!(
-            a.get("chara", &query(&[("gra", "LANU_Test"), ("code", "64")]))
-                .is_none()
-        );
+        // LANU を読まずに既定グラになる
+        let got = a.get("chara", &query(&[("gra", "LANU_Test"), ("code", "64")])).unwrap();
+        assert_eq!(decode(&got), colorkey(&a.open("chara/t_man.bmp").unwrap(), TEAL));
         std::fs::remove_dir_all(&root).unwrap();
     }
 }

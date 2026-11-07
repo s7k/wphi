@@ -3,7 +3,8 @@
 #
 #   tools/package.sh windows|linux|macos
 #
-# zip の中身は WPHI/ の下に、アプリと空の chara・chip と README.txt。
+# zip の中身は WPHI/ の下に、アプリと空の chara・chip と README.txt と licenses。
+# 同梱のグラフィックスはアプリに埋め込んであるので並べない。PCGL が添付を求めるライセンスの文書だけを licenses に置く。
 # WPHI は、アプリを置いたフォルダの chara・chip から先に画像を探す(src-tauri/src/main.rs の app_folder)。
 # 先に npm run tauri build で、その OS の配布物を作っておく。
 set -euo pipefail
@@ -15,13 +16,14 @@ version="$(cd "$root" && node -p "require('./src-tauri/tauri.conf.json').version
 out="$root/dist-zip"
 stage="$out/WPHI"
 rm -rf "$stage"
-mkdir -p "$stage/chara" "$stage/chip"
+mkdir -p "$stage/chara" "$stage/chip" "$stage/licenses"
+cp "$root/resources/phi/PCGL.txt" "$root/resources/phi/PCGL.utf8.txt" "$stage/licenses/"
+cp "$root/resources/phi/README.md" "$stage/licenses/GRAPHICS.md"
 
 case "$os" in
   windows)
-    # インストールせずに使う形。同梱のグラフィックスは実行ファイルの隣の phi に置く(Tauri の resource_dir)
+    # インストールせずに使う形
     cp "$root/target/release/wphi.exe" "$stage/WPHI.exe"
-    cp -R "$root/resources/phi" "$stage/phi"
     app="WPHI.exe"
     ;;
   linux)
@@ -49,6 +51,8 @@ esac
   echo "ファイル名は <グラ名>.bmp(キャラグラ)、<マップセット名>.bmp(チップ)。"
   echo "置いた画像は、アプリを起動し直すと使われる。"
   echo "Philly のフォルダがあれば、キャラ選択の画面の「Philly から取り込む」で指定してもよい。"
+  echo
+  echo "同梱のキャラグラは PCGL(Phi Charactor Graphics License)のグラフィックスで、全文は licenses にある。"
   case "$os" in
     windows)
       echo
