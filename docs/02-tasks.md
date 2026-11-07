@@ -16,14 +16,15 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 
 ## P3: 入力と会話
 
-- [ ] 入力欄を Philly と同じ複数行のエディタにする。Enter でカーソルの行を送って次の行へ移り、送った行は欄に残す
-- [ ] 発言の前処理(`MainForm.cpp` の SendFromInputEdit)
-  - [ ] 先頭が `*` の発言は `/**/` を前置して大声にしない(LoudlyByAsterisk=0)
-  - [ ] Ctrl+Enter はパーティー発言(先頭に `+`、PartyTalkByCtrl=on)
-  - [ ] 空行は `/**/` にして送る(EditSendNullLine=on。末尾の空行は送らない)
-  - [ ] 連続送信を 100ms 空ける
-- [ ] 大声モード(Ctrl+T で切り替え、入力欄を黄色にし、送る前に確認する)
-- [ ] 全タブ発言(送る前に確認する)
+- [x] 入力欄を Philly と同じ複数行のエディタにする。Enter でカーソルの行を送って次の行へ移り、送った行は欄に残す
+- [x] 発言の前処理(`MainForm.cpp` の SendFromInputEdit)
+  - [x] 先頭が `*` の発言は `/**/` を前置して大声にしない(LoudlyByAsterisk=0)
+  - [x] Ctrl+Enter はパーティー発言(先頭に `+`、PartyTalkByCtrl=on)
+  - [x] 空行は `/**/` にして送る(EditSendNullLine=on。末尾の空行は送らない)
+  - [x] 連続送信を 100ms 空ける
+- [x] 大声モード(ツールバーのボタンで切り替え、入力欄を黄色にし、送る前に確認する。Philly の大声にキーの割り当ては無い)
+  - [ ] 確認の「すべて大声」(解除するまで確認しない)。今はブラウザ標準の確認ダイアログで、はい・いいえしか無い
+- [x] 全タブ発言(送る前に確認する)
 
 ## P3: リスト・入力窓・priv・EagleEye・世界移動
 

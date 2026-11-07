@@ -4,6 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { isTextTarget, KEY_EVENT, keyContext, runKeyAction, sendLine, type ForwardedKey } from "./keyInput";
 import { keyAction, moveInput } from "./keys.ts";
 import { MoveRepeat } from "./moveRepeat.ts";
@@ -120,7 +121,7 @@ export function App() {
   useEffect(() => {
     const focusInput = () => {
       getCurrentWindow().setFocus();
-      document.querySelector<HTMLInputElement>(".input-line")?.focus();
+      document.querySelector<HTMLTextAreaElement>(".input-line")?.focus();
     };
     const nextTab = () => {
       const ts = tabsRef.current;
@@ -271,7 +272,13 @@ export function App() {
           onError={setError}
         />
       )}
-      {tab && <InputLine session={tab.session} disabled={tab.closed} />}
+      {tab && (
+        <InputEditor
+          session={tab.session}
+          sessions={tabs.filter((t) => !t.closed).map((t) => t.session)}
+          disabled={tab.closed}
+        />
+      )}
       <div className="status-bar">{tab ? (tab.closed ? "切断" : "接続中") : "キャラ選択"}</div>
     </div>
   );
@@ -346,25 +353,82 @@ function LogView(props: { lines: string[] }) {
   );
 }
 
-function InputLine(props: { session: number; disabled: boolean }) {
-  // value を React に持たせない。ログが届くたびの再描画で value を書き戻すと、WebKitGTK が変換中の文字を消す
-  function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+/**
+ * 入力欄(Philly の InputEdit)。Philly と同じ複数行のエディタで、Enter はカーソルの行を送り、送った行は欄に残す。
+ * Ctrl+Enter はパーティー発言、Shift+Enter は改行。
+ * value を React に持たせない。ログが届くたびの再描画で value を書き戻すと、WebKitGTK が変換中の文字を消す
+ */
+function InputEditor(props: { session: number; sessions: number[]; disabled: boolean }) {
+  const [loud, setLoud] = useState(false);
+  const [allTab, setAllTab] = useState(false);
+  // 連続送信を 100ms 空ける(Philly の SendFromInputEdit)
+  const lastSend = useRef(0);
+
+  function send(ta: HTMLTextAreaElement, ctrl: boolean) {
+    const now = performance.now();
+    if (now - lastSend.current < 100) return;
+    lastSend.current = now;
+    const line = caretLine(ta.value, ta.selectionStart);
+    const text = prepareLine(line.text, { ctrl, loud: loud && !allTab, lastLine: line.index + 1 >= line.count });
+    if (text === null) return;
+    if (loud && !allTab) {
+      // Philly は大声の前に確認し、送ったら大声を解除する
+      if (!window.confirm("大声で発言します。\nこの世界にいる全員に聞こえます。\nよろしいですか？")) {
+        setLoud(false);
+        return;
+      }
+      setLoud(false);
+    }
+    if (allTab) {
+      if (!window.confirm("全タブに発言します。\nよろしいですか？")) {
+        setAllTab(false);
+        return;
+      }
+      props.sessions.forEach((s) => sendLine(s, text));
+    } else sendLine(props.session, text);
+    const next = afterSend(ta.value, ta.selectionStart);
+    ta.value = next.value;
+    ta.setSelectionRange(next.caret, next.caret);
+    // 送った行が見えるよう、カーソルの位置までスクロールする
+    ta.blur();
+    ta.focus();
+  }
+
+  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     // Esc でログ欄へ移り、キーを操作に使う(Philly の移動モード)
     if (e.key === "Escape" && !e.nativeEvent.isComposing) {
       document.querySelector<HTMLElement>(".phi-log")?.focus();
       return;
     }
     // IME の変換確定の Enter では送らない。WebKit は確定の keydown で isComposing を false にし、keyCode 229 を返す
-    if (e.key !== "Enter" || e.nativeEvent.isComposing || e.keyCode === 229) return;
+    if (e.key !== "Enter" || e.nativeEvent.isComposing || e.keyCode === 229 || e.shiftKey || e.altKey) return;
     e.preventDefault();
-    const input = e.currentTarget;
-    invoke("send_line", { session: props.session, text: input.value }).catch((err) => console.error(err));
-    input.value = "";
+    send(e.currentTarget, e.ctrlKey);
   }
 
-  return <input className="input-line" disabled={props.disabled} onKeyDown={onKeyDown} autoFocus />;
+  return (
+    <div className="input-area">
+      <div className="input-toolbar">
+        <label className={loud ? "toggle on" : "toggle"}>
+          <input type="checkbox" checked={loud} onChange={(e) => setLoud(e.target.checked)} />
+          大声
+        </label>
+        <label className={allTab ? "toggle on" : "toggle"}>
+          <input type="checkbox" checked={allTab} onChange={(e) => setAllTab(e.target.checked)} />
+          全タブ発言
+        </label>
+      </div>
+      <textarea
+        className={loud ? "input-line loud" : "input-line"}
+        disabled={props.disabled}
+        onKeyDown={onKeyDown}
+        rows={3}
+        spellCheck={false}
+        autoFocus
+      />
+    </div>
+  );
 }
-
 
 function CharacterList(props: {
   store: Store;

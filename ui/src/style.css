@@ -66,9 +66,43 @@ body {
   font-family: var(--ui-font);
 }
 
-.input-line {
-  font: 14px var(--ui-font);
+.input-area {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid #a0a0a0;
+}
+
+.input-toolbar {
+  display: flex;
+  gap: 4px;
   padding: 2px;
+}
+
+.toggle {
+  padding: 0 6px;
+  border: 1px outset #fff;
+  user-select: none;
+}
+
+.toggle input {
+  display: none;
+}
+
+.toggle.on {
+  border-style: inset;
+  background: #c0bcb4;
+}
+
+/* Philly の InputEdit。行の高さは Philly.ini の EditFontSize=14 に合わせる */
+.input-line {
+  font: 14px/18px var(--ui-font);
+  padding: 2px;
+  resize: vertical;
+}
+
+/* 大声モード(Philly.ini の EditLoudColor=clYellow) */
+.input-line.loud {
+  background: #ffff00;
 }
 
 .status-bar {
