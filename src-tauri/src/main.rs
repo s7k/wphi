@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod characters;
 mod session;
 
 use std::{
@@ -10,6 +11,7 @@ use std::{
     },
 };
 
+use characters::{Character, Store};
 use session::{Login, UiEvent};
 use tauri::{Manager, State, ipc::Channel};
 use tokio::sync::mpsc;
@@ -21,8 +23,79 @@ struct Sessions {
     senders: Mutex<HashMap<u32, mpsc::Sender<String>>>,
 }
 
+fn store_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(app
+        .path()
+        .app_config_dir()
+        .map_err(|e| e.to_string())?
+        .join("characters.json"))
+}
+
 #[tauri::command]
-fn connect(host: String, port: u16, id: String, on_event: Channel<UiEvent>, sessions: State<'_, Sessions>) -> u32 {
+fn list_characters(app: tauri::AppHandle) -> Result<Store, String> {
+    Ok(Store::load(&store_path(&app)?))
+}
+
+/// キャラを登録する。`id` が空なら ID はそのまま(接続先だけを変える)。
+#[tauri::command]
+fn save_character(app: tauri::AppHandle, character: Character, id: String) -> Result<(), String> {
+    let path = store_path(&app)?;
+    let mut store = Store::load(&path);
+    if !id.is_empty() {
+        characters::set_id(&character.label, &id)?;
+    }
+    store.upsert(character);
+    store.save(&path)
+}
+
+#[tauri::command]
+fn delete_character(app: tauri::AppHandle, label: String) -> Result<(), String> {
+    let path = store_path(&app)?;
+    let mut store = Store::load(&path);
+    store.characters.retain(|c| c.label != label);
+    store.open_tabs.retain(|l| *l != label);
+    characters::delete_id(&label);
+    store.save(&path)
+}
+
+#[tauri::command]
+fn set_open_tabs(app: tauri::AppHandle, labels: Vec<String>) -> Result<(), String> {
+    let path = store_path(&app)?;
+    let mut store = Store::load(&path);
+    store.open_tabs = labels;
+    store.save(&path)
+}
+
+/// Philly フォルダの `*.chara/.phirc` を登録する。登録した表示名を返す。
+#[tauri::command]
+fn import_philly(app: tauri::AppHandle, folder: String) -> Result<Vec<String>, String> {
+    let path = store_path(&app)?;
+    let mut store = Store::load(&path);
+    let mut labels = Vec::new();
+    for p in characters::read_philly(std::path::Path::new(&folder))? {
+        characters::set_id(&p.character.label, &p.id)?;
+        labels.push(p.character.label.clone());
+        store.upsert(p.character);
+    }
+    store.save(&path)?;
+    Ok(labels)
+}
+
+/// 登録したキャラで接続する。ID はキーチェーンから読み、UI には渡さない。
+#[tauri::command]
+fn connect(
+    app: tauri::AppHandle,
+    label: String,
+    on_event: Channel<UiEvent>,
+    sessions: State<'_, Sessions>,
+) -> Result<u32, String> {
+    let store = Store::load(&store_path(&app)?);
+    let ch = store
+        .find(&label)
+        .ok_or_else(|| format!("{label} は登録されていません"))?
+        .clone();
+    let id = characters::get_id(&label)?;
+    let (host, port) = (ch.host, ch.port);
     let no = sessions.next.fetch_add(1, Ordering::Relaxed);
     let (tx, rx) = mpsc::channel(64);
     sessions.senders.lock().unwrap().insert(no, tx);
@@ -30,7 +103,7 @@ fn connect(host: String, port: u16, id: String, on_event: Channel<UiEvent>, sess
         // UI の窓が閉じていれば送れないだけなので、失敗は無視する
         let _ = on_event.send(ev);
     }));
-    no
+    Ok(no)
 }
 
 #[tauri::command]
@@ -101,7 +174,17 @@ fn main() {
         })
         .plugin(tauri_plugin_opener::init())
         .manage(Sessions::default())
-        .invoke_handler(tauri::generate_handler![connect, send_line, disconnect, log_css])
+        .invoke_handler(tauri::generate_handler![
+            list_characters,
+            save_character,
+            delete_character,
+            set_open_tabs,
+            import_philly,
+            connect,
+            send_line,
+            disconnect,
+            log_css
+        ])
         .run(tauri::generate_context!())
         .expect("Tauri の起動に失敗した");
 }

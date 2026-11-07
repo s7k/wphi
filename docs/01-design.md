@@ -165,7 +165,9 @@ Philly が何秒で送っていたかは P1 で `PersonalThread.cpp` から確�
 Philly はキャラごとに `<名前>.chara\.phirc` を作り、1行目に ID、2〜3行目に `IP:ポート` を平文で書いている(`CharacterCommon.cpp:1203-1219`、`Const.cpp:66-68`)。
 ID はログインの認証情報そのものである。
 rust-philly は ID を OS のキーチェーン(`keyring` crate)へ置き、IP とポートだけを設定ファイルに書く。
-初回起動時に Philly フォルダの `*.chara\.phirc` を読み込み、既存のキャラを一覧へ取り込む。
+キャラ選択の画面で Philly フォルダを指定すると、`*.chara\.phirc` を読み込んで既存のキャラを一覧へ取り込む(`src-tauri/src/characters.rs`)。
+一覧と、終了時に開いていたタブの表示名(Philly の `TabSession.ini` に当たる)は、設定フォルダの `characters.json` に置く。
+ID は一覧に書かず、接続の時に Rust 側がキーチェーンから読む。UI には返さない。
 
 ## 5. 画像
 

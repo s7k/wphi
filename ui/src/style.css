@@ -53,11 +53,32 @@ body {
   border-top: 1px solid #a0a0a0;
 }
 
-.connect-form {
+.tab-label,
+.tab-close {
+  border: none;
+  background: none;
+  font: inherit;
+  padding: 0 2px;
+}
+
+.character-list {
   flex: 1;
+  overflow-y: auto;
+  padding: 8px 16px;
+}
+
+.character-list form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 16px;
-  max-width: 320px;
+  gap: 6px;
+  max-width: 360px;
+  margin-top: 12px;
+}
+
+.character-list td {
+  padding: 2px 8px;
+}
+
+.error {
+  color: #c00;
 }
