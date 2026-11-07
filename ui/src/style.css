@@ -100,3 +100,12 @@ body {
   padding: 4px;
   font: 12px monospace;
 }
+
+/* 入力欄の外にフォーカスがある時は Philly の移動モード(EditBackgroundDisableColor = clBtnFace) */
+.input-line:not(:focus) {
+  background: #d4d0c8;
+}
+
+.phi-log:focus {
+  outline: none;
+}

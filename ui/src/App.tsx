@@ -3,6 +3,7 @@ import { emitTo, listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 
+import { handleGameKey, isTextTarget } from "./keyInput";
 import { MAP_STATE_EVENT, type MapState, type UiEvent } from "./protocol";
 
 // src-tauri/src/characters.rs の Store
@@ -91,6 +92,30 @@ export function App() {
     const unlisten = listen("phi-map-ready", () => sendMapState(activeRef.current));
     return () => {
       unlisten.then((f) => f());
+    };
+  }, []);
+
+  // 入力欄の外で押したキーは Philly の操作にする(MainForm.cpp の ApplicationEventsMessage)
+  const tabsRef = useRef<Tab[]>([]);
+  tabsRef.current = tabs;
+  useEffect(() => {
+    const onKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.isComposing || isTextTarget(e) || activeRef.current === null) return;
+      handleGameKey(e, mapStates.current.get(activeRef.current), {
+        focusInput: () => document.querySelector<HTMLInputElement>(".input-line")?.focus(),
+        nextTab: () => {
+          const ts = tabsRef.current;
+          if (ts.length === 0) return;
+          const i = ts.findIndex((t) => t.session === activeRef.current);
+          setActive(ts[(i + 1) % ts.length].session);
+        },
+      });
+    };
+    document.addEventListener("keydown", onKeyDown);
+    const focus = listen("phi-focus-input", () => document.querySelector<HTMLInputElement>(".input-line")?.focus());
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      focus.then((f) => f());
     };
   }, []);
 
@@ -238,6 +263,8 @@ function LogView(props: { lines: string[] }) {
     <div
       ref={ref}
       className="phi-log"
+      // フォーカスを受けると「移動モード」になり、キーが操作になる
+      tabIndex={0}
       onClick={onClick}
       onScroll={(e) => {
         const el = e.currentTarget;
@@ -255,6 +282,11 @@ function LogView(props: { lines: string[] }) {
 function InputLine(props: { session: number; disabled: boolean }) {
   // value を React に持たせない。ログが届くたびの再描画で value を書き戻すと、WebKitGTK が変換中の文字を消す
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    // Esc でログ欄へ移り、キーを操作に使う(Philly の移動モード)
+    if (e.key === "Escape" && !e.nativeEvent.isComposing) {
+      document.querySelector<HTMLElement>(".phi-log")?.focus();
+      return;
+    }
     // IME の変換確定の Enter では送らない。WebKit は確定の keydown で isComposing を false にし、keyCode 229 を返す
     if (e.key !== "Enter" || e.nativeEvent.isComposing || e.keyCode === 229) return;
     e.preventDefault();

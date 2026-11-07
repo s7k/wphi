@@ -12,6 +12,7 @@ Linux では Tauri の前提パッケージ(`libwebkit2gtk-4.1-dev` など)も�
 mise install
 npm install
 cargo test --workspace
+npm test            # UI のテスト(キー操作の表)
 npm run tauri dev   # アプリを起動する
 ```
 

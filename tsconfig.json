@@ -10,5 +10,6 @@
     "skipLibCheck": true,
     "isolatedModules": true
   },
-  "include": ["ui/src", "vite.config.ts"]
+  "include": ["ui/src", "vite.config.ts"],
+  "exclude": ["ui/src/**/*.test.ts"]
 }

@@ -3,7 +3,9 @@
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { Window } from "@tauri-apps/api/window";
 import { assetUrl } from "./asset";
+import { handleGameKey } from "./keyInput";
 import { drawMap, type ImageRefs } from "./drawMap";
 import { CHIP_SIZE, gridDim } from "./mapRender";
 import { MAP_STATE_EVENT, type CondEvent, type MapState, type StatusEvent } from "./protocol";
@@ -46,6 +48,24 @@ function MapWindow() {
       unlisten.then((f) => f());
       clearInterval(timer);
     };
+  }, []);
+
+  // マップ窓で押したキーは常に操作にする(Philly も FormMap のキーを KeyDown に回す)
+  const stateRef = useRef<MapState | null>(null);
+  stateRef.current = state;
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.isComposing) return;
+      handleGameKey(e, stateRef.current ?? undefined, {
+        focusInput: () => {
+          Window.getByLabel("main").then((w) => w?.setFocus());
+          emitTo("main", "phi-focus-input");
+        },
+        nextTab: () => {},
+      });
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
   const map = state?.map;
