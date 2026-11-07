@@ -369,6 +369,11 @@ impl Parser {
         }
     }
 
+    /// `#ulist` を送る時に呼ぶ。届き直す `#user` だけの一覧にする(Philly の RequestUlist)。
+    pub fn clear_users(&mut self) {
+        self.ulist.clear();
+    }
+
     /// `#user` で届いた名前のユーザ番号。priv の宛先を決める為に使う。
     pub fn user_no(&self, name: &str) -> Option<i64> {
         self.ulist.iter().find(|(n, _)| n == name).map(|&(_, no)| no)

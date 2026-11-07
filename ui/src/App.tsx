@@ -8,6 +8,8 @@ import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { isTextTarget, KEY_EVENT, keyContext, runKeyAction, sendLine, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, moveInput } from "./keys.ts";
 import { BoardEditor } from "./BoardEditor";
+import { partnersKey, privLines, privPartners, usersFromEvent, type User } from "./priv.ts";
+import { PrivPanel, type PrivConv } from "./PrivPanel";
 import { ListOverlay, listOk, type ListState } from "./ListOverlay";
 import { MoveRepeat } from "./moveRepeat.ts";
 import { MAP_STATE_EVENT, type MapState, type UiEvent } from "./protocol";
@@ -26,6 +28,13 @@ type Tab = {
   list: ListState | null;
   /** 看板エディタを開いているか */
   board: boolean;
+  /** #name で届いた自分の名前(priv の振り分けに使う) */
+  self: string;
+  /** #user の一覧(priv の番号に使う) */
+  users: User[];
+  privs: PrivConv[];
+  privOpen: boolean;
+  privActive: string | null;
 };
 
 /** Philly のログバッファに合わせ、古い行から捨てる */
@@ -232,6 +241,38 @@ export function App() {
   const updateList = (session: number, f: (l: ListState) => ListState) =>
     update(session, (t) => (t.list ? { ...t, list: f(t.list) } : t));
 
+  /** 受けた priv を相手の組の会話に足す。会話が無ければ作り、priv の画面を開く(Philly.ini の PopupPrivForm) */
+  function addPriv(session: number, from: string, html: string) {
+    update(session, (t) => {
+      const to = privPartners(from, html, t.self);
+      if (to.length === 0) return t;
+      const key = partnersKey(to);
+      const line = timePrefix() + html;
+      const exists = t.privs.some((c) => partnersKey(c.to) === key);
+      const privs = exists
+        ? t.privs.map((c) =>
+            partnersKey(c.to) === key ? { ...c, lines: [...c.lines, line], unread: t.privActive !== key } : c,
+          )
+        : [...t.privs, { to, lines: [line], unread: true }];
+      return { ...t, privs, privOpen: true, privActive: t.privActive ?? key };
+    });
+  }
+
+  // #ulist は 10 秒に1回まで(PrivForm.cpp の RequestUlistWait)
+  const lastUlist = useRef(0);
+  function requestUlist(session: number) {
+    if (performance.now() - lastUlist.current < 10_000) return;
+    lastUlist.current = performance.now();
+    sendLine(session, "#ulist");
+  }
+
+  function sendPriv(t: Tab, to: string[], text: string) {
+    const { lines, failed } = privLines(to, text, t.users, t.self);
+    lines.forEach((l) => sendLine(t.session, l));
+    for (const name of failed) append(t.session, systemNg(`「${name}」さんに送信できませんでした。`));
+    requestUlist(t.session);
+  }
+
   /** リストで選んだ時と取り消した時。v5y は #ex-list-mode-end を送らないので、送った時点でリストを閉じる */
   function closeListAndSend(session: number, text: string) {
     sendLine(session, text);
@@ -255,6 +296,7 @@ export function App() {
       switch (ev.type) {
         case "log":
           append(session, ev.html);
+          if (ev.channel === "priv" && ev.from) addPriv(session, ev.from, ev.html);
           // リピート移動中に壁に当たった時(Philly の PersonalThread.cpp の RecvCannotGo)
           if (session === activeRef.current && /DM<\/font> &gt; (進めません\.|Can not go\.)/.test(ev.html))
             mover.current?.onCannotGo();
@@ -264,6 +306,16 @@ export function App() {
           break;
         case "connection":
           update(session, (t) => ({ ...t, closed: true }));
+          break;
+        case "userList":
+          update(session, (t) => ({ ...t, users: usersFromEvent(ev.users) }));
+          break;
+        case "notice":
+          if (ev.name) {
+            const name = ev.name;
+            update(session, (t) => ({ ...t, self: name }));
+          }
+          onMapEvent(session, ev);
           break;
         case "edit":
           // #m-edit で看板エディタを開き、#. で閉じる。#s-edit は Philly も何もしない(入力欄で答える)
@@ -282,7 +334,22 @@ export function App() {
           onMapEvent(session, ev);
       }
     };
-    setTabs((ts) => [...ts, { session, label, lines: [], closed: false, list: null, board: false }]);
+    setTabs((ts) => [
+      ...ts,
+      {
+        session,
+        label,
+        lines: [],
+        closed: false,
+        list: null,
+        board: false,
+        self: "",
+        users: [],
+        privs: [],
+        privOpen: false,
+        privActive: null,
+      },
+    ]);
     setActive(session);
   }
 
@@ -300,6 +367,7 @@ export function App() {
       <style>{logCss}</style>
       <TabBar tabs={tabs} active={active} onSelect={setActive} onClose={close} />
       {tab ? (
+        <div className="main-body">
         <div className="log-area">
           <LogView key={tab.session} lines={tab.lines} />
           {tab.board && (
@@ -324,6 +392,33 @@ export function App() {
             />
           )}
         </div>
+        {tab.privOpen && (
+          <PrivPanel
+            convs={tab.privs}
+            active={tab.privActive}
+            users={tab.users}
+            self={tab.self}
+            onSelect={(key) =>
+              update(tab.session, (t) => ({
+                ...t,
+                privActive: key,
+                privs: t.privs.map((c) => (partnersKey(c.to) === key ? { ...c, unread: false } : c)),
+              }))
+            }
+            onOpen={(to) =>
+              update(tab.session, (t) => {
+                const key = partnersKey(to);
+                const privs = t.privs.some((c) => partnersKey(c.to) === key)
+                  ? t.privs
+                  : [...t.privs, { to: [...to].sort(), lines: [], unread: false }];
+                return { ...t, privs, privActive: key };
+              })
+            }
+            onSend={(to, text) => sendPriv(tab, to, text)}
+            onClose={() => update(tab.session, (t) => ({ ...t, privOpen: false }))}
+          />
+        )}
+        </div>
       ) : (
         <CharacterList
           store={store}
@@ -341,6 +436,10 @@ export function App() {
       )}
       {tab && (
         <InputEditor
+          onPriv={() => {
+            requestUlist(tab.session);
+            update(tab.session, (t) => ({ ...t, privOpen: !t.privOpen }));
+          }}
           session={tab.session}
           sessions={tabs.filter((t) => !t.closed).map((t) => t.session)}
           disabled={tab.closed}
@@ -432,7 +531,7 @@ function LogView(props: { lines: string[] }) {
  * Ctrl+Enter はパーティー発言、Shift+Enter は改行。
  * value を React に持たせない。ログが届くたびの再描画で value を書き戻すと、WebKitGTK が変換中の文字を消す
  */
-function InputEditor(props: { session: number; sessions: number[]; disabled: boolean }) {
+function InputEditor(props: { session: number; sessions: number[]; disabled: boolean; onPriv: () => void }) {
   const [loud, setLoud] = useState(false);
   const [allTab, setAllTab] = useState(false);
   // 連続送信を 100ms 空ける(Philly の SendFromInputEdit)
@@ -491,6 +590,9 @@ function InputEditor(props: { session: number; sessions: number[]; disabled: boo
           <input type="checkbox" checked={allTab} onChange={(e) => setAllTab(e.target.checked)} />
           全タブ発言
         </label>
+        <button className="toggle" onClick={props.onPriv}>
+          プリブ
+        </button>
       </div>
       <textarea
         className={loud ? "input-line loud" : "input-line"}

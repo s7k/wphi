@@ -466,3 +466,76 @@ body {
   gap: 4px;
   padding: 4px;
 }
+
+/* priv。main 窓の右に置く */
+.main-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.main-body > .log-area {
+  flex: 1;
+}
+
+.priv-panel {
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  border-left: 3px solid #d4d0c8;
+  background: #d4d0c8;
+  min-height: 0;
+}
+
+.priv-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 4px;
+  font-weight: bold;
+}
+
+.priv-convs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+}
+
+.priv-convs button.active {
+  background: #fff;
+  border-style: inset;
+}
+
+.priv-convs button.unread {
+  background: #ffd0d0;
+}
+
+.priv-log {
+  flex: 1;
+  overflow-y: auto;
+  border: 2px inset #fff;
+  min-height: 0;
+}
+
+.priv-input {
+  margin: 2px 0;
+}
+
+.priv-users {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  max-height: 30%;
+}
+
+.priv-users-list {
+  overflow-y: auto;
+  background: #fff;
+  border: 2px inset #fff;
+}
+
+.priv-users-list label {
+  display: block;
+  white-space: nowrap;
+}

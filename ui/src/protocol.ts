@@ -75,7 +75,8 @@ export type UiEvent =
   | ModeEvent
   | ListEvent
   | { type: "edit"; mode: "single" | "multi" | "end" }
-  | { type: "userList" | "eagleEye" | "worldTransfer" };
+  | { type: "userList"; users: { key: string; name: string }[] }
+  | { type: "eagleEye" | "worldTransfer" };
 
 /** #list で active、#end-list で行が届く。閉じる時は active: false */
 export type ListEvent = { type: "list"; active: boolean; lines?: string[] };

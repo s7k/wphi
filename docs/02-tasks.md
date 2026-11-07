@@ -34,7 +34,9 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 - [x] s-edit(1行入力)と m-edit(看板などの複数行入力。Philly の MEditForm)。S(write)から開く。s-edit は Philly と同じく入力欄で答える
   - [ ] 看板エディタを別窓にする(今は main 窓の中に重ねている。窓の配置と一緒に決める)
   - [ ] タグメニュー(`TagMenu.xml`)とタグの無効化
-- [ ] priv 窓(Philly の PrivForm)。相手ごとに窓を開き、`priv <番号> <本文>` で送る
+- [x] priv(Philly の PrivForm)。相手の組ごとに会話を分け、`priv <番号> /*to=相手*/本文` を相手ごとと自分に送る。3人以上の会話も宛先のタグで見分ける。`#ulist` で番号を取り直す
+  - [ ] priv を別窓にする(今は main 窓の右に置いている。窓の配置と一緒に決める)
+  - [ ] `#ulist` の返事を待ってから送る(Philly の RequestUlistWait は最大 60 秒待つ。今は手元の一覧で送る)
 - [ ] EagleEye 窓(Philly の EagleEyeForm)
 - [x] 世界移動(`#ch-srv` → `#reserve` → `#rsv-ok` → `#trans` → `#trs-ok` → `#ch-srv-ok`)。Philly の `PersonalThread.cpp` classTransportCharacter に合わせた(移動後は `#open` を送らない、失敗時の通知先も Philly と同じ)。移動先は登録したキャラにも書き戻す
 - [ ] `#more` の間は `#` で始まる行をコマンドとして解析しない(Philly の `PersonalThread.cpp:1040`)。Python 版との差になるので、正解データの扱いも決める

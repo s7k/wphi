@@ -160,7 +160,12 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                 }
             }
             text = outgoing.recv() => match text {
-                Some(text) => reply.push(text),
+                Some(text) => {
+                    if text == "#ulist" {
+                        parser.clear_users();
+                    }
+                    reply.push(text)
+                }
                 None => {
                     let _ = stream.write_all(&line_bytes("#x")).await;
                     return;
