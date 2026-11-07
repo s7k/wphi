@@ -11,7 +11,10 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 
 ## P2 の残り(キー・マウス)
 
-- [ ] ファンクションキーと Alt の魔法(Philly の `Command.cpp` KeyBindNone の F1〜F12、KeyBindAlt、KeyBindShiftAlt)
+- [x] ファンクションキーと Alt の魔法(Philly の `Command.cpp` KeyBindNone の F1〜F7、KeyBindAlt、KeyBindShiftAlt)。Call と Return は送る前に確認する。Shift+F5 でマップ窓を出し入れする
+  - [ ] F8〜F12 のショートカットと Alt+G の言葉(設定画面と一緒に作る)
+  - [ ] Alt+S(看板の検索)、Shift+Alt+C・A・U(名前を聞くダイアログが要る)
+  - [ ] 系統魔法の前に武器を外す処理(AutoUnequipSystemMagic)
 - [ ] マップのクリックで移動、右クリックで攻撃(Philly の `MapForm.cpp` の MouseDirection)
 
 ## P3: 入力と会話

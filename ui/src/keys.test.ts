@@ -36,6 +36,16 @@ test("行動キーと修飾キー", () => {
   assert.deepEqual(act(key("KeyT", { shift: true }), north), { send: "#ex-map style=solid" });
   assert.deepEqual(act(key("Digit5", { shift: true }), north), { send: "#ex-map size=40" });
   assert.deepEqual(act(key("Tab", { ctrl: true }), north), { nextTab: true });
+  assert.deepEqual(act(key("KeyW", { alt: true }), north), { send: "cast\nwizard eye" });
+  assert.deepEqual(act(key("Digit3", { alt: true }), north), { send: "cast\n3" });
+  assert.deepEqual(act(key("KeyL", { alt: true, shift: true }), north), { send: "cast\nlist" });
+  assert.ok((act(key("KeyR", { alt: true }), north) as { confirm?: string }).confirm);
+  assert.deepEqual(act(key("F3"), north), { send: "cast\n3" });
+  assert.deepEqual(act(key("F5", { shift: true }), north), { toggleMap: true });
+  // Alt の時はフルキー移動の読み替えをしない
+  assert.deepEqual(act(key("KeyU", { alt: true }), { northFix: true, fullKeyMove: true }), { send: "cast\nunlock\nsee" });
+  // Alt と矢印は移動にしない
+  assert.equal(act(key("ArrowUp", { alt: true }), north), null);
   assert.equal(act(key("KeyQ", { alt: true }), north), null);
   assert.equal(act(key("KeyG"), north), null);
 });

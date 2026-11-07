@@ -30,9 +30,12 @@ export function sendLine(session: number, text: string) {
 export function runKeyAction(
   action: KeyAction,
   session: number,
-  hooks: { focusInput: () => void; nextTab: () => void; openBoard: () => void },
+  hooks: { focusInput: () => void; nextTab: () => void; openBoard: () => void; toggleMap: () => void },
 ) {
-  if ("send" in action) sendLine(session, action.send);
+  if ("send" in action) {
+    if (action.confirm && !window.confirm(action.confirm)) return;
+    sendLine(session, action.send);
+  } else if ("toggleMap" in action) hooks.toggleMap();
   else if ("write" in action) {
     sendLine(session, "write");
     hooks.openBoard();

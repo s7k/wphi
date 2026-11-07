@@ -8,7 +8,10 @@
 
 /** 入力欄の外で押したキーに対する操作。 */
 export type KeyAction =
-  | { send: string }
+  /** confirm があれば、送る前に確認する(Philly の Call と Return) */
+  | { send: string; confirm?: string }
+  /** マップ窓の表示を切り替える(Shift+F5) */
+  | { toggleMap: true }
   /** 支払い金額を聞いてから `pay <金額>` を送る */
   | { pay: true }
   /** 看板を書く。write を送り、看板エディタを開く(Command.cpp の Write) */
@@ -26,6 +29,7 @@ export type KeyContext = {
 };
 
 export type Mods = "none" | "shift" | "ctrl";
+type ActionMods = Mods | "alt" | "shiftAlt";
 
 /** テンキーと矢印キー → Philly の移動キー(Const.h の TMoveKeyNo) */
 export type MoveKey = "2" | "4" | "5" | "6" | "7" | "8" | "9" | "up" | "down" | "left" | "right";
@@ -141,15 +145,46 @@ const NONE: Record<string, KeyAction> = {
   NumpadDivide: { send: "equip" },
   NumpadMultiply: { send: "use" },
   NumpadDecimal: { send: "." },
+  // 所持魔法の1〜7番(FuncKeyMagicFix=off)。F8〜F12 は設定のショートカットなので設定画面と一緒に作る
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((n) => [`F${n}`, { send: `cast\n${n}` }])),
 };
 
 const SHIFT: Record<string, KeyAction> = {
+  F5: { toggleMap: true },
   Space: { send: "hit" },
   KeyT: { send: "#ex-map style=solid" },
   Digit5: { send: "#ex-map size=40" },
   Numpad5: { send: "#ex-map size=40" },
   Digit7: { send: "#ex-map size=57" },
   Numpad7: { send: "#ex-map size=57" },
+};
+
+/** Alt(KeyBindAlt)。G(AltGWord)と S(看板の検索)は設定やダイアログが要るので後で作る */
+const ALT: Record<string, KeyAction> = {
+  KeyA: { send: "cast\nanalyze" },
+  KeyB: {
+    send: "cast\ncall",
+    confirm: "現在の位置を call します。\nReturn や死んでしまって再接続するときはこの位置になります。\nよろしいですか？",
+  },
+  KeyC: { send: "cast\ncreate" },
+  KeyD: { send: "cast\ndetect" },
+  KeyE: { send: "cast\neagle eye" },
+  KeyF: { send: "cast\nforget" },
+  KeyI: { send: "cast\nidentify" },
+  KeyL: { send: "cast\nwizard lock\nsee" },
+  KeyP: { send: "cast\nparty eye" },
+  KeyR: { send: "cast\nreturn", confirm: "call 位置に帰還します。\n持っているアイテムを失う可能性があります。\nよろしいですか？" },
+  KeyU: { send: "cast\nunlock\nsee" },
+  KeyW: { send: "cast\nwizard eye" },
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((n) => [`Digit${n}`, { send: `cast\n${n}` }])),
+};
+
+/** Shift+Alt(KeyBindShiftAlt)。C・A・U は名前を聞くダイアログが要るので後で作る */
+const SHIFT_ALT: Record<string, KeyAction> = {
+  KeyW: { send: "cast\nwizard light" },
+  KeyE: { send: "#ex-switch eagleeye=text\ncast\neagle eye\n#ex-switch eagleeye=form" },
+  KeyL: { send: "cast\nlist" },
+  KeyD: { send: "cast\ndestroy" },
 };
 
 const CTRL: Record<string, KeyAction> = {
@@ -161,18 +196,26 @@ const CTRL: Record<string, KeyAction> = {
 
 type KeyInput = Pick<KeyboardEvent, "code" | "shiftKey" | "ctrlKey" | "altKey" | "metaKey">;
 
-function normalize(e: KeyInput, ctx: KeyContext): { code: string; mods: Mods } | null {
-  if (e.altKey || e.metaKey || (e.shiftKey && e.ctrlKey)) return null;
-  const mods: Mods = e.shiftKey ? "shift" : e.ctrlKey ? "ctrl" : "none";
+function normalize(e: KeyInput, ctx: KeyContext): { code: string; mods: ActionMods } | null {
+  if (e.metaKey || (e.ctrlKey && (e.shiftKey || e.altKey))) return null;
+  const mods: ActionMods = e.altKey
+    ? e.shiftKey
+      ? "shiftAlt"
+      : "alt"
+    : e.shiftKey
+      ? "shift"
+      : e.ctrlKey
+        ? "ctrl"
+        : "none";
   // Philly は Alt 以外の時にフルキーをテンキーへ読み替える
-  const code = ctx.fullKeyMove ? (FULL_KEY_MOVE[e.code] ?? e.code) : e.code;
+  const code = ctx.fullKeyMove && !e.altKey ? (FULL_KEY_MOVE[e.code] ?? e.code) : e.code;
   return { code, mods };
 }
 
 /** 移動キーなら、そのキーと修飾キーを返す。Shift の 5 と 7 はマップの大きさを変えるので移動ではない */
 export function moveInput(e: KeyInput, ctx: KeyContext): { key: MoveKey; mods: Mods } | null {
   const n = normalize(e, ctx);
-  if (!n || (n.mods === "shift" && SHIFT[n.code])) return null;
+  if (!n || n.mods === "alt" || n.mods === "shiftAlt" || (n.mods === "shift" && SHIFT[n.code])) return null;
   const key = MOVE_KEYS[n.code];
   return key ? { key, mods: n.mods } : null;
 }
@@ -188,8 +231,9 @@ export function keyAction(e: KeyInput, ctx: KeyContext): KeyAction | null {
   const n = normalize(e, ctx);
   if (!n) return null;
   if (n.mods === "shift" && SHIFT[n.code]) return SHIFT[n.code];
-  if (MOVE_KEYS[n.code]) return null;
-  return (n.mods === "none" ? NONE : n.mods === "ctrl" ? CTRL : {})[n.code] ?? null;
+  if (MOVE_KEYS[n.code] && n.mods !== "alt" && n.mods !== "shiftAlt") return null;
+  const table = { none: NONE, shift: SHIFT, ctrl: CTRL, alt: ALT, shiftAlt: SHIFT_ALT }[n.mods];
+  return table[n.code] ?? null;
 }
 
 /** リスト表示中のキー操作(Command.cpp の KeyBindListMode。修飾キーなしの時だけ) */

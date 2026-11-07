@@ -145,6 +145,16 @@ export function App() {
       const i = ts.findIndex((t) => t.session === activeRef.current);
       setActive(ts[(i + 1) % ts.length].session);
     };
+    // マップ窓の表示・非表示(Philly の Shift+F5 DispMap)
+    const toggleMap = () =>
+      Window.getByLabel("map").then(async (w) => {
+        if (!w) return;
+        if (await w.isVisible()) await w.hide();
+        else {
+          await w.show();
+          sendMapState(activeRef.current);
+        }
+      });
     /** 操作にしたら true */
     const onKey = (e: ForwardedKey): boolean => {
       const session = activeRef.current;
@@ -176,7 +186,7 @@ export function App() {
       if (!action) return false;
       // 押し続けによる自動リピートは送らない
       const openBoard = () => update(session, (t) => ({ ...t, board: true }));
-      if (!e.repeat) runKeyAction(action, session, { focusInput, nextTab, openBoard });
+      if (!e.repeat) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap });
       return true;
     };
     const onDom = (e: globalThis.KeyboardEvent) => {
