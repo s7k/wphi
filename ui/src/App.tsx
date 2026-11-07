@@ -1,13 +1,9 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { emitTo, listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 
-// src-tauri/src/session.rs の UiEvent。P1 では使う項目だけを型にする
-type UiEvent =
-  | { type: "log"; channel: string; html: string; from?: string }
-  | { type: "error"; message: string }
-  | { type: "connection"; state: "closed" }
-  | { type: string };
+import { MAP_STATE_EVENT, type MapState, type UiEvent } from "./protocol";
 
 // src-tauri/src/characters.rs の Store
 type Character = { label: string; host: string; port: number };
@@ -82,6 +78,48 @@ export function App() {
     invoke("set_open_tabs", { labels: tabs.map((t) => t.label) }).catch((e) => console.error(e));
   }, [tabs.map((t) => t.label).join("\n")]);
 
+  // タブごとのマップとステータス。map 窓にはアクティブなタブの分だけ送る
+  const mapStates = useRef(new Map<number, MapState>());
+  const activeRef = useRef<number | null>(null);
+  activeRef.current = active;
+  const sendMapState = (session: number | null) => {
+    const state = session === null ? undefined : mapStates.current.get(session);
+    emitTo("map", MAP_STATE_EVENT, state ?? { session: -1, mapset: "" }).catch((e) => console.error(e));
+  };
+  useEffect(() => sendMapState(active), [active]);
+  useEffect(() => {
+    const unlisten = listen("phi-map-ready", () => sendMapState(activeRef.current));
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, []);
+
+  function onMapEvent(session: number, ev: UiEvent) {
+    const s = mapStates.current.get(session) ?? { session, mapset: "" };
+    switch (ev.type) {
+      case "map":
+        s.map = ev;
+        break;
+      case "status":
+        s.status = ev;
+        break;
+      case "cond":
+        s.cond = ev;
+        break;
+      case "mode":
+        s.mode = ev;
+        break;
+      case "notice":
+        if (ev.mapset === undefined) return;
+        s.mapset = ev.mapset;
+        break;
+      default:
+        return;
+    }
+    mapStates.current.set(session, s);
+    if (session === activeRef.current) sendMapState(session);
+  }
+
   const update = (session: number, f: (t: Tab) => Tab) =>
     setTabs((ts) => ts.map((t) => (t.session === session ? f(t) : t)));
 
@@ -100,14 +138,16 @@ export function App() {
     channel.onmessage = (ev) => {
       switch (ev.type) {
         case "log":
-          append(session, (ev as { html: string }).html);
+          append(session, ev.html);
           break;
         case "error":
-          append(session, systemNg((ev as { message: string }).message));
+          append(session, systemNg(ev.message));
           break;
         case "connection":
           update(session, (t) => ({ ...t, closed: true }));
           break;
+        default:
+          onMapEvent(session, ev);
       }
     };
     setTabs((ts) => [...ts, { session, label, lines: [], closed: false }]);
@@ -117,6 +157,7 @@ export function App() {
   function close(session: number) {
     invoke("disconnect", { session }).catch((e) => console.error(e));
     setTabs((ts) => ts.filter((t) => t.session !== session));
+    mapStates.current.delete(session);
     setActive(null);
   }
 

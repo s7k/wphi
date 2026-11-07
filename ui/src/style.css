@@ -82,3 +82,21 @@ body {
 .error {
   color: #c00;
 }
+
+.map-window {
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  color: #fff;
+  height: 100%;
+}
+
+.map-window canvas {
+  align-self: center;
+  image-rendering: pixelated;
+}
+
+.status-panel {
+  padding: 4px;
+  font: 12px monospace;
+}
