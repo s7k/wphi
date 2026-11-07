@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Philly",
+  "productName": "WPHI",
   "identifier": "dev.rust-philly",
   "version": "0.1.0",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Philly",
+        "title": "WPHI",
         "width": 800,
         "height": 600
       },

@@ -60,7 +60,15 @@ impl Assets {
     /// `phi-asset://` のパスとクエリから PNG を返す。見つからなければ `None`。
     pub fn get(&self, kind: &str, query: &HashMap<String, String>) -> Option<Vec<u8>> {
         let q = |k: &str| query.get(k).map(String::as_str).unwrap_or("");
-        let key = format!("{kind}?{}&{}&{}&{}&{}&{}", q("name"), q("gra"), q("code"), q("mapset"), q("file"), q("key"));
+        let key = format!(
+            "{kind}?{}&{}&{}&{}&{}&{}",
+            q("name"),
+            q("gra"),
+            q("code"),
+            q("mapset"),
+            q("file"),
+            q("key")
+        );
         if let Some(png) = self.cache.lock().unwrap().get(&key) {
             return Some(png.clone());
         }
@@ -254,9 +262,15 @@ mod tests {
     #[test]
     fn skin_images_only_from_images_folder() {
         let a = bundled();
-        let panel = decode(&a.get("skin", &query(&[("file", "HpMpPanel"), ("key", "teal")])).unwrap());
+        let panel = decode(
+            &a.get("skin", &query(&[("file", "HpMpPanel"), ("key", "teal")]))
+                .unwrap(),
+        );
         assert_eq!(panel.dimensions(), (20, 50));
-        assert!(a.get("skin", &query(&[("file", "../Title"), ("key", "none")])).is_none());
+        assert!(
+            a.get("skin", &query(&[("file", "../Title"), ("key", "none")]))
+                .is_none()
+        );
         assert!(a.get("skin", &query(&[("file", "")])).is_none());
     }
 

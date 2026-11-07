@@ -1,6 +1,8 @@
-# rust-philly 設計
+# WPHI 設計
 
 旧 Windows クライアント Philly(C++Builder)を、Tauri 2 で作り直す為の設計。
+クライアント名は WPHI(2026-11-07 に決定)。リポジトリ名・crate 名・内部の識別子(`dev.rust-philly`)・キーチェーンのサービス名(`rust-philly`)は rust-philly のままにする。
+識別子を変えると設定フォルダの場所が変わり、登録済みのキャラが引き継がれなくなる為である。
 見た目と操作は Philly に寄せる。
 
 ## 参照資料
