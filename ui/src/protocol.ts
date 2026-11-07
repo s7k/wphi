@@ -73,7 +73,11 @@ export type UiEvent =
   | CondEvent
   | NoticeEvent
   | ModeEvent
-  | { type: "list" | "edit" | "userList" | "eagleEye" | "worldTransfer" };
+  | ListEvent
+  | { type: "edit" | "userList" | "eagleEye" | "worldTransfer" };
+
+/** #list で active、#end-list で行が届く。閉じる時は active: false */
+export type ListEvent = { type: "list"; active: boolean; lines?: string[] };
 
 /** main 窓が map 窓へ送る、アクティブなタブの状態。 */
 export type MapState = {
@@ -85,6 +89,8 @@ export type MapState = {
   status?: StatusEvent;
   cond?: CondEvent;
   mode?: ModeEvent;
+  /** 表示中のリストの行(マップ窓の右の領域にも出す。Philly.ini の ListInMap) */
+  list?: string[];
 };
 
 /** Tauri のイベント名(main → map) */

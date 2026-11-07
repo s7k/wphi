@@ -6,7 +6,8 @@ import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { isTextTarget, KEY_EVENT, keyContext, runKeyAction, sendLine, type ForwardedKey } from "./keyInput";
-import { keyAction, moveInput } from "./keys.ts";
+import { keyAction, listKeyAction, moveInput } from "./keys.ts";
+import { ListOverlay, listOk, type ListState } from "./ListOverlay";
 import { MoveRepeat } from "./moveRepeat.ts";
 import { MAP_STATE_EVENT, type MapState, type UiEvent } from "./protocol";
 
@@ -20,6 +21,8 @@ type Tab = {
   /** ログ欄の HTML。1要素が1行 */
   lines: string[];
   closed: boolean;
+  /** 表示中のリスト(#list 〜 #end-list) */
+  list: ListState | null;
 };
 
 /** Philly のログバッファに合わせ、古い行から捨てる */
@@ -145,6 +148,17 @@ export function App() {
         return true;
       }
       if (e.type !== "keydown") return false;
+      // リスト表示中は番号や取り消しのキーを先に見る(Philly の KeyBindListMode)
+      const list = tabsRef.current.find((t) => t.session === session)?.list;
+      const listAction = list ? listKeyAction(e, ctx) : null;
+      if (list && listAction) {
+        if (e.repeat && !("listCursor" in listAction) && !("listToggle" in listAction)) return true;
+        if ("send" in listAction) closeListAndSend(session, listAction.send);
+        else if ("listOk" in listAction) closeListAndSend(session, listOk(list));
+        else if ("focusInput" in listAction) focusInput();
+        else updateList(session, (l) => moveListCursor(l, listAction));
+        return true;
+      }
       const action = keyAction(e, ctx);
       if (!action) return false;
       // 押し続けによる自動リピートは送らない
@@ -188,6 +202,9 @@ export function App() {
       case "mode":
         s.mode = ev;
         break;
+      case "list":
+        s.list = ev.active ? (ev.lines ?? []) : undefined;
+        break;
       case "worldMoved":
         // 移動先から #ex-notice が届くまで(Philly の RewriteSaveData)
         s.world = s.area = "???";
@@ -207,6 +224,16 @@ export function App() {
 
   const update = (session: number, f: (t: Tab) => Tab) =>
     setTabs((ts) => ts.map((t) => (t.session === session ? f(t) : t)));
+
+  const updateList = (session: number, f: (l: ListState) => ListState) =>
+    update(session, (t) => (t.list ? { ...t, list: f(t.list) } : t));
+
+  /** リストで選んだ時と取り消した時。v5y は #ex-list-mode-end を送らないので、送った時点でリストを閉じる */
+  function closeListAndSend(session: number, text: string) {
+    sendLine(session, text);
+    update(session, (t) => ({ ...t, list: null }));
+    onMapEvent(session, { type: "list", active: false });
+  }
 
   const append = (session: number, html: string) =>
     update(session, (t) => ({ ...t, lines: [...t.lines, timePrefix() + html].slice(-MAX_LINES) }));
@@ -234,11 +261,19 @@ export function App() {
         case "connection":
           update(session, (t) => ({ ...t, closed: true }));
           break;
+        case "list":
+          if (!ev.active) update(session, (t) => ({ ...t, list: null }));
+          else {
+            const lines = ev.lines ?? [];
+            update(session, (t) => ({ ...t, list: { lines, checked: lines.map(() => false), cursor: 0 } }));
+          }
+          onMapEvent(session, ev);
+          break;
         default:
           onMapEvent(session, ev);
       }
     };
-    setTabs((ts) => [...ts, { session, label, lines: [], closed: false }]);
+    setTabs((ts) => [...ts, { session, label, lines: [], closed: false, list: null }]);
     setActive(session);
   }
 
@@ -256,7 +291,16 @@ export function App() {
       <style>{logCss}</style>
       <TabBar tabs={tabs} active={active} onSelect={setActive} onClose={close} />
       {tab ? (
-        <LogView key={tab.session} lines={tab.lines} />
+        <div className="log-area">
+          <LogView key={tab.session} lines={tab.lines} />
+          {tab.list && (
+            <ListOverlay
+              list={tab.list}
+              onChange={(l) => updateList(tab.session, () => l)}
+              onSend={(text) => closeListAndSend(tab.session, text)}
+            />
+          )}
+        </div>
       ) : (
         <CharacterList
           store={store}
@@ -282,6 +326,13 @@ export function App() {
       <div className="status-bar">{tab ? (tab.closed ? "切断" : "接続中") : "キャラ選択"}</div>
     </div>
   );
+}
+
+function moveListCursor(l: ListState, a: { listCursor: -1 | 1 } | { listToggle: true }): ListState {
+  const last = Math.max(l.lines.length - 1, 0);
+  if ("listCursor" in a) return { ...l, cursor: Math.min(Math.max(l.cursor + a.listCursor, 0), last) };
+  const checked = l.checked.map((c, i) => (i === l.cursor ? !c : c));
+  return { ...l, checked, cursor: Math.min(l.cursor + 1, last) };
 }
 
 function pick(e: globalThis.KeyboardEvent) {

@@ -209,6 +209,12 @@ body {
   white-space: nowrap;
 }
 
+.name-list.list {
+  font-weight: normal;
+  font-size: 12px;
+  background: #fffbe0;
+}
+
 /* 下のステータス(ImageStatus。高さ 50px) */
 .status-panel {
   display: flex;
@@ -364,4 +370,53 @@ body {
 
 .phi-log:focus {
   outline: none;
+}
+
+/* ログ欄とリスト。リストはログの右側に重ねる(Philly.ini の OverrapLog=on、ListInLogLeft=off) */
+.log-area {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+
+.log-area .phi-log {
+  flex: 1;
+}
+
+.list-overlay {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  bottom: 4px;
+  width: min(320px, 60%);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 2px outset #fff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+}
+
+.list-overlay ul {
+  flex: 1;
+  overflow-y: auto;
+  margin: 0;
+  padding: 2px;
+  list-style: none;
+}
+
+.list-overlay li.cursor {
+  background: #cce0ff;
+}
+
+.list-overlay label {
+  display: block;
+  white-space: nowrap;
+}
+
+.list-buttons {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: #d4d0c8;
 }

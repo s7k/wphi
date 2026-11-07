@@ -190,3 +190,41 @@ export function keyAction(e: KeyInput, ctx: KeyContext): KeyAction | null {
   if (MOVE_KEYS[n.code]) return null;
   return (n.mods === "none" ? NONE : n.mods === "ctrl" ? CTRL : {})[n.code] ?? null;
 }
+
+/** リスト表示中のキー操作(Command.cpp の KeyBindListMode。修飾キーなしの時だけ) */
+export type ListKeyAction =
+  | { send: string }
+  /** チェックした番号をまとめて送る */
+  | { listOk: true }
+  /** カーソルの行のチェックを切り替えて次の行へ */
+  | { listToggle: true }
+  | { listCursor: -1 | 1 }
+  | { focusInput: true };
+
+const LIST: Record<string, ListKeyAction> = {
+  Digit0: { send: "." },
+  Numpad0: { send: "." },
+  Escape: { send: "." },
+  Period: { send: "." },
+  NumpadDecimal: { send: "." },
+  ArrowLeft: { send: "." },
+  ArrowRight: { send: "." },
+  // すべて(ListAllSelectVK_ADD=on なのでテンキーは + を使う)
+  NumpadAdd: { send: "-" },
+  Minus: { send: "-" },
+  Enter: { listOk: true },
+  NumpadEnter: { listOk: true },
+  Space: { listToggle: true },
+  ArrowUp: { listCursor: -1 },
+  ArrowDown: { listCursor: 1 },
+  Tab: { focusInput: true },
+};
+
+/** リスト表示中のキー。リストの操作でなければ null(通常のキー操作へ回す) */
+export function listKeyAction(e: KeyInput, ctx: KeyContext): ListKeyAction | null {
+  const n = normalize(e, ctx);
+  if (!n || n.mods !== "none") return null;
+  const digit = /^(?:Digit|Numpad)([1-9])$/.exec(n.code);
+  if (digit) return { send: digit[1] };
+  return LIST[n.code] ?? null;
+}

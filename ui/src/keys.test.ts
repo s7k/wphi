@@ -1,7 +1,7 @@
 // node --test ui/src/keys.test.ts で実行する(Node 24 は型を外して .ts を直接読む)
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { keyAction, moveCommand, moveInput, type KeyContext } from "./keys.ts";
+import { keyAction, listKeyAction, moveCommand, moveInput, type KeyContext } from "./keys.ts";
 
 const key = (code: string, mods: { shift?: boolean; ctrl?: boolean; alt?: boolean } = {}) => ({
   code,
@@ -47,4 +47,19 @@ test("フルキー移動", () => {
   assert.deepEqual(act(key("KeyJ"), full), { send: "hit" });
   // 無効なら数字はリストの番号
   assert.deepEqual(act(key("Digit8"), north), { send: "8" });
+});
+
+test("リスト表示中のキー", () => {
+  const full = { northFix: true, fullKeyMove: true };
+  assert.deepEqual(listKeyAction(key("Digit3"), north), { send: "3" });
+  assert.deepEqual(listKeyAction(key("Numpad9"), north), { send: "9" });
+  // フルキー移動の k はテンキーの 2 なので番号の 2
+  assert.deepEqual(listKeyAction(key("KeyK"), full), { send: "2" });
+  assert.deepEqual(listKeyAction(key("Escape"), north), { send: "." });
+  assert.deepEqual(listKeyAction(key("NumpadAdd"), north), { send: "-" });
+  assert.deepEqual(listKeyAction(key("Space"), north), { listToggle: true });
+  assert.deepEqual(listKeyAction(key("ArrowDown"), north), { listCursor: 1 });
+  // 修飾キー付きと、リストに関係ないキーは通常のキー操作へ回す
+  assert.equal(listKeyAction(key("Digit3", { shift: true }), north), null);
+  assert.equal(listKeyAction(key("KeyQ"), north), null);
 });

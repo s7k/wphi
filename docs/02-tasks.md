@@ -28,7 +28,9 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 
 ## P3: リスト・入力窓・priv・EagleEye・世界移動
 
-- [ ] リスト(`#list` 〜 `#end-list`)の表示と選択。番号キーで選び、9 は続き、0 は取り消し(`Command.cpp` の ListModeSend と KeyBindListMode)
+- [x] リスト(`#list` 〜 `#end-list`)の表示と選択。番号キーで選び、0 は取り消し(`Command.cpp` の ListModeSend と KeyBindListMode)。ログの上のチェックリストとマップ窓の右の領域に出す
+  - [ ] 9 で続きのページ(`#more`)を送る処理と、番号のずれ(ListOffset)・範囲外の番号でリストを閉じる処理(ListEndTenKeyCertainly)
+  - [ ] マップ窓のリストをクリックで選ぶ
 - [ ] s-edit(1行入力)と m-edit(看板などの複数行入力。Philly の MEditForm)。S(write)から開く
 - [ ] priv 窓(Philly の PrivForm)。相手ごとに窓を開き、`priv <番号> <本文>` で送る
 - [ ] EagleEye 窓(Philly の EagleEyeForm)
