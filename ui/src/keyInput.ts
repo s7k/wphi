@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { KeyAction, KeyContext } from "./keys.ts";
+import type { KeyAction, KeyContext, MoveKey } from "./keys.ts";
 import type { MapState } from "./protocol";
 
 /**
@@ -14,6 +14,10 @@ export const KEY_EVENT = "phi-key";
 export type ForwardedKey = Pick<KeyboardEvent, "code" | "shiftKey" | "ctrlKey" | "altKey" | "metaKey" | "repeat"> & {
   type: "keydown" | "keyup" | "blur";
 };
+
+/** map 窓から main 窓へ転送するマウス操作 */
+export const MOUSE_EVENT = "phi-mouse";
+export type ForwardedMouse = { type: "down" | "move"; keys: MoveKey[] } | { type: "up" | "hit" };
 
 export function keyContext(state: MapState | undefined): KeyContext {
   const map = state?.map;

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from
 
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
-import { isTextTarget, KEY_EVENT, keyContext, runKeyAction, sendLine, type ForwardedKey } from "./keyInput";
+import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, moveInput } from "./keys.ts";
 import { BoardEditor } from "./BoardEditor";
 import { partnersKey, privLines, privPartners, usersFromEvent, type User } from "./priv.ts";
@@ -202,11 +202,22 @@ export function App() {
     document.addEventListener("keyup", onDom);
     window.addEventListener("blur", onBlur);
     const forwarded = listen<ForwardedKey>(KEY_EVENT, (e) => onKey(e.payload));
+    // マップのマウス操作(Philly の MapForm.cpp の FormMouseDown)
+    const mouse = listen<ForwardedMouse>(MOUSE_EVENT, (e) => {
+      const m = e.payload;
+      const session = activeRef.current;
+      if (session === null) return;
+      if (m.type === "hit") sendLine(session, "hit");
+      else if (m.type === "down") mover.current?.mouseDown(m.keys);
+      else if (m.type === "move") mover.current?.mouseMove(m.keys);
+      else mover.current?.mouseUp();
+    });
     return () => {
       document.removeEventListener("keydown", onDom);
       document.removeEventListener("keyup", onDom);
       window.removeEventListener("blur", onBlur);
       forwarded.then((f) => f());
+      mouse.then((f) => f());
     };
   }, []);
 

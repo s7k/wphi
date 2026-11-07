@@ -7,6 +7,7 @@
 // - 「進めません.」を受けた時は、押しているキーの方向が変わっていれば送る
 // - 2つのキーで斜めに押すと、2方向を交互に送る
 // - 全部のキーを離して REPEAT_END_MS でリピートを終え、#map-iv を元に戻す
+// - マップを左クリックした時は、その向きへすぐ送ってリピートに入る。押している間はマウスの向きへ進む(MouseDown)
 import { moveCommand, type Mods, type MoveKey } from "./keys.ts";
 
 /** Philly.ini の RepeatModeStartTime / RepeatModeEndTime の既定値 */
@@ -37,6 +38,8 @@ const DIAGONAL: [MoveKey, MoveKey][] = [
 
 export class MoveRepeat {
   private held = new Set<MoveKey>();
+  /** マップの上で左ボタンを押している間の向き */
+  private mouse: MoveKey[] = [];
   private mods: Mods = "none";
   private repeat = false;
   private startAt = Infinity;
@@ -75,16 +78,43 @@ export class MoveRepeat {
     }
   }
 
-  /** 窓がフォーカスを失った時。押していたキーは離したことにする */
+  /** 窓がフォーカスを失った時。押していたキーとマウスは離したことにする */
   releaseAll() {
     for (const k of [...this.held]) this.keyUp(k);
+    this.mouseUp();
+  }
+
+  /** マップの上で左ボタンを押した時(Philly の classMoveCommand::MouseDown) */
+  mouseDown(keys: MoveKey[]) {
+    this.mouse = keys;
+    this.mods = "none";
+    this.endAt = Infinity;
+    const key = this.pick();
+    if (key) {
+      this.last = key;
+      this.sendMove(key, true);
+    }
+    // Philly は送った後に CommandSendMapDispCount を 2 にしてからリピートに入る
+    this.pending = 2;
+    this.setRepeat(true);
+  }
+
+  /** 左ボタンを押したままマウスを動かした時 */
+  mouseMove(keys: MoveKey[]) {
+    if (this.mouse.length > 0 && keys.length > 0) this.mouse = keys;
+  }
+
+  mouseUp() {
+    if (this.mouse.length === 0) return;
+    this.mouse = [];
+    if (this.held.size === 0) this.endAt = this.now() + REPEAT_END_MS;
   }
 
   /** 定期的に呼ぶ。リピートの開始と終了を決める(Philly の RepeatCheckWhenNoRecv) */
   tick() {
     const now = this.now();
     if (this.repeat) {
-      if (this.held.size === 0 && this.endAt < now) this.setRepeat(false);
+      if (this.held.size === 0 && this.mouse.length === 0 && this.endAt < now) this.setRepeat(false);
       return;
     }
     if (this.held.size > 0 && this.startAt < now) {
@@ -128,7 +158,7 @@ export class MoveRepeat {
 
   /** 押しているキーから送る方向を1つ選ぶ(Philly の GetMoveKeyState) */
   private pick(): MoveKey | null {
-    const h = new Set(this.held);
+    const h = new Set([...this.held, ...this.mouse]);
     if (h.size === 0) return null;
     // 回転のキーは優先する
     for (const k of ["7", "9", "5"] as const) if (h.has(k)) return k;

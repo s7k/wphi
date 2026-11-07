@@ -54,6 +54,23 @@ test("斜めは2方向を交互に送り、回転は繰り返さない", () => {
   assert.deepEqual(r.sent, ["turn l", "#map-iv 10"]);
 });
 
+test("マップを左クリックすると押している間マウスの向きへ進む", () => {
+  const { m, sent, advance } = setup();
+  m.mouseDown(["8"]);
+  assert.deepEqual(sent, ["go N", "#map-iv 10"]);
+  // 押した時の分は2回のマップで返ったことにする
+  m.onMap();
+  m.onMap();
+  assert.deepEqual(sent.slice(2), ["go N"]);
+  m.mouseMove(["6"]);
+  m.onMap();
+  assert.deepEqual(sent.slice(3), ["go E"]);
+  m.mouseUp();
+  advance(150);
+  m.tick();
+  assert.deepEqual(sent.slice(4), ["#map-iv 2"]);
+});
+
 test("進めませんの時は方向が変わった時だけ送る", () => {
   const { m, sent, advance } = setup();
   m.keyDown("8", "none", false);

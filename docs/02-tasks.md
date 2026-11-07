@@ -15,7 +15,9 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
   - [ ] F8〜F12 のショートカットと Alt+G の言葉(設定画面と一緒に作る)
   - [ ] Alt+S(看板の検索)、Shift+Alt+C・A・U(名前を聞くダイアログが要る)
   - [ ] 系統魔法の前に武器を外す処理(AutoUnequipSystemMagic)
-- [ ] マップのクリックで移動、右クリックで攻撃(Philly の `MapForm.cpp` の MouseDirection)
+- [x] マップのクリックで移動、右クリックで攻撃(Philly の `MapForm.cpp` の MouseDirection)。押している間はマウスの向きへ進む
+  - [ ] マウスカーソルをスキンの `Cursor/*.cur` にする(今はブラウザ標準の矢印のカーソル)
+  - [ ] 北固定で Shift か Ctrl を押しながらマウスを向けると、その向きを向く(NorthFixTurn)
 
 ## P3: 入力と会話
 

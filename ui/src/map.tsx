@@ -9,7 +9,8 @@ import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { assetUrl } from "./asset";
 import { drawMap, type ImageRefs } from "./drawMap";
-import { KEY_EVENT, type ForwardedKey } from "./keyInput";
+import { KEY_EVENT, MOUSE_EVENT, type ForwardedKey, type ForwardedMouse } from "./keyInput";
+import { mouseDir } from "./mouseDir.ts";
 import { CHIP_SIZE, gridDim } from "./mapRender";
 import { MAP_STATE_EVENT, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
@@ -75,6 +76,39 @@ function MapWindow() {
   const map = state?.map;
   const dim = map ? gridDim(map.size) : 7;
   const northFix = !map || (map.size === 7 && map.style !== "turn");
+
+  // マップのマウス操作。左ボタンでその向きへ進み、右ボタンで hit(Philly の MapForm.cpp)
+  const [cursor, setCursor] = useState("default");
+  const mouseDown = useRef(false);
+  const sendMouse = (m: ForwardedMouse) => emitTo("main", MOUSE_EVENT, m).catch(console.error);
+  const dirAt = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // canvas は等倍で中央に描いているので、要素の中心がマップの中心
+    const r = e.currentTarget.getBoundingClientRect();
+    const size = dim * CHIP_SIZE;
+    const x = e.clientX - (r.left + r.width / 2) + size / 2;
+    const y = e.clientY - (r.top + r.height / 2) + size / 2;
+    return mouseDir(x, y, size, size, northFix, e.shiftKey || e.ctrlKey);
+  };
+  const onMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const d = dirAt(e);
+    setCursor(d?.cursor ?? "default");
+    if (mouseDown.current && d) sendMouse({ type: "move", keys: d.keys });
+  };
+  const onMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button === 2) {
+      sendMouse({ type: "hit" });
+      return;
+    }
+    const d = e.button === 0 ? dirAt(e) : null;
+    if (!d) return;
+    mouseDown.current = true;
+    sendMouse({ type: "down", keys: d.keys });
+  };
+  const onMouseUp = () => {
+    if (!mouseDown.current) return;
+    mouseDown.current = false;
+    sendMouse({ type: "up" });
+  };
   const direction = northFix ? 0 : (map?.dir ?? 0);
 
   // タイトル(MakeMap.cpp の DrawDirectionAnime)
@@ -104,7 +138,18 @@ function MapWindow() {
   return (
     <div className="map-window">
       <div className="map-row">
-        <canvas className="map-canvas" ref={mapCanvas} width={dim * CHIP_SIZE} height={dim * CHIP_SIZE} />
+        <canvas
+          className="map-canvas"
+          ref={mapCanvas}
+          width={dim * CHIP_SIZE}
+          height={dim * CHIP_SIZE}
+          style={{ cursor }}
+          onMouseMove={onMouseMove}
+          onMouseDown={onMouseDown}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseUp}
+          onContextMenu={(e) => e.preventDefault()}
+        />
         <div className="map-side">
           <Compass dir={direction} northFix={northFix} />
           {/* リスト表示中は名前の代わりにリストを出す(Philly.ini の ListInMap=on)。選ぶのは main 窓かキー */}
