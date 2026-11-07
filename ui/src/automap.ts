@@ -29,7 +29,8 @@ export function ringFor(w: number, h: number, chip: number): number {
 
 /** 変わったマス。main 窓 → map 窓 */
 export const AUTOMAP_EVENT = "phi-automap";
-export type AutomapDiff = { world: string; diff: Tiles };
+/** clear の時は、その世界の貯めた地形を全部消してから diff を足す */
+export type AutomapDiff = { world: string; diff: Tiles; clear?: boolean };
 
 export const storageKey = (world: string) => `phi_automap:${world}`;
 
@@ -39,6 +40,14 @@ export function loadTiles(world: string): Tiles {
     return s ? (JSON.parse(s) as Tiles) : {};
   } catch {
     return {};
+  }
+}
+
+export function removeTiles(world: string) {
+  try {
+    localStorage.removeItem(storageKey(world));
+  } catch {
+    // 読めない時は貯めてもいない
   }
 }
 

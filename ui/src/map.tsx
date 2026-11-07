@@ -92,6 +92,7 @@ function MapWindow() {
   const [tilesVer, setTilesVer] = useState(0);
   useEffect(() => {
     const unlisten = listen<AutomapDiff>(AUTOMAP_EVENT, (e) => {
+      if (e.payload.clear) automaps.current.set(e.payload.world, {});
       Object.assign(automapOf(e.payload.world), e.payload.diff);
       setTilesVer((v) => v + 1);
     });

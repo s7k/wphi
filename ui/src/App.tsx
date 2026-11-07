@@ -9,7 +9,7 @@ import { SENT_EVENT } from "./keyInput";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, menuAction, moveInput } from "./keys.ts";
 import { assetUrl } from "./asset";
-import { absorb, AUTOMAP_EVENT, loadTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
+import { absorb, AUTOMAP_EVENT, loadTiles, removeTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, shortcutText, type Settings } from "./settings.ts";
 import { SettingsPanel } from "./SettingsPanel";
@@ -304,6 +304,7 @@ export function App() {
       if (id === "settings") return setSettingsOpen(true);
       if (session === null) return;
       if (id === "priv") return update(session, (t) => ({ ...t, privOpen: !t.privOpen }));
+      if (id === "automap-clear") return clearAutomap(mapStates.current.get(session)?.world);
       const action = menuAction(id);
       const openBoard = () => update(session, (t) => ({ ...t, board: true }));
       const cancelList = (n: number) => (listFlow(session).cancel += n);
@@ -339,6 +340,14 @@ export function App() {
     saveTimer.current = undefined;
     for (const w of unsavedWorlds.current) saveTiles(w, automaps.current.get(w)!);
     unsavedWorlds.current.clear();
+  }
+  /** その世界の貯めた地形を消す(#15) */
+  function clearAutomap(world: string | undefined) {
+    if (!world || !window.confirm(`${world} の拡張マップを消します。\nよろしいですか？`)) return;
+    automaps.current.set(world, {});
+    unsavedWorlds.current.delete(world);
+    removeTiles(world);
+    emitTo("map", AUTOMAP_EVENT, { world, diff: {}, clear: true } satisfies AutomapDiff).catch(console.error);
   }
   function recordAutomap(world: string, ev: Extract<UiEvent, { type: "map" }>) {
     let tiles = automaps.current.get(world);
