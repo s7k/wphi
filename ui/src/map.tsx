@@ -5,10 +5,10 @@
 // 下にステータス(ImageStatus)、一番下に状態異常のステータスバー。
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { StrictMode, useEffect, useRef, useState } from "react";
+import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { assetUrl } from "./asset";
-import { compose, ringFor, loadTiles, storageKey, type Tiles } from "./automap.ts";
+import { AUTOMAP_EVENT, compose, ringFor, loadTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { drawMap, type ImageRefs } from "./drawMap";
 import { KEY_EVENT, MOUSE_EVENT, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { mouseDir } from "./mouseDir.ts";
@@ -28,7 +28,7 @@ const stripTags = (s: string) => s.replace(/\/\*.*?\*\//g, "").trim();
 function MapWindow() {
   const [state, setState] = useState<MapState | null>(null);
   const [frame, setFrame] = useState(0);
-  const [, setLoaded] = useState(0);
+  const [loaded, setLoaded] = useState(0);
   const image = useImages(() => setLoaded((n) => n + 1));
   const mapCanvas = useRef<HTMLCanvasElement>(null);
   // マップの欄。外周の幅はこの枠の大きさで決める(canvas の大きさは外周の幅で変わるので測らない)
@@ -81,16 +81,25 @@ function MapWindow() {
   // 拡張マップ。main 窓が localStorage に貯めた地形を、通常マップの外周に暗くして敷く。
   // 拡大縮小はしないので、外周の幅はマップの欄に等倍で収まる分だけ(最大 AUTOMAP_RING)
   const world = state?.world;
-  const [tiles, setTiles] = useState<Tiles>({});
+  // 世界ごとの地形。初めて使う時に localStorage から読み、以後は main 窓から届く変わったマスを足す。
+  // 世界が変わった直後に届いた分も失わないよう、届いた世界の分に足す
+  const automaps = useRef(new Map<string, Tiles>());
+  const automapOf = (w: string) => {
+    let t = automaps.current.get(w);
+    if (!t) automaps.current.set(w, (t = loadTiles(w)));
+    return t;
+  };
+  const [tilesVer, setTilesVer] = useState(0);
   useEffect(() => {
-    if (!world) return;
-    setTiles(loadTiles(world));
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === storageKey(world)) setTiles(loadTiles(world));
+    const unlisten = listen<AutomapDiff>(AUTOMAP_EVENT, (e) => {
+      Object.assign(automapOf(e.payload.world), e.payload.diff);
+      setTilesVer((v) => v + 1);
+    });
+    return () => {
+      unlisten.then((f) => f());
     };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, [world]);
+  }, []);
+  const tiles = world ? automapOf(world) : {};
   const [area, setArea] = useState({ w: 0, h: 0 });
   useEffect(() => {
     const el = mapArea.current;
@@ -100,7 +109,9 @@ function MapWindow() {
     return () => ro.disconnect();
   }, []);
   const ring = ringFor(area.w, area.h - MAP_TOP, CHIP_SIZE);
-  const automap = map ? compose(map, tiles, ring) : null;
+  // MapState は status などが変わっただけでも新しいオブジェクトで届くので、マップは中身で比べる
+  const mapKey = JSON.stringify(map ?? null);
+  const automap = useMemo(() => (map ? compose(map, tiles, ring) : null), [mapKey, world, tilesVer, ring]);
   const dim = automap?.dim ?? (map ? gridDim(map.size) : 7);
   const northFix = !map || (map.size === 7 && map.style !== "turn");
 
@@ -116,10 +127,14 @@ function MapWindow() {
     const y = e.clientY - r.top - MAP_TOP;
     return mouseDir(x, y, size, size, northFix, e.shiftKey || e.ctrlKey);
   };
+  // 押したまま動かした時は、向きが変わった時だけ main 窓へ送る
+  const lastKeys = useRef("");
   const onMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const d = dirAt(e);
     setCursor(d?.cursor ?? "default");
-    if (mouseDown.current && d) sendMouse({ type: "move", keys: d.keys });
+    if (!mouseDown.current || !d || d.keys.join() === lastKeys.current) return;
+    lastKeys.current = d.keys.join();
+    sendMouse({ type: "move", keys: d.keys });
   };
   const onMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button === 2) {
@@ -129,6 +144,7 @@ function MapWindow() {
     const d = e.button === 0 ? dirAt(e) : null;
     if (!d) return;
     mouseDown.current = true;
+    lastKeys.current = d.keys.join();
     sendMouse({ type: "down", keys: d.keys });
   };
   const onMouseUp = () => {
@@ -173,7 +189,8 @@ function MapWindow() {
     automap.recalled.forEach((on, i) => {
       if (on) ctx.fillRect((i % automap.dim) * CHIP_SIZE, Math.floor(i / automap.dim) * CHIP_SIZE, CHIP_SIZE, CHIP_SIZE);
     });
-  });
+    // 描き直すのはマップ・地形・アニメ・画像の読み込み・大きさが変わった時だけ。#status だけの変化では描かない
+  }, [mapKey, automap, frame, loaded, state?.mapset, dim]);
 
   // 名前の一覧は上の行から順に並べる(CharacterNameList.cpp の SetNameList)
   const names = (map?.chars ?? [])

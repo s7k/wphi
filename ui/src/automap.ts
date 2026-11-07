@@ -4,7 +4,8 @@
 // 7x7 北固定の行 r・列 c は絶対座標 (x+c-3, y-3+r)。視界外('?')は貯めない。
 // 回転マップは向きで座標がずれるので扱わない。盲目中のフレームは呼び出し側が貯めない。
 // 貯めた地形は localStorage(phi_automap:<世界名>)に置き、ログアウトしても消さない。
-// main 窓が貯め、map 窓は localStorage の storage イベントで読み直す。
+// main 窓が貯め、変わったマスを AUTOMAP_EVENT で map 窓へ送る。localStorage へは数秒ごとにまとめて書く。
+// 歩くたびに全マスを JSON にして書くと、探索が進むほど重くなる為(#28)。
 import type { MapCell, MapChar, MapEvent } from "./protocol";
 
 const UNKNOWN = "?".charCodeAt(0);
@@ -25,6 +26,10 @@ export function ringFor(w: number, h: number, chip: number): number {
   if (side < 7 * chip) return 0;
   return Math.min(AUTOMAP_RING, Math.round((side / chip - 7) / 2));
 }
+
+/** 変わったマス。main 窓 → map 窓 */
+export const AUTOMAP_EVENT = "phi-automap";
+export type AutomapDiff = { world: string; diff: Tiles };
 
 export const storageKey = (world: string) => `phi_automap:${world}`;
 
@@ -48,7 +53,7 @@ export function saveTiles(world: string, tiles: Tiles) {
 const recordable = (map: MapEvent) =>
   !!map.pos && map.size === 7 && map.style === "solid" && map.cells.length === 49;
 
-/** 1フレーム分を貯める。変わったマスが無ければ null */
+/** 1フレームで変わったマスだけを返す(prev は変えない)。変わったマスが無ければ null */
 export function absorb(prev: Tiles, map: MapEvent): Tiles | null {
   if (!recordable(map)) return null;
   const { x, y } = map.pos!;
@@ -58,7 +63,7 @@ export function absorb(prev: Tiles, map: MapEvent): Tiles | null {
     const k = `${x + (i % 7) - 3},${y + Math.floor(i / 7) - 3}`;
     const old = prev[k];
     if (old && old.chip === cell.chip && old.attr === cell.attr) return;
-    next ??= { ...prev };
+    next ??= {};
     next[k] = { chip: cell.chip, attr: cell.attr };
   });
   return next;

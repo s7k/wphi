@@ -9,7 +9,7 @@ import { SENT_EVENT } from "./keyInput";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, menuAction, moveInput } from "./keys.ts";
 import { assetUrl } from "./asset";
-import { absorb, loadTiles, saveTiles, type Tiles } from "./automap.ts";
+import { absorb, AUTOMAP_EVENT, loadTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, shortcutText, type Settings } from "./settings.ts";
 import { SettingsPanel } from "./SettingsPanel";
@@ -141,9 +141,17 @@ export function App() {
   const mapStates = useRef(new Map<number, MapState>());
   const activeRef = useRef<number | null>(null);
   activeRef.current = active;
+  // map 窓へは 16ms にまとめて送る。#m57 と #status がそれぞれ 0.2 秒ごとに届き、1つ届くたびに MapState 全体を送っていた
+  const mapStateTimer = useRef<number | undefined>(undefined);
+  const mapStateSession = useRef<number | null>(null);
   const sendMapState = (session: number | null) => {
-    const state = session === null ? undefined : mapStates.current.get(session);
-    emitTo("map", MAP_STATE_EVENT, state ?? { session: -1, mapset: "" }).catch((e) => console.error(e));
+    mapStateSession.current = session;
+    mapStateTimer.current ??= window.setTimeout(() => {
+      mapStateTimer.current = undefined;
+      const s = mapStateSession.current;
+      const state = s === null ? undefined : mapStates.current.get(s);
+      emitTo("map", MAP_STATE_EVENT, state ?? { session: -1, mapset: "" }).catch((e) => console.error(e));
+    }, 16);
   };
   useEffect(() => sendMapState(active), [active]);
   // 前に出したタブの未読の印を消す
@@ -151,9 +159,15 @@ export function App() {
     if (active !== null) update(active, (t) => (t.unread ? { ...t, unread: false } : t));
   }, [active]);
   useEffect(() => {
-    const unlisten = listen("phi-map-ready", () => sendMapState(activeRef.current));
+    // 開いたばかりの map 窓は localStorage から地形を読むので、先に書いておく
+    const unlisten = listen("phi-map-ready", () => {
+      flushAutomaps();
+      sendMapState(activeRef.current);
+    });
+    window.addEventListener("beforeunload", flushAutomaps);
     return () => {
       unlisten.then((f) => f());
+      window.removeEventListener("beforeunload", flushAutomaps);
     };
   }, []);
 
@@ -302,13 +316,26 @@ export function App() {
     };
   }, []);
 
-  // 拡張マップの記録(世界名 → 地形)。保存した先の localStorage を map 窓が読む
+  // 拡張マップの記録(世界名 → 地形)。変わったマスは map 窓へ送り、localStorage へは5秒ごとにまとめて書く
   const automaps = useRef(new Map<string, Tiles>());
+  const unsavedWorlds = useRef(new Set<string>());
+  const saveTimer = useRef<number | undefined>(undefined);
+  function flushAutomaps() {
+    window.clearTimeout(saveTimer.current);
+    saveTimer.current = undefined;
+    for (const w of unsavedWorlds.current) saveTiles(w, automaps.current.get(w)!);
+    unsavedWorlds.current.clear();
+  }
   function recordAutomap(world: string, ev: Extract<UiEvent, { type: "map" }>) {
-    const prev = automaps.current.get(world) ?? loadTiles(world);
-    const next = absorb(prev, ev);
-    automaps.current.set(world, next ?? prev);
-    if (next) saveTiles(world, next);
+    let tiles = automaps.current.get(world);
+    if (!tiles) automaps.current.set(world, (tiles = loadTiles(world)));
+    const diff = absorb(tiles, ev);
+    if (!diff) return;
+    Object.assign(tiles, diff);
+    emitTo("map", AUTOMAP_EVENT, { world, diff } satisfies AutomapDiff).catch(console.error);
+    unsavedWorlds.current.add(world);
+    // ponytail: 落ちると最大5秒分の地形を失う。困るなら間隔を縮める
+    saveTimer.current ??= window.setTimeout(flushAutomaps, 5000);
   }
 
   function onMapEvent(session: number, ev: UiEvent) {

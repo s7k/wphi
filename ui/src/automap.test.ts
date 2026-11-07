@@ -24,8 +24,10 @@ test("北固定で座標がある時だけ貯める。視界外は貯めない",
   assert.equal(t["7,17"], undefined); // 左上は '?'
   assert.deepEqual(t["10,20"], { chip: 0x20, attr: 0 }); // 中心
   assert.deepEqual(t["13,23"], { chip: 0x20, attr: 0 }); // 右下
-  // 同じ地形なら変わらない
+  // 同じ地形なら変わらない。変わったマスだけを返す
   assert.equal(absorb(t, f), null);
+  const moved = absorb(t, frame(10, 20, (i) => (i === 24 ? 0x41 : i === 0 ? Q : 0x20)))!;
+  assert.deepEqual(Object.keys(moved), ["10,20"]);
   // 回転マップと座標の無いフレームは貯めない
   assert.equal(absorb({}, frame(10, 20, () => 0x20, "turn")), null);
   assert.equal(absorb({}, { ...f, pos: undefined }), null);
