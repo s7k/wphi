@@ -455,8 +455,12 @@ fn main() {
             }
             let _ = app.emit_to("main", menu::MENU_EVENT, event.id().0.clone());
         })
-        .register_uri_scheme_protocol("phi-asset", |ctx, req| {
-            asset_response(ctx.app_handle(), &req.uri().to_string())
+        // 画像の変換は UI のイベントループの外で行う。Windows(WebView2)は要求を UI スレッドで受けるので、
+        // 同期で変換すると、変換が終わるまで全部の窓が止まる
+        .register_asynchronous_uri_scheme_protocol("phi-asset", |ctx, req, responder| {
+            let app = ctx.app_handle().clone();
+            let uri = req.uri().to_string();
+            tauri::async_runtime::spawn_blocking(move || responder.respond(asset_response(&app, &uri)));
         })
         .plugin(tauri_plugin_opener::init())
         .manage(Sessions::default())

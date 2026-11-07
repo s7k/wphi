@@ -9,7 +9,7 @@ use std::{
     collections::HashMap,
     io::Cursor,
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 
 use image::{ImageFormat, Rgba, RgbaImage};
@@ -59,8 +59,11 @@ const DEFAULT_GRA: &[(u32, &str)] = &[
 
 pub struct Assets {
     roots: Vec<PathBuf>,
-    /// 変換済みの PNG。ponytail: 上限なし。キャラグラは1枚 20KB 前後で数百枚なので、増えて困るまで Philly の LRU は真似ない
-    cache: Mutex<HashMap<String, Vec<u8>>>,
+    /// 問い合わせ(種類・名前・グラ・種別・マップセット) → PNG。名前が違っても同じ絵なら PNG を共有する。
+    /// ponytail: 上限を超えたら全部捨てる。捨てても converted が残るので、変換し直さない
+    cache: Mutex<HashMap<String, Arc<Vec<u8>>>>,
+    /// 元のファイル(相対パス)→ 変換済みの PNG。上限なし。キャラグラは1枚 20KB 前後で、ファイルの数だけしか増えない
+    converted: Mutex<HashMap<String, Arc<Vec<u8>>>>,
     /// `chara/*.ali` の別名 → グラ名(Philly `LoadAliasFile`)。
     aliases: HashMap<String, String>,
 }
@@ -72,6 +75,7 @@ impl Assets {
         Self {
             roots,
             cache: Mutex::default(),
+            converted: Mutex::default(),
             aliases,
         }
     }
@@ -81,44 +85,65 @@ impl Assets {
         let q = |k: &str| query.get(k).map(String::as_str).unwrap_or("");
         let key = format!("{kind}?{}&{}&{}&{}", q("name"), q("gra"), q("code"), q("mapset"));
         if let Some(png) = self.cache.lock().unwrap().get(&key) {
-            return Some(png.clone());
+            return Some(png.to_vec());
         }
-        let img = match kind {
-            "chara" => self.chara(q("name"), q("gra"), q("code").parse().unwrap_or(0x01))?,
-            "chip" => mask_h(&self.chip(q("mapset"))?),
-            "items" => mask_v(&self.open(&format!("Skins/{SKIN}/Images/Items.bmp"))?),
+        // 元のファイルを決めてから変換する。同じグラを使う別の名前のキャラで変換し直さない
+        let (rel, convert): (String, fn(&image::DynamicImage) -> RgbaImage) = match kind {
+            "chara" => (
+                self.chara(q("name"), q("gra"), q("code").parse().unwrap_or(0x01))?,
+                |i| colorkey(i, TEAL),
+            ),
+            "chip" => (self.chip(q("mapset"))?, mask_h),
+            "items" => (format!("Skins/{SKIN}/Images/Items.bmp"), mask_v),
             _ => return None,
         };
-        let mut png = Vec::new();
-        img.write_to(&mut Cursor::new(&mut png), ImageFormat::Png).ok()?;
-        self.cache.lock().unwrap().insert(key, png.clone());
-        Some(png)
+        // ロックは変換の間は持たない(match の中で持ったまま insert すると止まる)
+        let done = self.converted.lock().unwrap().get(&rel).cloned();
+        let png = match done {
+            Some(png) => png,
+            None => {
+                let mut png = Vec::new();
+                convert(&self.open(&rel)?)
+                    .write_to(&mut Cursor::new(&mut png), ImageFormat::Png)
+                    .ok()?;
+                let png = Arc::new(png);
+                self.converted.lock().unwrap().insert(rel, png.clone());
+                png
+            }
+        };
+        let mut cache = self.cache.lock().unwrap();
+        if cache.len() >= 4096 {
+            // 名前を変えながら送られても、メモリを使い切らないようにする
+            cache.clear();
+        }
+        cache.insert(key, png.clone());
+        Some(png.to_vec())
     }
 
-    /// キャラグラ(Philly `GraCache.cpp` の `classGraCacheCharaGra::Draw`)。
+    /// キャラグラのファイル(Philly `GraCache.cpp` の `classGraCacheCharaGra::Draw`)。
     ///
     /// setcg(0x40)はグラ名 → 別名 → キャラ名、それ以外は別名 → グラ名 → キャラ名の順に探し、
     /// 無ければ種別ごとの既定グラにする。
-    fn chara(&self, name: &str, gra: &str, code: u32) -> Option<RgbaImage> {
+    fn chara(&self, name: &str, gra: &str, code: u32) -> Option<String> {
         let alias = self.aliases.get(name).map(String::as_str);
         let order = if code == 0x40 {
             [Some(gra), alias, Some(name)]
         } else {
             [alias, Some(gra), Some(name)]
         };
-        let found = order
+        order
             .into_iter()
             .flatten()
             .filter(|n| !n.is_empty())
-            .find_map(|n| self.open(&format!("chara/{n}.bmp")))
-            .or_else(|| self.default_chara(code))?;
-        Some(colorkey(&found, TEAL))
+            .map(|n| format!("chara/{n}.bmp"))
+            .find(|rel| self.exists(rel))
+            .or_else(|| self.default_chara(code))
     }
 
-    /// 種別の既定グラ。スキンの `Chara/Index.txt` を探す場所の順に見る。
+    /// 種別の既定グラのファイル。スキンの `Chara/Index.txt` を探す場所の順に見る。
     /// Index.txt のファイルはスキンの `Chara` から探し、無ければ `chara` から探す
     /// (同梱の Index.txt は PCGL のキャラグラを指している)。
-    fn default_chara(&self, code: u32) -> Option<image::DynamicImage> {
+    fn default_chara(&self, code: u32) -> Option<String> {
         let key = DEFAULT_GRA
             .iter()
             .find(|(c, _)| *c == code)
@@ -139,17 +164,25 @@ impl Assets {
                         .filter(|(k, _)| k.trim() == key)
                         .map(|(_, v)| v.trim().to_string())
                 })?;
-            self.open(&format!("Skins/{SKIN}/Chara/{file}"))
-                .or_else(|| self.open(&format!("chara/{file}")))
+            [format!("Skins/{SKIN}/Chara/{file}"), format!("chara/{file}")]
+                .into_iter()
+                .find(|rel| self.exists(rel))
         })
     }
 
-    /// マップチップ。`chip/<mapset>.bmp` が無ければスキンの `chip/Default.bmp`。
-    fn chip(&self, mapset: &str) -> Option<image::DynamicImage> {
+    /// マップチップのファイル。`chip/<mapset>.bmp` が無ければスキンの `chip/Default.bmp`。
+    fn chip(&self, mapset: &str) -> Option<String> {
         Some(mapset)
             .filter(|m| !m.is_empty())
-            .and_then(|m| self.open(&format!("chip/{m}.bmp")))
-            .or_else(|| self.open(&format!("Skins/{SKIN}/chip/Default.bmp")))
+            .map(|m| format!("chip/{m}.bmp"))
+            .filter(|rel| self.exists(rel))
+            .or_else(|| Some(format!("Skins/{SKIN}/chip/Default.bmp")))
+    }
+
+    fn exists(&self, rel: &str) -> bool {
+        safe_rel(rel)
+            && !is_lanu(rel)
+            && (self.roots.iter().any(|r| find_path(r, rel).is_some()) || bundled(rel).is_some())
     }
 
     fn open(&self, rel: &str) -> Option<image::DynamicImage> {
@@ -157,9 +190,7 @@ impl Assets {
     }
 
     fn read(&self, rel: &str) -> Option<Vec<u8>> {
-        // LANU 系のグラフィックスは使わない(2026-11-07 に作者が指定)。どこにあっても読まず、次の候補へ進む
-        let name = rel.rsplit('/').next().unwrap_or(rel);
-        if name.to_lowercase().starts_with("lanu_") {
+        if !safe_rel(rel) || is_lanu(rel) {
             return None;
         }
         self.roots
@@ -167,6 +198,23 @@ impl Assets {
             .find_map(|root| std::fs::read(find_path(root, rel)?).ok())
             .or_else(|| bundled(rel).map(<[u8]>::to_vec))
     }
+}
+
+/// LANU 系のグラフィックスは使わない(2026-11-07 に作者が指定)。どこにあっても読まず、次の候補へ進む
+fn is_lanu(rel: &str) -> bool {
+    rel.rsplit('/')
+        .next()
+        .unwrap_or(rel)
+        .to_lowercase()
+        .starts_with("lanu_")
+}
+
+/// 探す場所の外を指さない相対パスか。名前とグラ名は他のプレイヤーやサーバが決める(発言の画像の URL からも届く)。
+/// `..` で探す場所の外の画像を読ませたり、Windows で `\\host\share` を join させて SMB に繋がせ、
+/// NTLM の認証情報を送らせたりしない為、`\`・`:`・`..`・空の部品を含むパスは読まない。
+fn safe_rel(rel: &str) -> bool {
+    rel.split('/')
+        .all(|p| !p.is_empty() && p != "." && p != ".." && !p.contains(['\\', ':', '\0']))
 }
 
 /// `root` からの相対パスを、大文字と小文字を無視して探す。
@@ -294,6 +342,40 @@ mod tests {
         // 人・銅像(0x00)は t_man
         let man = a.get("chara", &query(&[("gra", "none"), ("code", "0")])).unwrap();
         assert_eq!(decode(&man), colorkey(&a.open("chara/t_man.bmp").unwrap(), TEAL));
+    }
+
+    /// 名前やグラ名で探す場所の外を指させない(他のプレイヤーが発言の画像の URL で送れる)
+    #[test]
+    fn rejects_paths_outside_roots() {
+        let base = std::env::temp_dir().join(format!("wphi-trav-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(base.join("root/chara")).unwrap();
+        // 探す場所(root)の外に、既定グラと見分けられる絵を置く
+        std::fs::copy(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/phi/chara/t_dog.bmp"),
+            base.join("outside.bmp"),
+        )
+        .unwrap();
+        let a = Assets::new(vec![base.join("root")]);
+        let man = colorkey(&a.open("chara/t_man.bmp").unwrap(), TEAL);
+        for gra in ["../../outside", "..\\..\\outside", "\\\\127.0.0.1\\s\\x", "C:/x"] {
+            let got = a.get("chara", &query(&[("gra", gra), ("code", "64")])).unwrap();
+            assert_eq!(decode(&got), man, "{gra}");
+        }
+        assert!(a.get("chip", &query(&[("mapset", "../../outside")])).is_some());
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    /// 同じグラを使う別の名前のキャラは、変換した PNG を共有する
+    #[test]
+    fn shares_converted_png() {
+        let a = bundled_only();
+        a.get("chara", &query(&[("name", "a"), ("gra", "t_dog"), ("code", "1")]))
+            .unwrap();
+        a.get("chara", &query(&[("name", "b"), ("gra", "t_dog"), ("code", "1")]))
+            .unwrap();
+        assert_eq!(a.cache.lock().unwrap().len(), 2);
+        assert_eq!(a.converted.lock().unwrap().len(), 1);
     }
 
     /// LANU 系は、利用者の Philly フォルダにあっても読まない
