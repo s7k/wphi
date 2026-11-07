@@ -369,6 +369,11 @@ impl Parser {
         }
     }
 
+    /// `#more` 〜 `#end-more` の中か。この間の行は看板などの本文で、サーバの通知ではない。
+    pub fn in_more(&self) -> bool {
+        self.in_more
+    }
+
     /// `#ulist` を送る時に呼ぶ。届き直す `#user` だけの一覧にする(Philly の RequestUlist)。
     pub fn clear_users(&mut self) {
         self.ulist.clear();

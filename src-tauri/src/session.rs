@@ -42,7 +42,7 @@ pub enum UiOnly {
         html: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         from: Option<String>,
-        /// 元の受信テキスト。効果音の照合に使い、UI には送らない
+        /// 元の受信テキスト。効果音の照合に使い、UI には送らない。照合しない行は空
         #[serde(skip)]
         text: String,
     },
@@ -143,7 +143,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                         match ev {
                             Event::Internal { action: InternalAction::Lag } => reply.push("#end-lag".into()),
                             Event::Internal { action: InternalAction::Remap } => reply.push("#map".into()),
-                            Event::Message(m) => emit(log_event(m, &opts)),
+                            Event::Message(m) => emit(log_event(m, &opts, parser.in_more())),
                             Event::WorldTransfer { ref server, .. } => {
                                 moving_to = Some(server.clone());
                                 emit(UiEvent::Proto(ev));
@@ -314,12 +314,14 @@ fn system(ok: bool, text: &str) -> UiEvent {
     })
 }
 
-fn log_event(m: Message, opts: &LogOptions) -> UiEvent {
+/// in_more の行(看板の本文など)は効果音と照合しない(Philly は #more の外だけで照合する)。
+/// 看板に効果音の語を並べると、読んだ人の手元で音が鳴り続ける為。
+fn log_event(m: Message, opts: &LogOptions, in_more: bool) -> UiEvent {
     UiEvent::Ui(UiOnly::Log {
         channel: m.channel,
         html: to_html(&m.text, opts),
         from: m.from,
-        text: m.text,
+        text: if in_more { String::new() } else { m.text },
     })
 }
 
@@ -331,6 +333,25 @@ fn error(message: String) -> UiEvent {
 mod tests {
     use super::*;
     use serde_json::{Value, json};
+
+    /// #more の中の行(看板の本文)は効果音と照合しない(#19)。
+    #[test]
+    fn more_lines_skip_sound_matching() {
+        let text = |in_more| {
+            let m = Message {
+                channel: Channel::Log,
+                text: "ボーン".into(),
+                from: None,
+                markup: false,
+            };
+            match log_event(m, &LogOptions::default(), in_more) {
+                UiEvent::Ui(UiOnly::Log { text, .. }) => text,
+                _ => unreachable!(),
+            }
+        };
+        assert_eq!(text(false), "ボーン");
+        assert_eq!(text(true), "");
+    }
     use tokio::{
         io::{AsyncBufReadExt, BufReader},
         net::TcpListener,
