@@ -2,6 +2,7 @@
 
 mod assets;
 mod characters;
+mod register;
 mod session;
 
 use std::{
@@ -120,6 +121,50 @@ fn asset_response(app: &tauri::AppHandle, uri: &str) -> tauri::http::Response<Ve
             .body(png)
             .unwrap(),
         None => not_found(),
+    }
+}
+
+/// 新規キャラ作成で選べる初期グラの名前。
+#[tauri::command]
+async fn register_graphics(host: String, port: u16) -> Result<Vec<String>, String> {
+    register::graphics(&host, port).await
+}
+
+/// 新規キャラを作り、そのまま一覧に登録する。表示名はキャラ名にする。
+#[tauri::command]
+async fn register_character(
+    app: tauri::AppHandle,
+    host: String,
+    port: u16,
+    name: String,
+    pass: String,
+    image: u32,
+    mail: String,
+) -> Result<String, String> {
+    match register::register(&host, port, &name, &pass, image, &mail).await? {
+        register::Outcome::Created(id) => {
+            let path = store_path(&app)?;
+            let mut store = Store::load(&path);
+            characters::set_id(&name, &id)?;
+            store.upsert(Character {
+                label: name.clone(),
+                host,
+                port,
+            });
+            store.save(&path)?;
+            Ok(name)
+        }
+        register::Outcome::Rejected(fields) => {
+            let label = |f: &str| match f {
+                "name" => "名前",
+                "pass" => "パスワード",
+                "image" => "キャラグラ",
+                "mail" => "メール",
+                _ => "不明な項目",
+            };
+            let fields: Vec<&str> = fields.iter().map(|f| label(f)).collect();
+            Err(format!("作れませんでした。{} を見直してください", fields.join("・")))
+        }
     }
 }
 
@@ -291,6 +336,8 @@ fn main() {
             delete_character,
             set_open_tabs,
             import_philly,
+            register_graphics,
+            register_character,
             connect,
             send_line,
             disconnect,

@@ -62,6 +62,7 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 
 ## P5
 
-- [ ] 新規キャラ作成(`#ex-register`。phi-client-web の `register.py` を移植する)
+- [x] 新規キャラ作成(`#ex-register`。phi-client-web の `register.py` を移植した)。キャラ選択の画面で初期グラを選び、作ったキャラはそのまま一覧とキーチェーンに入る。改行や制御文字での行の差し込みは送る前に拒否する
+  - [ ] 実サーバでの確認
 - [ ] Windows の配布物(NSIS)を CI で作る。署名するかは未決
 - [ ] 自動更新

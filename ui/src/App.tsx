@@ -8,6 +8,7 @@ import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, moveInput } from "./keys.ts";
 import { BoardEditor } from "./BoardEditor";
+import { NewCharacter } from "./NewCharacter";
 import { partnersKey, privLines, privPartners, usersFromEvent, type User } from "./priv.ts";
 import { PrivPanel, type PrivConv } from "./PrivPanel";
 import { ListOverlay, listOk, type ListState } from "./ListOverlay";
@@ -776,6 +777,8 @@ function CharacterList(props: {
         <button type="submit">取り込む</button>
         {imported && <p>{imported}</p>}
       </form>
+
+      <NewCharacter onCreated={props.onChanged} onError={props.onError} />
     </div>
   );
 }

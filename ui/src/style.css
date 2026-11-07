@@ -555,3 +555,31 @@ body {
 .eagleeye-window canvas {
   display: block;
 }
+
+/* 新規キャラ作成の初期グラ */
+.gra-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.gra-picker .gra {
+  padding: 2px;
+  border: 2px solid transparent;
+  background: #fff;
+}
+
+.gra-picker .gra.selected {
+  border-color: #0a246a;
+}
+
+.gra-picker .gra span {
+  display: block;
+  width: 32px;
+  height: 32px;
+  background-position: -32px -64px;
+  image-rendering: pixelated;
+  zoom: 2;
+}
