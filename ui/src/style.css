@@ -539,3 +539,13 @@ body {
   display: block;
   white-space: nowrap;
 }
+
+.eagleeye-window {
+  height: 100%;
+  overflow: auto;
+  background: #000;
+}
+
+.eagleeye-window canvas {
+  display: block;
+}

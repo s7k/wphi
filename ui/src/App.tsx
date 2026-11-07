@@ -12,7 +12,8 @@ import { partnersKey, privLines, privPartners, usersFromEvent, type User } from 
 import { PrivPanel, type PrivConv } from "./PrivPanel";
 import { ListOverlay, listOk, type ListState } from "./ListOverlay";
 import { MoveRepeat } from "./moveRepeat.ts";
-import { MAP_STATE_EVENT, type MapState, type UiEvent } from "./protocol";
+import { EAGLE_EYE_EVENT, MAP_STATE_EVENT, type MapState, type UiEvent } from "./protocol";
+import { Window } from "@tauri-apps/api/window";
 
 // src-tauri/src/characters.rs の Store
 type Character = { label: string; host: string; port: number };
@@ -317,6 +318,14 @@ export function App() {
           }
           onMapEvent(session, ev);
           break;
+        case "eagleEye": {
+          // EagleEye 窓に送って表示する(Philly の classEagleEye::Draw の ShowWindow)。アクティブなタブの分だけ
+          if (session !== activeRef.current) break;
+          const mapset = ev.mapset ?? mapStates.current.get(session)?.mapset;
+          emitTo("eagleeye", EAGLE_EYE_EVENT, { ...ev, mapset }).catch(console.error);
+          Window.getByLabel("eagleeye").then((w) => w?.show());
+          break;
+        }
         case "edit":
           // #m-edit で看板エディタを開き、#. で閉じる。#s-edit は Philly も何もしない(入力欄で答える)
           if (ev.mode === "multi") update(session, (t) => ({ ...t, board: true }));

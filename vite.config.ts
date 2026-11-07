@@ -13,6 +13,6 @@ export default defineConfig({
     outDir: "../dist",
     emptyOutDir: true,
     // 窓ごとに1ページ
-    rollupOptions: { input: { main: page("index"), map: page("map") } },
+    rollupOptions: { input: { main: page("index"), map: page("map"), eagleeye: page("eagleeye") } },
   },
 });

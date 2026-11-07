@@ -13,30 +13,13 @@ import { KEY_EVENT, type ForwardedKey } from "./keyInput";
 import { CHIP_SIZE, gridDim } from "./mapRender";
 import { MAP_STATE_EVENT, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
+import { hideOnClose, useImages } from "./windowUtil";
 import "./style.css";
 
 /** Philly のキャラのアニメ周期(PersonalThread.h の ANIMATION_INTERVAL = 500ms) */
 const ANIMATION_MS = 500;
 /** 回転マップの時のタイトルの向き(MakeMap.cpp の DrawDirectionAnime) */
 const DIRECTION_TITLE: Record<number, string> = { 0: "【北】", 2: "【東】", 4: "【南】", 6: "【西】" };
-
-/** URL → 画像。読み込みが終わったら onLoad を呼ぶ */
-function useImages(onLoad: () => void) {
-  const cache = useRef(new Map<string, HTMLImageElement | null>());
-  return (url: string): HTMLImageElement | null | undefined => {
-    const c = cache.current;
-    if (c.has(url)) {
-      const img = c.get(url)!;
-      return img && img.complete ? img : img === null ? null : undefined;
-    }
-    const img = new Image();
-    img.onload = onLoad;
-    img.onerror = () => c.set(url, null);
-    img.src = url;
-    c.set(url, img);
-    return undefined;
-  };
-}
 
 const stripTags = (s: string) => s.replace(/\/\*.*?\*\//g, "").trim();
 
@@ -50,6 +33,7 @@ function MapWindow() {
   const prevStatus = useRef<{ now?: StatusEvent; old?: StatusEvent }>({});
 
   useEffect(() => {
+    hideOnClose();
     const unlisten = listen<MapState>(MAP_STATE_EVENT, (e) => {
       const s = e.payload;
       const p = prevStatus.current;

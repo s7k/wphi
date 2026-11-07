@@ -76,7 +76,18 @@ export type UiEvent =
   | ListEvent
   | { type: "edit"; mode: "single" | "multi" | "end" }
   | { type: "userList"; users: { key: string; name: string }[] }
-  | { type: "eagleEye" | "worldTransfer" };
+  | EagleEyeEvent
+  | { type: "worldTransfer" };
+
+export type EagleEyeEvent = {
+  type: "eagleEye";
+  width: number;
+  height: number;
+  self: { x: number; y: number };
+  /** width * height 個を行優先で */
+  cells: MapCell[];
+  mapset?: string;
+};
 
 /** #list で active、#end-list で行が届く。閉じる時は active: false */
 export type ListEvent = { type: "list"; active: boolean; lines?: string[] };
@@ -97,3 +108,5 @@ export type MapState = {
 
 /** Tauri のイベント名(main → map) */
 export const MAP_STATE_EVENT = "phi-map-state";
+/** Tauri のイベント名(main → eagleeye) */
+export const EAGLE_EYE_EVENT = "phi-eagleeye";
