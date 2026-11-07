@@ -383,6 +383,17 @@ impl Parser {
         if raw.is_empty() {
             return Vec::new();
         }
+        // #more 〜 #end-more(看板の本文など)は #end-more 以外をログにする(Philly の PersonalThread.cpp:707-858)。
+        // 看板に #ch-srv などを書かれても、コマンドとして実行しない為である。
+        // 移植元の Python 版は #more の間もコマンドを解析するので、ここは Python 版と違う
+        if self.in_more {
+            if raw.starts_with(b"#end-more") {
+                self.in_more = false;
+                return self.set_mode(|m| m.more = false);
+            }
+            return vec![message(Channel::Log, decode(raw), None)];
+        }
+
         let is_command = raw[0] == b'#' && raw.len() > 1 && raw[1] != b'#' && raw[1] != b' ';
         if is_command {
             // 地形はバイナリなのでデコードしない
@@ -398,9 +409,6 @@ impl Parser {
             return self.dispatch_command(&text, raw);
         }
 
-        if self.in_more {
-            return vec![message(Channel::Log, decode(raw), None)];
-        }
         if self.in_list {
             self.list_lines.push(decode(raw));
             return Vec::new();
@@ -860,4 +868,39 @@ fn split_ws_max(s: &str, max: usize) -> Vec<&str> {
         out.push(rest);
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 看板の本文に書かれたコマンドを実行しない(Philly と同じ)
+    #[test]
+    fn commands_inside_more_are_log() {
+        let mut p = Parser::new();
+        p.feed(b"#more");
+        for line in [
+            &b"#ch-srv 192.0.2.1 9000"[..],
+            b"#x",
+            b"[evil] > fake priv",
+            b"#m57 M N 00:",
+        ] {
+            let evs = p.feed(line);
+            assert!(
+                matches!(
+                    evs.as_slice(),
+                    [Event::Message(Message {
+                        channel: Channel::Log,
+                        ..
+                    })]
+                ),
+                "{evs:?}"
+            );
+        }
+        assert_eq!(p.feed(b"#end-more"), vec![Event::Mode(Mode::default())]);
+        assert!(matches!(
+            p.feed(b"#ch-srv 192.0.2.1 9000").as_slice(),
+            [Event::WorldTransfer { .. }]
+        ));
+    }
 }

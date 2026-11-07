@@ -122,6 +122,11 @@ P0 で Windows 上の `WideCharToMultiByte` の結果と照合する。
 
 phi-client-web の `backend/tests/fixtures/synthetic/` に、受信行のバイナリ(`m57_M.bin`、`m57_O_jp.bin` など)と期待値の `expected.json` がある。
 これを `phi-proto` のテストにそのまま読み込み、Rust 版の出力と比べる。
+Python 版と意図的に変えた所が1つある。
+`#more` 〜 `#end-more`(看板の本文など)の間は、Philly と同じく `#end-more` 以外の行をすべてログにし、コマンドとして解析しない。
+Python 版はこの間もコマンドを解析するので、看板に `#ch-srv 外部のホスト ポート` と書かれると、読んだ人が世界移動を始めてキャラ ID を外部のサーバへ送ってしまう。
+正解データには `#more` の中に `#` で始まる行を入れない。
+
 実サーバの受信を記録した fixtures(`recorded/`)はまだ空なので、P0 で実機の受信を記録して追加する。
 
 ## 4. セッション層(src-tauri)

@@ -46,7 +46,7 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
   - [ ] `#mapset-define` のチップ定義(属性の下位2ビット)。マップ本体も未対応
   - [ ] アイテムのマスを Philly と同じくチップ 19 で描く(今はマップと同じアイテムの絵)
 - [x] 世界移動(`#ch-srv` → `#reserve` → `#rsv-ok` → `#trans` → `#trs-ok` → `#ch-srv-ok`)。Philly の `PersonalThread.cpp` classTransportCharacter に合わせた(移動後は `#open` を送らない、失敗時の通知先も Philly と同じ)。移動先は登録したキャラにも書き戻す
-- [ ] `#more` の間は `#` で始まる行をコマンドとして解析しない(Philly の `PersonalThread.cpp:1040`)。Python 版との差になるので、正解データの扱いも決める
+- [x] `#more` の間は `#end-more` 以外の行をログにし、コマンドとして解析しない(Philly の `PersonalThread.cpp:707-858`)。看板に `#ch-srv` を書かれると、読んだ人がキャラ ID を外部のサーバへ送ってしまう為。Python 版との差なので、正解データには `#more` の中の `#` の行を入れない
 
 ## P4
 

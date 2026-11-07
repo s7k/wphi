@@ -6,6 +6,7 @@
 各シナリオは新しいパーサに行を順に流し、行ごとのイベント列を記録する。
 行はバイナリを含むので hex で持つ。
 cp932 の 0xA0・0xFD-0xFF は Python と encoding_rs でデコード結果が違う為、入力に含めない。
+#more の中の # で始まる行も含めない。phi-proto は Philly と同じくこれをログにし、Python 版はコマンドとして解析する。
 """
 from __future__ import annotations
 
