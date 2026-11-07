@@ -5,6 +5,11 @@ const UNKNOWN = "?".charCodeAt(0);
 
 /** 人がいるマスの属性(EagleEye.cpp) */
 const PERSON = 0x58;
+/**
+ * 人のマスに描くキャラグラ。Philly はスキンの既定グラ「人・銅像」(LANU_Swordman.bmp)を描くが、
+ * WPHI は t_man にする(2026-11-07 に作者が指定)。無ければ種別 0x40 の解決で既定グラに戻る
+ */
+const PERSON_GRA = "t_man";
 
 /** EagleEye のマスを正方形の盤面にする。人のマスは属性を消して、既定グラの人を置く */
 export function eagleBoard(ev: EagleEyeEvent): { dim: number; cells: MapCell[]; chars: MapChar[] } {
@@ -18,8 +23,8 @@ export function eagleBoard(ev: EagleEyeEvent): { dim: number; cells: MapCell[]; 
       if (!c) continue;
       if (c.attr === PERSON) {
         cells[y * dim + x] = { chip: c.chip, attr: 0 };
-        // Philly は CharaGraBitBltList の 0 番(スキンの既定グラ「人・銅像」)を巨大・正面で描く
-        chars.push({ id: 0, x, y, dir: "F", name: "", gra: "", status: 0, gigant: "*", layer: 0, default: 0 });
+        // 巨大・正面で描く(Philly の DrawEagleEye)。種別 0x40 はグラ名を先に探す
+        chars.push({ id: 0, x, y, dir: "F", name: "", gra: PERSON_GRA, status: 0, gigant: "*", layer: 0, default: 0x40 });
       } else cells[y * dim + x] = c;
     }
   }

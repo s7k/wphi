@@ -44,7 +44,7 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
   - [ ] タグメニュー(`TagMenu.xml`)とタグの無効化
 - [x] priv(Philly の PrivForm)。相手の組ごとに会話を分け、`priv <番号> /*to=相手*/本文` を相手ごとと自分に送る。3人以上の会話も宛先のタグで見分ける。`#ulist` で番号を取り直す
   - [ ] `#ulist` の返事を待ってから送る(Philly の RequestUlistWait は最大 60 秒待つ。今は手元の一覧で送る)
-- [x] EagleEye 窓(Philly の EagleEyeForm)。受けたら窓を出す。人のマス(属性 0x58)には既定グラの人を重ねる
+- [x] EagleEye 窓(Philly の EagleEyeForm)。受けたら窓を出す。人のマス(属性 0x58)には t_man を重ねる(Philly はスキンの既定グラ「人・銅像」。作者の指定で変えた)
   - [ ] `#mapset-define` のチップ定義(属性の下位2ビット)。マップ本体も未対応
   - [ ] アイテムのマスを Philly と同じくチップ 19 で描く(今はマップと同じアイテムの絵)
 - [x] 世界移動(`#ch-srv` → `#reserve` → `#rsv-ok` → `#trans` → `#trs-ok` → `#ch-srv-ok`)。Philly の `PersonalThread.cpp` classTransportCharacter に合わせた(移動後は `#open` を送らない、失敗時の通知先も Philly と同じ)。移動先は登録したキャラにも書き戻す
