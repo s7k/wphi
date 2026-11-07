@@ -36,6 +36,8 @@ type Tab = {
   privs: PrivConv[];
   privOpen: boolean;
   privActive: string | null;
+  /** ログを保存しているか(Philly の LogAutoSave。タブごとに切り替える) */
+  logSave: boolean;
 };
 
 /** Philly のログバッファに合わせ、古い行から捨てる */
@@ -50,6 +52,17 @@ function timePrefix(): string {
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+function systemOk(message: string): string {
+  return `<font class="class_system_ok">${escapeHtml(message)}</font>`;
+}
+
+/** ログを利用者の地域の日付のファイルに足す。保存先のパスを返す */
+function saveLog(label: string, line: string): Promise<string | void> {
+  const d = new Date();
+  const date = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  return invoke<string>("append_log", { label, date, html: line }).catch((e) => console.error(e));
 }
 
 function systemNg(message: string): string {
@@ -302,8 +315,12 @@ export function App() {
     onMapEvent(session, { type: "list", active: false });
   }
 
-  const append = (session: number, html: string) =>
-    update(session, (t) => ({ ...t, lines: [...t.lines, timePrefix() + html].slice(-MAX_LINES) }));
+  const append = (session: number, html: string) => {
+    const line = timePrefix() + html;
+    update(session, (t) => ({ ...t, lines: [...t.lines, line].slice(-MAX_LINES) }));
+    const tab = tabsRef.current.find((t) => t.session === session);
+    if (tab?.logSave) saveLog(tab.label, line);
+  };
 
   async function connect(label: string) {
     const channel = new Channel<UiEvent>();
@@ -378,6 +395,7 @@ export function App() {
         privs: [],
         privOpen: false,
         privActive: null,
+        logSave: false,
       },
     ]);
     setActive(session);
@@ -466,6 +484,14 @@ export function App() {
       )}
       {tab && (
         <InputEditor
+          logSave={tab.logSave}
+          onLogSave={(on) => {
+            update(tab.session, (t) => ({ ...t, logSave: on }));
+            if (on)
+              saveLog(tab.label, timePrefix() + "ログの保存を始めました")
+                .then((path) => path && append(tab.session, systemOk(`ログを ${path} に保存します`)))
+                .catch(console.error);
+          }}
           onPriv={() => {
             requestUlist(tab.session);
             update(tab.session, (t) => ({ ...t, privOpen: !t.privOpen }));
@@ -561,7 +587,14 @@ function LogView(props: { lines: string[] }) {
  * Ctrl+Enter はパーティー発言、Shift+Enter は改行。
  * value を React に持たせない。ログが届くたびの再描画で value を書き戻すと、WebKitGTK が変換中の文字を消す
  */
-function InputEditor(props: { session: number; sessions: number[]; disabled: boolean; onPriv: () => void }) {
+function InputEditor(props: {
+  session: number;
+  sessions: number[];
+  disabled: boolean;
+  onPriv: () => void;
+  logSave: boolean;
+  onLogSave: (on: boolean) => void;
+}) {
   const [loud, setLoud] = useState(false);
   const [allTab, setAllTab] = useState(false);
   // 連続送信を 100ms 空ける(Philly の SendFromInputEdit)
@@ -619,6 +652,10 @@ function InputEditor(props: { session: number; sessions: number[]; disabled: boo
         <label className={allTab ? "toggle on" : "toggle"}>
           <input type="checkbox" checked={allTab} onChange={(e) => setAllTab(e.target.checked)} />
           全タブ発言
+        </label>
+        <label className={props.logSave ? "toggle on" : "toggle"}>
+          <input type="checkbox" checked={props.logSave} onChange={(e) => props.onLogSave(e.target.checked)} />
+          ログ保存
         </label>
         <button className="toggle" onClick={props.onPriv}>
           プリブ

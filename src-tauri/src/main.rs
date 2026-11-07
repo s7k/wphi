@@ -173,6 +173,53 @@ fn disconnect(session: u32, sessions: State<'_, Sessions>) {
     sessions.senders.lock().unwrap().remove(&session);
 }
 
+/// ログの保存先のフォルダ(`<アプリのログフォルダ>/<表示名>`)。表示名はファイル名に使えない文字を置き換える。
+fn log_dir(app: &tauri::AppHandle, label: &str) -> Result<std::path::PathBuf, String> {
+    let safe: String = label
+        .chars()
+        .map(|c| {
+            if c.is_control() || r#"/\:*?"<>|"#.contains(c) {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect();
+    let safe = safe.trim_matches('.').trim();
+    let safe = if safe.is_empty() { "_" } else { safe };
+    Ok(app.path().app_log_dir().map_err(|e| e.to_string())?.join(safe))
+}
+
+/// ログを日ごとの HTML に足す(Philly の LogAutoSave と LogSaveHtml=on)。`date` は UI が決めた利用者の地域の日付(yyyymmdd)。
+/// 新しいファイルにはスキンの Log.css を埋め込み、ブラウザで開いた時もログ欄と同じ見た目にする。
+#[tauri::command]
+fn append_log(app: tauri::AppHandle, label: String, date: String, html: String) -> Result<String, String> {
+    use std::io::Write;
+    if date.len() != 8 || !date.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(format!("日付が不正: {date}"));
+    }
+    let dir = log_dir(&app, &label)?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join(format!("{date}.html"));
+    let new = !path.exists();
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    if new {
+        let css = log_css(app.clone()).unwrap_or_default();
+        let title = label.replace('&', "&amp;").replace('<', "&lt;");
+        write!(
+            f,
+            "<!doctype html>\n<meta charset=\"utf-8\">\n<title>{title} {date}</title>\n<style>\n{css}\n</style>\n"
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    writeln!(f, "<div>{html}</div>").map_err(|e| e.to_string())?;
+    Ok(path.display().to_string())
+}
+
 /// ログと同じ HTML にする(看板エディタのプレビュー。Philly の MEditForm も TagToHtml を使う)。
 #[tauri::command]
 fn log_html(text: String) -> String {
@@ -248,7 +295,8 @@ fn main() {
             send_line,
             disconnect,
             log_css,
-            log_html
+            log_html,
+            append_log
         ])
         .run(tauri::generate_context!())
         .expect("Tauri の起動に失敗した");

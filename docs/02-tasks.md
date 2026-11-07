@@ -56,7 +56,8 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 - [ ] 設定画面と `Philly.ini` の取り込み(フルキー移動、リピートの時間など)
 - [ ] 効果音(`SoundRegexp.ini`)と BGM(MIDI)
 - [ ] 通知とタスクバーの点滅、裏タブの未読表示
-- [ ] ログの保存(LogAutoSave)
+- [x] ログの保存(LogAutoSave)。入力欄のツールバーでタブごとに切り替え、`<アプリのログフォルダ>/<表示名>/<yyyymmdd>.html` に Log.css 付きで書く
+  - [ ] テキストでの保存(LogSaveHtml=off)と、保存フォルダを開くボタン
 
 ## P5
 
