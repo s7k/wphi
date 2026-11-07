@@ -155,7 +155,9 @@ function MapWindow() {
           {/* リスト表示中は名前の代わりにリストを出す(Philly.ini の ListInMap=on)。選ぶのは main 窓かキー */}
           <ul className={state?.list ? "name-list list" : "name-list"}>
             {(state?.list ? state.list.map(stripTags) : names).map((n, i) => (
-              <li key={i}>{n}</li>
+              <li key={i} title={n}>
+                {n}
+              </li>
             ))}
           </ul>
         </div>

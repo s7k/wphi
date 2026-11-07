@@ -173,9 +173,11 @@ body {
   background: #000;
 }
 
-/* ImageMapSide。幅は MapForm.dfm の 70px */
+/* ImageMapSide。Philly は 70px だが、名前が切れないよう名前の長さに合わせて広げる */
 .map-side {
-  width: 70px;
+  min-width: 70px;
+  width: max-content;
+  max-width: 45%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -203,6 +205,11 @@ body {
 
 .compass .compass-n {
   fill: #c00;
+}
+
+.name-list li {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .name-list {
@@ -294,41 +301,39 @@ body {
   text-shadow: -1px 0 #555, 1px 0 #555, 0 -1px #555, 0 1px #555;
 }
 
-/* Status.bmp の F・W・M・C・Gp と CHK・SKL */
+/* Status.bmp の F・W・M・C・Gp と CHK・SKL。地の teal はやめ、文字の色で見分ける */
 .fwmc {
   display: grid;
-  grid-template-columns: 18px 30px 18px 30px;
+  grid-template-columns: auto 34px auto 34px;
   grid-auto-rows: 1fr;
   align-items: center;
-  gap: 1px 2px;
-  padding: 2px;
-  background: #008080;
+  gap: 1px 3px;
+  padding: 2px 4px;
 }
 
 .fwmc > span[class^="label-"] {
-  font: bold 13px var(--ui-font);
-  text-align: center;
-  text-shadow: 1px 1px #000;
+  font: bold 12px var(--ui-font);
+  text-align: right;
 }
 
 .label-f {
-  color: #ff4040;
+  color: #d03030;
 }
 
 .label-w {
-  color: #c070ff;
+  color: #8040c0;
 }
 
 .label-m {
-  color: #40d060;
+  color: #20a040;
 }
 
 .label-c {
-  color: #40b0ff;
+  color: #2080d0;
 }
 
 .label-gp {
-  color: #e0c040;
+  color: #b08000;
 }
 
 .status-value,
@@ -338,7 +343,8 @@ body {
 
 .status-value {
   background: #fff;
-  border: 1px inset #fff;
+  border: 1px solid #a0a0a0;
+  border-radius: 2px;
   font: bold 11px/12px var(--ui-font);
   text-align: right;
   padding-right: 1px;
@@ -346,15 +352,8 @@ body {
 }
 
 .status-button {
-  padding: 0;
-  font: 9px/12px var(--ui-font);
-  background: #008080;
-  border: 1px outset #40a0a0;
-  color: #000;
-}
-
-.status-button:active {
-  border-style: inset;
+  padding: 0 2px;
+  font: 10px/12px var(--ui-font);
 }
 
 .map-status-bar {

@@ -1,5 +1,6 @@
 // マップ窓の下のステータス表示。配置と色は Philly の classStatus(CharacterCommon.cpp)と
 // スキンの HpMpPanel.bmp・HpMpBar.bmp・Status.bmp に合わせ、文字がにじまないよう HTML で描く。
+// Status.bmp の teal の地は古く見えるので使わず、文字の色で見分ける。
 import { sendLine } from "./keyInput";
 import type { CondEvent, StatusEvent } from "./protocol";
 
