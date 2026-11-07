@@ -113,6 +113,17 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     #[test]
+    fn stays_in_app() {
+        let ok = |s: &str| super::is_app_url(&tauri::Url::parse(s).unwrap());
+        assert!(ok("tauri://localhost/map.html"));
+        assert!(ok("http://tauri.localhost/"));
+        assert!(ok("http://localhost:5173/"));
+        assert!(!ok("https://evil.example/"));
+        assert!(!ok("http://localhost.evil.example/"));
+        assert!(!ok("file:///etc/passwd"));
+    }
+
+    #[test]
     fn dir_name_is_safe_on_windows() {
         use super::dir_name;
         assert_eq!(dir_name("勇者/A:B"), "勇者_A_B");
@@ -357,6 +368,17 @@ fn log_dir(app: &tauri::AppHandle, label: &str) -> Result<std::path::PathBuf, St
         .join(dir_name(label)))
 }
 
+/// アプリ自身のページか。配布物は tauri://localhost(macOS・Linux)か http://tauri.localhost(Windows)、
+/// 開発中は devUrl(http://localhost:5173)
+fn is_app_url(url: &tauri::Url) -> bool {
+    match url.scheme() {
+        // about:blank は WebView が作られた直後に開く
+        "tauri" | "about" => true,
+        "http" | "https" => matches!(url.host_str(), Some("tauri.localhost" | "localhost")),
+        _ => false,
+    }
+}
+
 /// 表示名をフォルダ名にする。ファイル名に使えない文字は `_` にし、前後の `.` と空白を落とす
 /// (Windows は末尾の `.` と空白を落とすので、`a.` が `a` と同じフォルダになる)。
 /// `CON`・`NUL` などの Windows の予約名は、デバイスを指してしまうので `_` を足す。
@@ -494,6 +516,18 @@ fn main() {
             tauri::async_runtime::spawn_blocking(move || responder.respond(asset_response(&app, &uri)));
         })
         .plugin(tauri_plugin_opener::init())
+        // 窓が自分のページ以外へ移らないようにする(#49)。リンクは UI が既定のブラウザで開く
+        .plugin(
+            tauri::plugin::Builder::<tauri::Wry>::new("stay-in-app")
+                .on_navigation(|_, url| {
+                    let ok = is_app_url(url);
+                    if !ok {
+                        eprintln!("窓の遷移を止めました: {url}");
+                    }
+                    ok
+                })
+                .build(),
+        )
         .manage(Sessions::default())
         .invoke_handler(tauri::generate_handler![
             list_characters,

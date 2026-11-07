@@ -13,6 +13,7 @@
     "core:window:allow-show",
     "core:window:allow-hide",
     "core:window:allow-request-user-attention",
-    "opener:allow-open-url"
+    "opener:allow-open-url",
+    "opener:allow-default-urls"
   ]
 }

@@ -1,7 +1,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
@@ -158,6 +158,20 @@ export function App() {
   useEffect(() => {
     if (active !== null) update(active, (t) => (t.unread ? { ...t, unread: false } : t));
   }, [active]);
+  // リンクで WebView を遷移させず、既定のブラウザで開く。ログ・priv・看板のプレビューのどこで押しても同じにする。
+  // 遷移させると main 窓が外部のページに置き換わり、ID の入力を求める偽の画面に使える(#49)
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement | null)?.closest("a");
+      if (!a) return;
+      e.preventDefault();
+      const href = a.getAttribute("href");
+      if (href && /^https?:\/\//.test(href)) openUrl(href).catch(console.error);
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+
   useEffect(() => {
     // 開いたばかりの map 窓は localStorage から地形を読むので、先に書いておく
     const unlisten = listen("phi-map-ready", () => {
@@ -728,22 +742,12 @@ function LogView(props: { lines: LogLine[]; follow: boolean }) {
     return () => ro.disconnect();
   }, []);
 
-  // リンクで WebView を遷移させず、既定のブラウザで開く
-  function onClick(e: MouseEvent) {
-    const a = (e.target as HTMLElement).closest("a");
-    if (!a) return;
-    e.preventDefault();
-    const href = a.getAttribute("href");
-    if (href && /^https?:\/\//.test(href)) openUrl(href);
-  }
-
   return (
     <div
       ref={ref}
       className="phi-log"
       // フォーカスを受けると「移動モード」になり、キーが操作になる
       tabIndex={0}
-      onClick={onClick}
     >
       <div ref={inner}>
         <LogLines lines={props.lines} />
