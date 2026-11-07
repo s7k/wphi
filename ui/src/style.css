@@ -33,6 +33,11 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
+  position: relative;
+}
+
+.tab-settings {
+  margin-left: auto;
 }
 
 .tab-bar {
@@ -582,4 +587,29 @@ body {
   background-position: -32px -64px;
   image-rendering: pixelated;
   zoom: 2;
+}
+
+/* 設定画面。main 窓に重ねる */
+.settings-panel {
+  position: absolute;
+  inset: 24px;
+  display: flex;
+  flex-direction: column;
+  background: #d4d0c8;
+  border: 2px outset #fff;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 35%);
+  z-index: 3;
+}
+
+.settings-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+}
+
+.settings-body input[type="number"] {
+  width: 80px;
 }

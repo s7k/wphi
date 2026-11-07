@@ -10,7 +10,7 @@
 // - マップを左クリックした時は、その向きへすぐ送ってリピートに入る。押している間はマウスの向きへ進む(MouseDown)
 import { moveCommand, type Mods, type MoveKey } from "./keys.ts";
 
-/** Philly.ini の RepeatModeStartTime / RepeatModeEndTime の既定値 */
+/** Philly.ini の RepeatModeStartTime / RepeatModeEndTime の既定値。設定で変えられる */
 const REPEAT_START_MS = 200;
 const REPEAT_END_MS = 100;
 /** リピート中の #map-iv と、普段の値(session.rs のログイン時の送信と同じ) */
@@ -52,16 +52,25 @@ export class MoveRepeat {
   private send: (text: string) => void;
   private northFix: () => boolean;
   private now: () => number;
+  private startMs: number;
+  private endMs: number;
 
-  constructor(send: (text: string) => void, northFix: () => boolean, now: () => number = () => performance.now()) {
+  constructor(
+    send: (text: string) => void,
+    northFix: () => boolean,
+    now: () => number = () => performance.now(),
+    times: { startMs: number; endMs: number } = { startMs: REPEAT_START_MS, endMs: REPEAT_END_MS },
+  ) {
     this.send = send;
     this.northFix = northFix;
     this.now = now;
+    this.startMs = times.startMs;
+    this.endMs = times.endMs;
   }
 
   keyDown(key: MoveKey, mods: Mods, isRepeat: boolean) {
     this.mods = mods;
-    if (!this.held.has(key)) this.startAt = this.now() + REPEAT_START_MS;
+    if (!this.held.has(key)) this.startAt = this.now() + this.startMs;
     this.held.add(key);
     this.endAt = Infinity;
     if (isRepeat) return;
@@ -74,7 +83,7 @@ export class MoveRepeat {
     this.held.delete(key);
     if (this.held.size === 0) {
       this.startAt = Infinity;
-      this.endAt = this.now() + REPEAT_END_MS;
+      this.endAt = this.now() + this.endMs;
     }
   }
 
@@ -107,7 +116,7 @@ export class MoveRepeat {
   mouseUp() {
     if (this.mouse.length === 0) return;
     this.mouse = [];
-    if (this.held.size === 0) this.endAt = this.now() + REPEAT_END_MS;
+    if (this.held.size === 0) this.endAt = this.now() + this.endMs;
   }
 
   /** 定期的に呼ぶ。リピートの開始と終了を決める(Philly の RepeatCheckWhenNoRecv) */

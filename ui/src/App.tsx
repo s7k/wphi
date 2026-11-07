@@ -8,6 +8,8 @@ import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, moveInput } from "./keys.ts";
 import { BoardEditor } from "./BoardEditor";
+import { DEFAULT_SETTINGS, shortcutText, type Settings } from "./settings.ts";
+import { SettingsPanel } from "./SettingsPanel";
 import { NewCharacter } from "./NewCharacter";
 import { partnersKey, privLines, privPartners, usersFromEvent, type User } from "./priv.ts";
 import { PrivPanel, type PrivConv } from "./PrivPanel";
@@ -82,6 +84,13 @@ export function App() {
   const [active, setActive] = useState<number | null>(null);
   const [logCss, setLogCss] = useState("");
   const [store, setStore] = useState<Store>({ characters: [], openTabs: [] });
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  useEffect(() => {
+    invoke<Settings>("get_settings").then(setSettings).catch(console.error);
+  }, []);
   const [error, setError] = useState("");
 
   const reload = () =>
@@ -148,11 +157,13 @@ export function App() {
     const session = active;
     mover.current = new MoveRepeat(
       (text) => sendLine(session, text),
-      () => keyContext(mapStates.current.get(session)).northFix,
+      () => keyContext(mapStates.current.get(session), true).northFix,
+      undefined,
+      { startMs: settings.repeatStartMs, endMs: settings.repeatEndMs },
     );
     const timer = setInterval(() => mover.current?.tick(), 50);
     return () => clearInterval(timer);
-  }, [active]);
+  }, [active, settings.repeatStartMs, settings.repeatEndMs]);
 
   useEffect(() => {
     const focusInput = () => {
@@ -183,7 +194,7 @@ export function App() {
         mover.current?.releaseAll();
         return false;
       }
-      const ctx = keyContext(mapStates.current.get(session));
+      const ctx = keyContext(mapStates.current.get(session), settingsRef.current.fullKeyMove);
       const move = moveInput(e, ctx);
       if (move) {
         if (e.type === "keydown") mover.current?.keyDown(move.key, move.mods, e.repeat);
@@ -200,6 +211,12 @@ export function App() {
         else if ("listOk" in listAction) closeListAndSend(session, listOk(list));
         else if ("focusInput" in listAction) focusInput();
         else updateList(session, (l) => moveListCursor(l, listAction));
+        return true;
+      }
+      // F8〜F12 と Alt+G(設定で決まる文字列)
+      const shortcut = shortcutText(e, settingsRef.current, !!list);
+      if (shortcut !== null) {
+        if (!e.repeat) sendLine(session, shortcut);
         return true;
       }
       const action = keyAction(e, ctx);
@@ -434,8 +451,11 @@ export function App() {
 
   return (
     <div className="main">
+      {settingsOpen && (
+        <SettingsPanel settings={settings} onSaved={setSettings} onClose={() => setSettingsOpen(false)} />
+      )}
       <style>{logCss}</style>
-      <TabBar tabs={tabs} active={active} onSelect={setActive} onClose={close} />
+      <TabBar tabs={tabs} active={active} onSelect={setActive} onClose={close} onSettings={() => setSettingsOpen(true)} />
       {tab ? (
         <div className="main-body">
         <div className="log-area">
@@ -545,6 +565,7 @@ function TabBar(props: {
   active: number | null;
   onSelect: (s: number | null) => void;
   onClose: (s: number) => void;
+  onSettings: () => void;
 }) {
   return (
     <div className="tab-bar">
@@ -563,6 +584,9 @@ function TabBar(props: {
       ))}
       <button className="tab" onClick={() => props.onSelect(null)}>
         ＋
+      </button>
+      <button className="tab tab-settings" onClick={props.onSettings}>
+        設定
       </button>
     </div>
   );

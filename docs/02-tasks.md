@@ -13,7 +13,7 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 ## P2 の残り(キー・マウス)
 
 - [x] ファンクションキーと Alt の魔法(Philly の `Command.cpp` KeyBindNone の F1〜F7、KeyBindAlt、KeyBindShiftAlt)。Call と Return は送る前に確認する。Shift+F5 でマップ窓を出し入れする
-  - [ ] F8〜F12 のショートカットと Alt+G の言葉(設定画面と一緒に作る)
+  - [x] F8〜F12 のショートカットと Alt+G の言葉。リスト表示中の F8〜F12 はリスト用の文字列を送る
   - [ ] Alt+S(看板の検索)、Shift+Alt+C・A・U(名前を聞くダイアログが要る)
   - [ ] 系統魔法の前に武器を外す処理(AutoUnequipSystemMagic)
 - [x] マップのクリックで移動、右クリックで攻撃(Philly の `MapForm.cpp` の MouseDirection)。押している間はマウスの向きへ進む
@@ -53,7 +53,8 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 
 - [ ] メニューバー(`MainForm.dfm` の構成、`Style/Menu.txt` で表示を切り替える)
 - [ ] 窓の吸い付きと位置記憶(Windows のみ)
-- [ ] 設定画面と `Philly.ini` の取り込み(フルキー移動、リピートの時間など)
+- [x] 設定画面と `Philly.ini` の取り込み。今の項目はフルキー移動、リピートの時間、F8〜F12、Alt+G。設定フォルダの `settings.json` に置く
+  - [ ] 他の項目(ログ表示、通知、フォントなど)の設定と取り込み
 - [ ] 効果音(`SoundRegexp.ini`)と BGM(MIDI)
 - [x] タスクバーの点滅と裏タブの未読表示。発言と priv が届いた時だけ(GtOnly=on)、大声では点滅しない(Loud=off)
   - [ ] 点滅させない正規表現(`NotTaskBarFlashRegexp.ini`)と、裏タブで HP・MP が減った時の印

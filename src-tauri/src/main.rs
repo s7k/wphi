@@ -4,6 +4,7 @@ mod assets;
 mod characters;
 mod register;
 mod session;
+mod settings;
 
 use std::{
     collections::HashMap,
@@ -122,6 +123,39 @@ fn asset_response(app: &tauri::AppHandle, uri: &str) -> tauri::http::Response<Ve
             .unwrap(),
         None => not_found(),
     }
+}
+
+fn settings_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(app
+        .path()
+        .app_config_dir()
+        .map_err(|e| e.to_string())?
+        .join("settings.json"))
+}
+
+#[tauri::command]
+fn get_settings(app: tauri::AppHandle) -> Result<settings::Settings, String> {
+    Ok(settings::Settings::load(&settings_path(&app)?))
+}
+
+#[tauri::command]
+fn save_settings(app: tauri::AppHandle, settings: settings::Settings) -> Result<(), String> {
+    settings.save(&settings_path(&app)?)
+}
+
+/// 取り込んだ Philly フォルダの `Config/Philly.ini` から設定を取り込んで保存する。
+#[tauri::command]
+fn import_philly_settings(app: tauri::AppHandle) -> Result<settings::Settings, String> {
+    let folder = Store::load(&store_path(&app)?)
+        .philly_folder
+        .ok_or("先に Philly フォルダからキャラを取り込んでください")?;
+    let ini = std::path::Path::new(&folder).join("Config").join("Philly.ini");
+    let bytes = std::fs::read(&ini).map_err(|e| format!("{}: {e}", ini.display()))?;
+    let path = settings_path(&app)?;
+    let mut s = settings::Settings::load(&path);
+    s.import_philly_ini(&bytes);
+    s.save(&path)?;
+    Ok(s)
 }
 
 /// 新規キャラ作成で選べる初期グラの名前。
@@ -337,6 +371,9 @@ fn main() {
             set_open_tabs,
             import_philly,
             register_graphics,
+            get_settings,
+            save_settings,
+            import_philly_settings,
             register_character,
             connect,
             send_line,
