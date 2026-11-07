@@ -510,6 +510,17 @@ fn html_to_text(html: &str) -> String {
     .fold(out, |s, (from, to)| s.replace(from, to))
 }
 
+/// 設定フォルダ(characters.json と settings.json の置き場)を開く
+#[tauri::command]
+async fn open_config_dir(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    app.opener()
+        .open_path(dir.display().to_string(), None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
 /// 表示名のログの保存先のフォルダを、OS のファイルマネージャで開く。無ければ作る
 #[tauri::command]
 async fn open_log_dir(app: tauri::AppHandle, label: String) -> Result<(), String> {
@@ -638,6 +649,7 @@ fn main() {
             send_line,
             send_lines,
             open_log_dir,
+            open_config_dir,
             disconnect,
             log_css,
             log_html,

@@ -4,6 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
+import { getVersion } from "@tauri-apps/api/app";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { SENT_EVENT } from "./keyInput";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
@@ -28,6 +29,10 @@ import { pushLine, type LogLine } from "./logLines.ts";
 // src-tauri/src/characters.rs の Store
 type Character = { label: string; host: string; port: number };
 type Store = { characters: Character[]; openTabs: string[] };
+
+/** 入力欄のツールバーと同じ切り替えのメニュー項目(src-tauri/src/menu.rs の 操作)。App から InputEditor へ送る */
+const INPUT_MENU = ["loud", "all-tab", "log-save", "log-follow", "open-log-dir"];
+const INPUT_MENU_EVENT = "phi-input-menu";
 
 /** 最後の #user からこれだけ何も届かなければ、#ulist の返事が届き終わった事にする */
 const ULIST_QUIET_MS = 300;
@@ -311,7 +316,13 @@ export function App() {
       const id = e.payload;
       const session = activeRef.current;
       if (id === "settings") return setSettingsOpen(true);
+      if (id === "next-tab") return nextTab();
+      if (id === "new-tab") return setActive(null);
+      if (id === "open-config-dir") return void invoke("open_config_dir").catch((e) => setError(String(e)));
+      if (id === "version") return void getVersion().then((v) => window.alert(`WPHI ${v}`));
       if (session === null) return;
+      // 入力欄のツールバーと同じ切り替え。状態は InputEditor が持つ
+      if (INPUT_MENU.includes(id)) return void window.dispatchEvent(new CustomEvent(INPUT_MENU_EVENT, { detail: id }));
       if (id === "priv") return update(session, (t) => ({ ...t, privOpen: !t.privOpen }));
       if (id === "automap-clear") return clearAutomap(mapStates.current.get(session)?.world);
       const action = menuAction(id);
@@ -905,6 +916,22 @@ function InputEditor(props: {
     }
     deliver();
   }
+
+  // メニューの 操作 の切り替え
+  useEffect(() => {
+    const onMenu = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (id === "loud") {
+        setLoud((v) => !v);
+        setLoudAll(false);
+      } else if (id === "all-tab") setAllTab((v) => !v);
+      else if (id === "log-save") props.onLogSave(!props.logSave);
+      else if (id === "log-follow") props.onLogFollow(!props.logFollow);
+      else if (id === "open-log-dir") props.onOpenLogDir();
+    };
+    window.addEventListener(INPUT_MENU_EVENT, onMenu);
+    return () => window.removeEventListener(INPUT_MENU_EVENT, onMenu);
+  });
 
   function answerLoud(answer: "yes" | "all" | "no") {
     const ask = loudAsk;
