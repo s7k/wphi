@@ -31,6 +31,8 @@ function MapWindow() {
   const [, setLoaded] = useState(0);
   const image = useImages(() => setLoaded((n) => n + 1));
   const mapCanvas = useRef<HTMLCanvasElement>(null);
+  // マップの欄。外周の幅はこの枠の大きさで決める(canvas の大きさは外周の幅で変わるので測らない)
+  const mapArea = useRef<HTMLDivElement>(null);
   // HP・MP の減った分を出す為の、1つ前の #status(Philly の OldStatus)
   const prevStatus = useRef<{ now?: StatusEvent; old?: StatusEvent }>({});
 
@@ -89,17 +91,16 @@ function MapWindow() {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [world]);
-  const [ring, setRing] = useState(0);
+  const [area, setArea] = useState({ w: 0, h: 0 });
   useEffect(() => {
-    const el = mapCanvas.current;
+    const el = mapArea.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => {
-      const cells = Math.floor(Math.min(el.clientWidth, el.clientHeight) / CHIP_SIZE);
-      setRing(Math.max(0, Math.min(AUTOMAP_RING, Math.floor((cells - 7) / 2))));
-    });
+    const ro = new ResizeObserver(() => setArea({ w: el.clientWidth, h: el.clientHeight }));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  const cells = Math.floor(Math.min(area.w, area.h) / CHIP_SIZE);
+  const ring = Math.max(0, Math.min(AUTOMAP_RING, Math.floor((cells - 7) / 2)));
   const automap = map ? compose(map, tiles, ring) : null;
   const dim = automap?.dim ?? (map ? gridDim(map.size) : 7);
   const northFix = !map || (map.size === 7 && map.style !== "turn");
@@ -179,18 +180,24 @@ function MapWindow() {
   return (
     <div className="map-window">
       <div className="map-row">
-        <canvas
-          className="map-canvas"
-          ref={mapCanvas}
-          width={dim * CHIP_SIZE}
-          height={dim * CHIP_SIZE}
-          style={{ cursor }}
-          onMouseMove={onMouseMove}
-          onMouseDown={onMouseDown}
-          onMouseUp={onMouseUp}
-          onMouseLeave={onMouseUp}
-          onContextMenu={(e) => e.preventDefault()}
-        />
+        <div className="map-area" ref={mapArea}>
+          <canvas
+            ref={mapCanvas}
+            width={dim * CHIP_SIZE}
+            height={dim * CHIP_SIZE}
+            // 中央に置く。位置を整数にして、半ピクセルずれて画像がにじまないようにする
+            style={{
+              cursor,
+              left: Math.floor((area.w - dim * CHIP_SIZE) / 2),
+              top: Math.floor((area.h - dim * CHIP_SIZE) / 2),
+            }}
+            onMouseMove={onMouseMove}
+            onMouseDown={onMouseDown}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseUp}
+            onContextMenu={(e) => e.preventDefault()}
+          />
+        </div>
         <div className="map-side">
           <Compass dir={direction} northFix={northFix} />
           {/* リスト表示中は名前の代わりにリストを出す(Philly.ini の ListInMap=on)。選ぶのは main 窓かキー */}
