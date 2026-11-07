@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use phi_proto::codec;
 use serde::{Deserialize, Serialize};
 
-const KEYRING_SERVICE: &str = "rust-philly";
+const KEYRING_SERVICE: &str = "wphi";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Character {
@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn reads_philly_folder() {
-        let root = std::env::temp_dir().join(format!("rust-philly-test-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("wphi-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         for (dir, body) in [
             ("勇者.chara", codec::encode("ABC123\r\n192.0.2.1:9000\r\n")),
@@ -153,7 +153,7 @@ mod tests {
 
     #[test]
     fn store_round_trip() {
-        let path = std::env::temp_dir().join(format!("rust-philly-store-{}.json", std::process::id()));
+        let path = std::env::temp_dir().join(format!("wphi-store-{}.json", std::process::id()));
         let mut s = Store::default();
         s.upsert(Character {
             label: "a".into(),
@@ -176,7 +176,7 @@ mod tests {
     #[test]
     #[ignore]
     fn keyring_round_trip() {
-        let label = "rust-philly-selftest";
+        let label = "wphi-selftest";
         set_id(label, "SECRET").unwrap();
         assert_eq!(get_id(label).unwrap(), "SECRET");
         delete_id(label);

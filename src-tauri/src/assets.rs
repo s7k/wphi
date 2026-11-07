@@ -261,7 +261,7 @@ mod bench {
     use super::*;
 
     /// 同梱の全キャラグラとチップを変換する時間を測る。
-    /// `cargo test --release -p rust-philly convert_time -- --ignored --nocapture` で実行する。
+    /// `cargo test --release -p wphi convert_time -- --ignored --nocapture` で実行する。
     #[test]
     #[ignore]
     fn convert_time() {

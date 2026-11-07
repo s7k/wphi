@@ -1,8 +1,7 @@
 # WPHI 設計
 
 旧 Windows クライアント Philly(C++Builder)を、Tauri 2 で作り直す為の設計。
-クライアント名は WPHI(2026-11-07 に決定)。リポジトリ名・crate 名・内部の識別子(`dev.rust-philly`)・キーチェーンのサービス名(`rust-philly`)は rust-philly のままにする。
-識別子を変えると設定フォルダの場所が変わり、登録済みのキャラが引き継がれなくなる為である。
+クライアント名は WPHI(2026-11-07 に決定)。識別子は `dev.wphi`、キーチェーンのサービス名は `wphi`、Tauri アプリの crate 名は `wphi`。
 見た目と操作は Philly に寄せる。
 
 ## 参照資料
@@ -23,7 +22,7 @@ Wayland はアプリに窓の座標を読ませず、決めさせもしない為
 
 macOS は当面対象にしない。
 コードは macOS で動かない書き方を避けるだけにとどめ、配布物も作らない。
-必要になった時は署名と公証をせずに `.app` を作り、利用者に `xattr -dr com.apple.quarantine rust-philly.app` で隔離属性を外して貰う。
+必要になった時は署名と公証をせずに `.app` を作り、利用者に `xattr -dr com.apple.quarantine WPHI.app` で隔離属性を外して貰う。
 Apple Silicon は署名の無いバイナリを起動しないので、その時は `bundle.macOS.signingIdentity` に `"-"`(アドホック署名)を指定する。
 
 最初の版に含めないもの。
@@ -166,7 +165,7 @@ Philly が何秒で送っていたかは P1 で `PersonalThread.cpp` から確�
 
 Philly はキャラごとに `<名前>.chara\.phirc` を作り、1行目に ID、2〜3行目に `IP:ポート` を平文で書いている(`CharacterCommon.cpp:1203-1219`、`Const.cpp:66-68`)。
 ID はログインの認証情報そのものである。
-rust-philly は ID を OS のキーチェーン(`keyring` crate)へ置き、IP とポートだけを設定ファイルに書く。
+WPHI は ID を OS のキーチェーン(`keyring` crate)へ置き、IP とポートだけを設定ファイルに書く。
 キャラ選択の画面で Philly フォルダを指定すると、`*.chara\.phirc` を読み込んで既存のキャラを一覧へ取り込む(`src-tauri/src/characters.rs`)。
 一覧と、終了時に開いていたタブの表示名(Philly の `TabSession.ini` に当たる)は、設定フォルダの `characters.json` に置く。
 ID は一覧に書かず、接続の時に Rust 側がキーチェーンから読む。UI には返さない。
@@ -273,7 +272,7 @@ Linux では両方とも無効にする。
 ### 6.3 ログ
 
 Philly のログ欄は IE を埋め込み(`SrcLink/IeView`)、HTML とスキンの CSS で描いている。
-rust-philly も同じ作りにする。
+WPHI も同じ作りにする。
 
 1. `phi-proto` の `tag_to_html` で、受信したテキストを HTML にする。先に `<` `>` `&` `"` を実体参照にしてから、カラーマークアップ(`/*color=red*/〜/*.*/`)を `<font class="color_red_">` に変換する(`TagToHtml.cpp:143`)
 2. 時刻と発言者名に `class_time`、`class_name` を付ける(`TagToHtml.cpp:420,434`)
@@ -297,7 +296,7 @@ rust-philly も同じ作りにする。
 
 Philly のキー操作(PhillySrc `doc/キー操作.txt`、`Command.cpp`)を移す。
 phi-client-web の `lib/keyHandler.ts` に、Philly 互換の対応表が既にある。
-phi-client-web がブラウザの都合で見送った Alt+英字の魔法と Ctrl+Tab は、rust-philly では実装する。
+phi-client-web がブラウザの都合で見送った Alt+英字の魔法と Ctrl+Tab は、WPHI では実装する。
 
 判定には `KeyboardEvent.code` を使う。
 `key` は IME やキー配列で値が変わり、Shift+数字の判定がずれる為である。
@@ -309,14 +308,14 @@ Tauri のメニュー API で、`MainForm.dfm` のメニュー構成を作る。
 
 ## 7. 設定
 
-rust-philly の設定は、アプリの設定フォルダに JSON で保存する。
+WPHI の設定は、アプリの設定フォルダに JSON で保存する。
 初回起動時に Philly フォルダの `Config/Philly.ini`(cp932)を読み込み、対応する項目を取り込む。
 `Config.cpp` には INI の読み書きが336箇所あるので、全項目は移さない。
 P4 で対応表を作り、取り込む項目を決める。
 
 ## 8. 音
 
-| 種類 | Philly | rust-philly |
+| 種類 | Philly | WPHI |
 |---|---|---|
 | 効果音 | `SoundRegexp.ini` に一致した行で WAV を鳴らす(`PlaySound`、`PersonalThread.cpp:929`) | `rodio` で鳴らす |
 | BGM | `#bgm` で MIDI を鳴らす | `midir` で Windows 標準の GS 音源(Microsoft GS Wavetable Synth)へ送る。Philly と同じ音源になる。Linux では鳴らさない |

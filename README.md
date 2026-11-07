@@ -1,7 +1,6 @@
 # WPHI
 
 旧 Windows クライアント Philly を Tauri 2 で作り直した PHI のクライアント。
-リポジトリ名は rust-philly のまま。
 設計は [docs/01-design.md](docs/01-design.md)。
 
 ## 開発環境
