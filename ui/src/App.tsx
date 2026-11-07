@@ -188,8 +188,10 @@ export function App() {
         s.mode = ev;
         break;
       case "notice":
-        if (ev.mapset === undefined) return;
-        s.mapset = ev.mapset;
+        if (ev.mapset !== undefined) s.mapset = ev.mapset;
+        else if (ev.world !== undefined) s.world = ev.world;
+        else if (ev.area !== undefined) s.area = ev.area;
+        else return;
         break;
       default:
         return;

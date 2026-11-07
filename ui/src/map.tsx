@@ -1,17 +1,26 @@
 // map 窓(Philly の MapForm)。アクティブなタブのマップとステータスを表示する。
 // 状態は main 窓から MAP_STATE_EVENT で届く。
+//
+// 配置は MapForm.dfm に合わせた。マップ(窓に合わせて拡大縮小)、右に方角とキャラ名の一覧(ImageMapSide)、
+// 下にステータス(ImageStatus)、一番下に状態異常のステータスバー。
 import { emitTo, listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { assetUrl } from "./asset";
-import { KEY_EVENT, type ForwardedKey } from "./keyInput";
+import { assetUrl, skinUrl } from "./asset";
 import { drawMap, type ImageRefs } from "./drawMap";
+import { KEY_EVENT, type ForwardedKey } from "./keyInput";
 import { CHIP_SIZE, gridDim } from "./mapRender";
-import { MAP_STATE_EVENT, type CondEvent, type MapState, type StatusEvent } from "./protocol";
+import { MAP_STATE_EVENT, type MapState, type StatusEvent } from "./protocol";
+import { drawStatus, STATUS_HEIGHT } from "./statusPanel";
 import "./style.css";
 
 /** Philly のキャラのアニメ周期(PersonalThread.h の ANIMATION_INTERVAL = 500ms) */
 const ANIMATION_MS = 500;
+/** 方角の欄の一辺(MakeMap.h の CHARACTER_AREA_TOP) */
+const DIRECTION_AREA = 53;
+/** 回転マップの時のタイトルの向き(MakeMap.cpp の DrawDirectionAnime) */
+const DIRECTION_TITLE: Record<number, string> = { 0: "【北】", 2: "【東】", 4: "【南】", 6: "【西】" };
 
 /** URL → 画像。読み込みが終わったら onLoad を呼ぶ */
 function useImages(onLoad: () => void) {
@@ -31,21 +40,36 @@ function useImages(onLoad: () => void) {
   };
 }
 
+const stripTags = (s: string) => s.replace(/\/\*.*?\*\//g, "").trim();
+
 function MapWindow() {
   const [state, setState] = useState<MapState | null>(null);
   const [frame, setFrame] = useState(0);
   const [, setLoaded] = useState(0);
+  const [width, setWidth] = useState(window.innerWidth);
   const image = useImages(() => setLoaded((n) => n + 1));
-  const canvas = useRef<HTMLCanvasElement>(null);
+  const mapCanvas = useRef<HTMLCanvasElement>(null);
+  const statusCanvas = useRef<HTMLCanvasElement>(null);
+  // HP・MP の減った分を出す為の、1つ前の #status(Philly の OldStatus)
+  const prevStatus = useRef<{ now?: StatusEvent; old?: StatusEvent }>({});
 
   useEffect(() => {
-    const unlisten = listen<MapState>(MAP_STATE_EVENT, (e) => setState(e.payload));
+    const unlisten = listen<MapState>(MAP_STATE_EVENT, (e) => {
+      const s = e.payload;
+      const p = prevStatus.current;
+      // イベントのたびに別のオブジェクトで届くので、中身で比べる。#status が届くたびに1つ前の値になる
+      if (JSON.stringify(s.status) !== JSON.stringify(p.now)) prevStatus.current = { now: s.status, old: p.now ?? s.status };
+      setState(s);
+    });
     // 開いた直後の状態を main 窓に求める
     unlisten.then(() => emitTo("main", "phi-map-ready"));
     const timer = setInterval(() => setFrame((f) => f ^ 1), ANIMATION_MS);
+    const onResize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
     return () => {
       unlisten.then((f) => f());
       clearInterval(timer);
+      window.removeEventListener("resize", onResize);
     };
   }, []);
 
@@ -73,9 +97,18 @@ function MapWindow() {
 
   const map = state?.map;
   const dim = map ? gridDim(map.size) : 7;
+  const northFix = !map || (map.size === 7 && map.style !== "turn");
+  const direction = northFix ? 0 : (map?.dir ?? 0);
+
+  // タイトル(MakeMap.cpp の DrawDirectionAnime)
+  const place = state?.area ? `${state.area} （${state.world ?? ""}）` : "マップ";
+  const title = (northFix ? "" : (DIRECTION_TITLE[direction] ?? "")) + place;
+  useEffect(() => {
+    getCurrentWindow().setTitle(title).catch(console.error);
+  }, [title]);
 
   useEffect(() => {
-    const ctx = canvas.current?.getContext("2d");
+    const ctx = mapCanvas.current?.getContext("2d");
     if (!ctx || !map || !state) return;
     const imgs: ImageRefs = {
       chip: image(assetUrl("chip", { mapset: state.mapset })),
@@ -85,38 +118,68 @@ function MapWindow() {
     drawMap(ctx, { size: map.size, mapset: state.mapset, cells: map.cells, chars: map.chars }, imgs, frame);
   });
 
+  useEffect(() => {
+    const ctx = statusCanvas.current?.getContext("2d");
+    if (!ctx) return;
+    const imgs = {
+      panel: image(skinUrl("HpMpPanel", "teal")) ?? undefined,
+      status: image(skinUrl("Status", "teal")) ?? undefined,
+      bar: image(skinUrl("HpMpBar", "none")) ?? undefined,
+    };
+    drawStatus(ctx, width, imgs, prevStatus.current.now, prevStatus.current.old, state?.cond);
+  });
+
+  // 名前の一覧は上の行から順に並べる(CharacterNameList.cpp の SetNameList)
+  const names = (map?.chars ?? [])
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => a.c.y - b.c.y || a.i - b.i)
+    .map(({ c }) => stripTags(c.name))
+    .filter((n) => n);
+  const directionImg = image(skinUrl("Direction", "white"));
+  const cond = state?.cond;
+  // ステータスバーの状態異常(classStatus::DrawCondition)。毒とパニックは HP・MP のバーの色で出す
+  const condIcons = cond
+    ? ([cond.palsy, cond.confuse, cond.berserk, cond.silence, cond.blind] as const)
+        .map((on, i) => (on ? i : -1))
+        .filter((i) => i >= 0)
+    : [];
+
   return (
     <div className="map-window">
-      <canvas ref={canvas} width={dim * CHIP_SIZE} height={dim * CHIP_SIZE} />
-      <StatusPanel status={state?.status} cond={state?.cond} />
-    </div>
-  );
-}
-
-const COND_LABELS: [keyof Omit<CondEvent, "type">, string][] = [
-  ["poison", "毒"],
-  ["palsy", "麻痺"],
-  ["panic", "パニック"],
-  ["confuse", "混乱"],
-  ["berserk", "バーサーク"],
-  ["silence", "沈黙"],
-  ["blind", "盲目"],
-];
-
-// ponytail: 文字だけのステータス。スキンの HpMpPanel.bmp・Status.bmp を使う表示は P2 の後半で作る
-function StatusPanel(props: { status?: StatusEvent; cond?: CondEvent }) {
-  const s = props.status;
-  const conds = props.cond ? COND_LABELS.filter(([k]) => props.cond![k]).map(([, l]) => l) : [];
-  return (
-    <div className="status-panel">
-      <div>{s?.name ?? "-"}</div>
-      <div>
-        HP {s?.hp ?? "-"}/{s?.maxHp ?? "-"} MP {s?.mp ?? "-"}/{s?.maxMp ?? "-"}
+      <div className="map-row">
+        <canvas className="map-canvas" ref={mapCanvas} width={dim * CHIP_SIZE} height={dim * CHIP_SIZE} />
+        <div className="map-side">
+          <div className={northFix ? "direction pressed" : "direction"} style={{ width: DIRECTION_AREA, height: DIRECTION_AREA }}>
+            {directionImg && (
+              <div
+                className="direction-image"
+                style={{ backgroundImage: `url("${directionImg.src}")`, backgroundPosition: `-${direction * 50}px 0` }}
+              />
+            )}
+          </div>
+          <ul className="name-list">
+            {names.map((n, i) => (
+              <li key={i}>{n}</li>
+            ))}
+          </ul>
+        </div>
       </div>
-      <div>
-        EXP {s?.exp ?? "-"} GP {s?.gp ?? "-"}
+      <canvas
+        className="status-canvas"
+        ref={statusCanvas}
+        width={width}
+        height={STATUS_HEIGHT}
+        title={state?.status?.exp !== undefined ? `Exp:${state.status.exp}` : undefined}
+      />
+      <div className="map-status-bar">
+        {condIcons.map((i) => (
+          <span
+            key={i}
+            className="cond-icon"
+            style={{ backgroundImage: `url("${skinUrl("StatusBarImage", "none")}")`, backgroundPosition: `-${i * 18}px 0` }}
+          />
+        ))}
       </div>
-      <div>{conds.join(" ")}</div>
     </div>
   );
 }

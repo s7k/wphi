@@ -77,6 +77,8 @@ export type UiEvent =
 export type MapState = {
   session: number;
   mapset: string;
+  world?: string;
+  area?: string;
   map?: MapEvent;
   status?: StatusEvent;
   cond?: CondEvent;
