@@ -46,6 +46,12 @@ type Tab = {
   unread: boolean;
 };
 
+/**
+ * リストの受信の状態。受信の順番に関わるので、再描画を待たない ref で持つ。
+ * cancel は次に届くリストを出さない数(Philly の NextListCancelCount)、started は #list を受けて #end-list を待っている事
+ */
+type ListFlow = { cancel: number; started: boolean };
+
 /** Philly のログバッファに合わせ、古い行から捨てる */
 const MAX_LINES = 2000;
 
@@ -224,7 +230,8 @@ export function App() {
       if (!action) return false;
       // 押し続けによる自動リピートは送らない
       const openBoard = () => update(session, (t) => ({ ...t, board: true }));
-      if (!e.repeat) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap });
+      const cancelList = (n: number) => (listFlow(session).cancel += n);
+      if (!e.repeat) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList });
       return true;
     };
     const onDom = (e: globalThis.KeyboardEvent) => {
@@ -249,7 +256,8 @@ export function App() {
       if (id === "priv") return update(session, (t) => ({ ...t, privOpen: !t.privOpen }));
       const action = menuAction(id);
       const openBoard = () => update(session, (t) => ({ ...t, board: true }));
-      if (action) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap });
+      const cancelList = (n: number) => (listFlow(session).cancel += n);
+      if (action) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList });
     });
     // マップのマウス操作(Philly の MapForm.cpp の FormMouseDown)
     const mouse = listen<ForwardedMouse>(MOUSE_EVENT, (e) => {
@@ -306,6 +314,13 @@ export function App() {
     mapStates.current.set(session, s);
     if (session === activeRef.current) sendMapState(session);
   }
+
+  const listFlows = useRef(new Map<number, ListFlow>());
+  const listFlow = (session: number): ListFlow => {
+    let f = listFlows.current.get(session);
+    if (!f) listFlows.current.set(session, (f = { cancel: 0, started: false }));
+    return f;
+  };
 
   const update = (session: number, f: (t: Tab) => Tab) =>
     setTabs((ts) => ts.map((t) => (t.session === session ? f(t) : t)));
@@ -426,14 +441,29 @@ export function App() {
           if (ev.mode === "multi") update(session, (t) => ({ ...t, board: true }));
           else if (ev.mode === "end") update(session, (t) => ({ ...t, board: false }));
           break;
-        case "list":
-          if (!ev.active) update(session, (t) => ({ ...t, list: null }));
-          else {
-            const lines = ev.lines ?? [];
-            update(session, (t) => ({ ...t, list: { lines, checked: lines.map(() => false), cursor: 0 } }));
+        case "list": {
+          // #list と #end-list はどちらも active で届くので、交互に来る事で見分ける。
+          // #end-list の時、空のリストと、NextListCancel の印がある分は出さない(Philly の RecvListEnd)
+          const flow = listFlow(session);
+          if (!ev.active) {
+            flow.started = false;
+            update(session, (t) => ({ ...t, list: null }));
+            onMapEvent(session, ev);
+            break;
           }
+          if (!flow.started) {
+            flow.started = true;
+            break;
+          }
+          flow.started = false;
+          const lines = ev.lines ?? [];
+          const cancel = flow.cancel > 0;
+          if (cancel) flow.cancel--;
+          if (lines.length === 0 || cancel) break;
+          update(session, (t) => ({ ...t, list: { lines, checked: lines.map(() => false), cursor: 0 } }));
           onMapEvent(session, ev);
           break;
+        }
         default:
           onMapEvent(session, ev);
       }

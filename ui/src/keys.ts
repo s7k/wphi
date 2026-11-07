@@ -8,8 +8,12 @@
 
 /** 入力欄の外で押したキーに対する操作。 */
 export type KeyAction =
-  /** confirm があれば、送る前に確認する(Philly の Call と Return) */
-  | { send: string; confirm?: string }
+  /**
+   * confirm があれば、送る前に確認する(Philly の Call と Return)。
+   * cancelList は、送った後に届くリストを出さない数(Philly の NextListCancel)。
+   * cast と魔法の名前をまとめて送ると、サーバは cast の魔法の一覧を返してから魔法の名前を選択として受ける
+   */
+  | { send: string; confirm?: string; cancelList?: number }
   /** マップ窓の表示を切り替える(Shift+F5) */
   | { toggleMap: true }
   /** 支払い金額を聞いてから `pay <金額>` を送る */
@@ -134,7 +138,7 @@ const NONE: Record<string, KeyAction> = {
   Digit0: { send: "." },
   Tab: { focusInput: true },
   Home: { send: "equip\nsort" },
-  End: { send: "unequip\n1" },
+  End: { send: "unequip\n1", cancelList: 1 },
   // テンキーの移動以外
   Numpad0: { send: "check\nlook" },
   Numpad1: { send: "hit" },
@@ -146,7 +150,7 @@ const NONE: Record<string, KeyAction> = {
   NumpadMultiply: { send: "use" },
   NumpadDecimal: { send: "." },
   // 所持魔法の1〜7番(FuncKeyMagicFix=off)。F8〜F12 は設定のショートカットなので設定画面と一緒に作る
-  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((n) => [`F${n}`, { send: `cast\n${n}` }])),
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((n) => [`F${n}`, { send: `cast\n${n}`, cancelList: 1 }])),
 };
 
 const SHIFT: Record<string, KeyAction> = {
@@ -161,30 +165,30 @@ const SHIFT: Record<string, KeyAction> = {
 
 /** Alt(KeyBindAlt)。G(AltGWord)と S(看板の検索)は設定やダイアログが要るので後で作る */
 const ALT: Record<string, KeyAction> = {
-  KeyA: { send: "cast\nanalyze" },
+  KeyA: { send: "cast\nanalyze", cancelList: 1 },
   KeyB: {
-    send: "cast\ncall",
+    send: "cast\ncall", cancelList: 1,
     confirm: "現在の位置を call します。\nReturn や死んでしまって再接続するときはこの位置になります。\nよろしいですか？",
   },
-  KeyC: { send: "cast\ncreate" },
-  KeyD: { send: "cast\ndetect" },
-  KeyE: { send: "cast\neagle eye" },
-  KeyF: { send: "cast\nforget" },
-  KeyI: { send: "cast\nidentify" },
-  KeyL: { send: "cast\nwizard lock\nsee" },
-  KeyP: { send: "cast\nparty eye" },
-  KeyR: { send: "cast\nreturn", confirm: "call 位置に帰還します。\n持っているアイテムを失う可能性があります。\nよろしいですか？" },
-  KeyU: { send: "cast\nunlock\nsee" },
-  KeyW: { send: "cast\nwizard eye" },
-  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((n) => [`Digit${n}`, { send: `cast\n${n}` }])),
+  KeyC: { send: "cast\ncreate", cancelList: 1 },
+  KeyD: { send: "cast\ndetect", cancelList: 1 },
+  KeyE: { send: "cast\neagle eye", cancelList: 1 },
+  KeyF: { send: "cast\nforget", cancelList: 1 },
+  KeyI: { send: "cast\nidentify", cancelList: 1 },
+  KeyL: { send: "cast\nwizard lock\nsee", cancelList: 1 },
+  KeyP: { send: "cast\nparty eye", cancelList: 1 },
+  KeyR: { send: "cast\nreturn", cancelList: 1, confirm: "call 位置に帰還します。\n持っているアイテムを失う可能性があります。\nよろしいですか？" },
+  KeyU: { send: "cast\nunlock\nsee", cancelList: 1 },
+  KeyW: { send: "cast\nwizard eye", cancelList: 1 },
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((n) => [`Digit${n}`, { send: `cast\n${n}`, cancelList: 1 }])),
 };
 
 /** Shift+Alt(KeyBindShiftAlt)。C・A・U は名前を聞くダイアログが要るので後で作る */
 const SHIFT_ALT: Record<string, KeyAction> = {
-  KeyW: { send: "cast\nwizard light" },
-  KeyE: { send: "#ex-switch eagleeye=text\ncast\neagle eye\n#ex-switch eagleeye=form" },
-  KeyL: { send: "cast\nlist" },
-  KeyD: { send: "cast\ndestroy" },
+  KeyW: { send: "cast\nwizard light", cancelList: 1 },
+  KeyE: { send: "#ex-switch eagleeye=text\ncast\neagle eye\n#ex-switch eagleeye=form", cancelList: 1 },
+  KeyL: { send: "cast\nlist", cancelList: 1 },
+  KeyD: { send: "cast\ndestroy", cancelList: 1 },
 };
 
 const CTRL: Record<string, KeyAction> = {

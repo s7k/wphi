@@ -29,10 +29,18 @@ export function sendLine(session: number, text: string) {
 export function runKeyAction(
   action: KeyAction,
   session: number,
-  hooks: { focusInput: () => void; nextTab: () => void; openBoard: () => void; toggleMap: () => void },
+  hooks: {
+    focusInput: () => void;
+    nextTab: () => void;
+    openBoard: () => void;
+    toggleMap: () => void;
+    /** 次に届くリストを n 個出さない(Philly の NextListCancel) */
+    cancelList: (n: number) => void;
+  },
 ) {
   if ("send" in action) {
     if (action.confirm && !window.confirm(action.confirm)) return;
+    if (action.cancelList) hooks.cancelList(action.cancelList);
     sendLine(session, action.send);
   } else if ("toggleMap" in action) hooks.toggleMap();
   else if ("write" in action) {
