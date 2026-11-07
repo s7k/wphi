@@ -10,6 +10,7 @@ import { SENT_EVENT } from "./keyInput";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, menuAction, moveInput, type AskOptions } from "./keys.ts";
 import { AskDialog } from "./AskDialog";
+import { TagMenu, type TagMenuAt } from "./TagMenu";
 import { assetUrl } from "./asset";
 import { absorb, AUTOMAP_EVENT, loadTiles, removeTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { BoardEditor } from "./BoardEditor";
@@ -888,6 +889,8 @@ function InputEditor(props: {
   // 大声の確認で答えを待っている発言
   const [loudAsk, setLoudAsk] = useState<{ deliver: () => void; ta: HTMLTextAreaElement } | null>(null);
   const [allTab, setAllTab] = useState(false);
+  // 右クリックのタグメニュー(Philly の InputEdit の PopupMenu)
+  const [tagMenu, setTagMenu] = useState<TagMenuAt | null>(null);
   // 連続送信を 100ms 空ける(Philly の SendFromInputEdit)
   const lastSend = useRef(0);
 
@@ -1018,10 +1021,23 @@ function InputEditor(props: {
           priv
         </button>
       </div>
+      {tagMenu && (
+        <TagMenu
+          at={tagMenu}
+          onInsert={(v) => {
+            tagMenu.ta.value = v;
+          }}
+          onClose={() => setTagMenu(null)}
+        />
+      )}
       <textarea
         className={loud ? "input-line loud" : "input-line"}
         disabled={props.disabled}
         onKeyDown={onKeyDown}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setTagMenu({ x: e.clientX, y: e.clientY, ta: e.currentTarget });
+        }}
         rows={3}
         spellCheck={false}
         autoFocus

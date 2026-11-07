@@ -3,6 +3,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { boardText } from "./boardText.ts";
+import { TagMenu, type TagMenuAt } from "./TagMenu";
 
 function previewHeader(name: string): string {
   const d = new Date();
@@ -15,6 +16,7 @@ export function BoardEditor(props: { name: string; onSend: (text: string) => voi
   const [text, setText] = useState("");
   const [preview, setPreview] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
+  const [tagMenu, setTagMenu] = useState<TagMenuAt | null>(null);
 
   useEffect(() => ref.current?.focus(), []);
   // プレビューはログと同じ HTML とスキンの Log.css で出す
@@ -42,8 +44,13 @@ export function BoardEditor(props: { name: string; onSend: (text: string) => voi
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setTagMenu({ x: e.clientX, y: e.clientY, ta: e.currentTarget });
+          }}
           spellCheck={false}
         />
+        {tagMenu && <TagMenu at={tagMenu} onInsert={setText} onClose={() => setTagMenu(null)} />}
         {/* tag_to_html がエスケープしてから作った HTML */}
         <div className="phi-log board-preview" dangerouslySetInnerHTML={{ __html: preview }} />
       </div>
