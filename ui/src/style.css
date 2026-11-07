@@ -1,9 +1,12 @@
 /* Philly の MainForm(タブ・ログ・入力欄・ステータスバー)に合わせた配置 */
 
-/* 近代的なフォント。英数字は Segoe UI、日本語は Windows の游ゴシック UI・BIZ UDPゴシック、Linux の Noto Sans CJK JP */
+/*
+ * 近代的なフォント。Noto を最優先にし、無ければ Windows の BIZ UDPゴシック・游ゴシック UI を使う。
+ * メイリオは古く見えるので最後のフォールバックにする。英数字だけは Noto が無い時に Segoe UI を使う
+ */
 :root {
-  --ui-font: "Segoe UI Variable Text", "Segoe UI", "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic UI", "BIZ UDPGothic",
-    "Meiryo UI", system-ui, sans-serif;
+  --ui-font: "Noto Sans JP", "Noto Sans CJK JP", "Segoe UI Variable Text", "Segoe UI", "BIZ UDPGothic", "Yu Gothic UI",
+    system-ui, "Meiryo UI", "Meiryo", sans-serif;
 }
 
 button,
