@@ -73,18 +73,64 @@ fn set_open_tabs(app: tauri::AppHandle, labels: Vec<String>) -> Result<(), Strin
     store.save(&path)
 }
 
-/// 画像を探す場所。取り込んだ Philly フォルダ → 同梱の `resources/phi` の順。
+/// 画像を探す場所。取り込んだ Philly フォルダ → アプリを置いたフォルダ → 同梱の `resources/phi` の順。
+/// 配布の zip には、アプリの隣に空の `chara` と `chip` を入れてある(`tools/package.sh`)。
 fn load_assets(app: &tauri::AppHandle) -> Result<Assets, String> {
     let bundled = app.path().resource_dir().map_err(|e| e.to_string())?.join("phi");
     let store = Store::load(&store_path(app)?);
+    let portable = std::env::current_exe()
+        .ok()
+        .and_then(|exe| app_folder(&exe, std::env::var_os("APPIMAGE").map(Into::into)));
     Ok(Assets::new(
         store
             .philly_folder
             .map(Into::into)
             .into_iter()
+            .chain(portable)
             .chain([bundled])
             .collect(),
     ))
+}
+
+/// 利用者がアプリを置いたフォルダ。
+/// - AppImage は、実行ファイルが展開先の一時フォルダにあるので、`APPIMAGE` の指す AppImage の隣
+/// - macOS は `WPHI.app/Contents/MacOS/wphi` なので、`WPHI.app` を含むフォルダ
+/// - それ以外(Windows など)は実行ファイルの隣
+fn app_folder(exe: &std::path::Path, appimage: Option<std::path::PathBuf>) -> Option<std::path::PathBuf> {
+    if let Some(a) = appimage {
+        return a.parent().map(Into::into);
+    }
+    let dir = exe.parent()?;
+    let app_bundle = dir.ancestors().find(|p| p.extension().is_some_and(|e| e == "app"));
+    match app_bundle {
+        Some(bundle) => bundle.parent().map(Into::into),
+        None => Some(dir.into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::app_folder;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn finds_the_folder_the_user_put_the_app_in() {
+        assert_eq!(
+            app_folder(Path::new("/Users/a/WPHI/WPHI.app/Contents/MacOS/wphi"), None),
+            Some(PathBuf::from("/Users/a/WPHI"))
+        );
+        assert_eq!(
+            app_folder(
+                Path::new("/tmp/.mount_X/usr/bin/wphi"),
+                Some("/home/a/WPHI/WPHI.AppImage".into())
+            ),
+            Some(PathBuf::from("/home/a/WPHI"))
+        );
+        assert_eq!(
+            app_folder(Path::new("C:/Games/WPHI/WPHI.exe"), None),
+            Some(PathBuf::from("C:/Games/WPHI"))
+        );
+    }
 }
 
 /// 効果音の規則。Philly フォルダが無ければ鳴らさない。

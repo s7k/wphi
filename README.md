@@ -31,6 +31,17 @@ GNOME(Wayland)と ibus の組み合わせでは、Wayland のままだと IME �
 どの OS の分も、その OS の上でしかビルド出来ない。
 3つまとめて作る時は、GitHub Actions の `build`(`.github/workflows/build.yml`)を手動で動かすか、`v` で始まるタグを push する。
 出来た配布物は、実行結果のページの Artifacts からダウンロードする。
+Artifacts には、インストーラなどの他に、展開してそのまま使える zip(`WPHI-<版>-<OS>.zip`)が入る。
+zip は `tools/package.sh windows|linux|macos` で、ビルドの後に手元でも作れる。
+
+zip の中はアプリと空の `chara`・`chip` で、WPHI はアプリを置いたフォルダの `chara`・`chip` からも画像を探す。
+探す順は、取り込んだ Philly フォルダ → アプリを置いたフォルダ → 同梱の分。
+
+| OS | アプリを置いたフォルダ |
+|---|---|
+| Windows | `WPHI.exe` のあるフォルダ |
+| Linux | `WPHI.AppImage` のあるフォルダ |
+| macOS | `WPHI.app` のあるフォルダ(隔離属性を外さずに開くと、macOS がアプリを別の場所に移して起動するので見えなくなる) |
 
 どれも署名していない。
 Windows では SmartScreen が警告を出す。
