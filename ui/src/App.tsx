@@ -20,6 +20,8 @@ import { ListOverlay, listOk, type ListState } from "./ListOverlay";
 import { MoveRepeat } from "./moveRepeat.ts";
 import { EAGLE_EYE_EVENT, MAP_STATE_EVENT, type MapState, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
+import { LogLines } from "./LogLineList";
+import { pushLine, type LogLine } from "./logLines.ts";
 
 // src-tauri/src/characters.rs の Store
 type Character = { label: string; host: string; port: number };
@@ -29,7 +31,7 @@ type Tab = {
   session: number;
   label: string;
   /** ログ欄の HTML。1要素が1行 */
-  lines: string[];
+  lines: LogLine[];
   closed: boolean;
   /** 表示中のリスト(#list 〜 #end-list) */
   list: ListState | null;
@@ -55,7 +57,6 @@ type Tab = {
 type ListFlow = { cancel: number; started: boolean };
 
 /** Philly のログバッファに合わせ、古い行から捨てる */
-const MAX_LINES = 2000;
 
 function timePrefix(): string {
   const d = new Date();
@@ -363,7 +364,7 @@ export function App() {
   function notifyTalk(session: number, channel: string, html: string) {
     if (channel !== "talk" && channel !== "priv") return;
     const loud = /^(?:<[^>]*>)*\(/.test(html);
-    if (session !== activeRef.current) update(session, (t) => ({ ...t, unread: true }));
+    if (session !== activeRef.current) update(session, (t) => (t.unread ? t : { ...t, unread: true }));
     if (!loud && !document.hasFocus())
       getCurrentWindow().requestUserAttention(UserAttentionType.Informational).catch(console.error);
   }
@@ -378,9 +379,9 @@ export function App() {
       const exists = t.privs.some((c) => partnersKey(c.to) === key);
       const privs = exists
         ? t.privs.map((c) =>
-            partnersKey(c.to) === key ? { ...c, lines: [...c.lines, line], unread: t.privActive !== key } : c,
+            partnersKey(c.to) === key ? { ...c, lines: pushLine(c.lines, line), unread: t.privActive !== key } : c,
           )
-        : [...t.privs, { to, lines: [line], unread: true }];
+        : [...t.privs, { to, lines: pushLine([], line), unread: true }];
       return { ...t, privs, privOpen: true, privActive: t.privActive ?? key };
     });
   }
@@ -409,7 +410,7 @@ export function App() {
 
   const append = (session: number, html: string) => {
     const line = timePrefix() + html;
-    update(session, (t) => ({ ...t, lines: [...t.lines, line].slice(-MAX_LINES) }));
+    update(session, (t) => ({ ...t, lines: pushLine(t.lines, line) }));
     const tab = tabsRef.current.find((t) => t.session === session);
     if (tab?.logSave) saveLog(tab.label, line);
   };
@@ -674,7 +675,7 @@ function TabBar(props: {
  * ログ欄。follow が on の時は、ログが増えるたびと、中の画像が読み込まれて高さが変わるたびに最下行へ移る。
  * off は Philly の「ログスクロール停止」に当たる
  */
-function LogView(props: { lines: string[]; follow: boolean }) {
+function LogView(props: { lines: LogLine[]; follow: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const follow = useRef(props.follow);
@@ -710,10 +711,7 @@ function LogView(props: { lines: string[]; follow: boolean }) {
       onClick={onClick}
     >
       <div ref={inner}>
-        {props.lines.map((html, i) => (
-          // html は phi-proto の tag_to_html がエスケープ済みで作ったもの
-          <div key={i} dangerouslySetInnerHTML={{ __html: html }} />
-        ))}
+        <LogLines lines={props.lines} />
       </div>
     </div>
   );

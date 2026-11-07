@@ -2,8 +2,10 @@
 // Philly は相手ごとに別窓を開くが、窓の配置は P4 で決めるので、今は main 窓の右に置く。
 import { useState, type KeyboardEvent } from "react";
 import { partnersKey, type User } from "./priv.ts";
+import { LogLines } from "./LogLineList";
+import type { LogLine } from "./logLines.ts";
 
-export type PrivConv = { to: string[]; lines: string[]; unread: boolean };
+export type PrivConv = { to: string[]; lines: LogLine[]; unread: boolean };
 
 export function PrivPanel(props: {
   convs: PrivConv[];
@@ -49,10 +51,7 @@ export function PrivPanel(props: {
         })}
       </div>
       <div className="phi-log priv-log">
-        {conv?.lines.map((html, i) => (
-          // html は phi-proto の tag_to_html がエスケープ済みで作ったもの
-          <div key={i} dangerouslySetInnerHTML={{ __html: html }} />
-        ))}
+        {conv && <LogLines lines={conv.lines} />}
       </div>
       <input
         className="priv-input"
