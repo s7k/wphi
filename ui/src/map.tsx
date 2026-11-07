@@ -13,7 +13,7 @@ import { drawMap, type ImageRefs } from "./drawMap";
 import { KEY_EVENT, MOUSE_EVENT, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { mouseDir } from "./mouseDir.ts";
 import { CHIP_SIZE, MAP_TOP, gridDim } from "./mapRender";
-import { MAP_STATE_EVENT, type MapState, type StatusEvent } from "./protocol";
+import { MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
 import { hideOnClose, useImages } from "./windowUtil";
 import "./style.css";
@@ -119,6 +119,7 @@ function MapWindow() {
   // マップのマウス操作。左ボタンでその向きへ進み、右ボタンで hit(Philly の MapForm.cpp)
   const [cursor, setCursor] = useState("default");
   const mouseDown = useRef(false);
+  const sendList = (a: MapListAction) => emitTo("main", MAP_LIST_EVENT, a).catch(console.error);
   const sendMouse = (m: ForwardedMouse) => emitTo("main", MOUSE_EVENT, m).catch(console.error);
   const dirAt = (e: React.MouseEvent<HTMLCanvasElement>) => {
     // canvas は等倍。マップは上の余白(MAP_TOP)の下から描いている
@@ -222,10 +223,23 @@ function MapWindow() {
         </div>
         <div className="map-side">
           <Compass dir={direction} northFix={northFix} />
-          {/* リスト表示中は名前の代わりにリストを出す(Philly.ini の ListInMap=on)。選ぶのは main 窓かキー */}
-          <ul className={state?.list ? "name-list list" : "name-list"}>
+          {/* リスト表示中は名前の代わりにリストを出す(Philly.ini の ListInMap=on)。
+              左クリックでその行を選び、右クリックでチェックを切り替える。行の外の右クリックはチェックした行を送る */}
+          <ul
+            className={state?.list ? "name-list list" : "name-list"}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              if (state?.list && e.target === e.currentTarget) sendList({ type: "send" });
+            }}
+          >
             {(state?.list ? state.list.map(stripTags) : names).map((n, i) => (
-              <li key={i} title={n}>
+              <li
+                key={i}
+                title={n}
+                className={state?.listChecked?.[i] ? "checked" : undefined}
+                onClick={state?.list ? () => sendList({ type: "pick", index: i }) : undefined}
+                onContextMenu={state?.list ? () => sendList({ type: "toggle", index: i }) : undefined}
+              >
                 {n}
               </li>
             ))}

@@ -648,3 +648,11 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #888;
 }
+
+/* map 窓のリストで右クリックしてチェックした行 */
+.name-list.list li {
+  cursor: pointer;
+}
+.name-list.list li.checked {
+  background: #c8dcff;
+}

@@ -106,7 +106,16 @@ export type MapState = {
   mode?: ModeEvent;
   /** 表示中のリストの行(マップ窓の右の領域にも出す。Philly.ini の ListInMap) */
   list?: string[];
+  /** リストのチェック(main 窓のリストと同じ) */
+  listChecked?: boolean[];
 };
+
+/**
+ * map 窓のリストの操作(Philly の MapForm.cpp ListBoxMouseUp)。map 窓 → main 窓。
+ * pick はその行を選んで送る、toggle はその行のチェックを切り替える、send はチェックした行を送る
+ */
+export const MAP_LIST_EVENT = "phi-map-list";
+export type MapListAction = { type: "pick"; index: number } | { type: "toggle"; index: number } | { type: "send" };
 
 /** Tauri のイベント名(main → map) */
 export const MAP_STATE_EVENT = "phi-map-state";

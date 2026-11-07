@@ -19,7 +19,7 @@ import { PrivPanel, type PrivConv } from "./PrivPanel";
 import { ListOverlay } from "./ListOverlay";
 import { listNo, listOk, moreNo, newList, type ListState } from "./list.ts";
 import { MoveRepeat } from "./moveRepeat.ts";
-import { EAGLE_EYE_EVENT, MAP_STATE_EVENT, type MapState, type UiEvent } from "./protocol";
+import { EAGLE_EYE_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
 import { pushLine, type LogLine } from "./logLines.ts";
@@ -320,6 +320,16 @@ export function App() {
       else if (m.type === "move") mover.current?.mouseMove(m.keys);
       else mover.current?.mouseUp();
     });
+    // map 窓のリストのクリック(#9)
+    const mapList = listen<MapListAction>(MAP_LIST_EVENT, (e) => {
+      const session = activeRef.current;
+      const list = tabsRef.current.find((t) => t.session === session)?.list;
+      if (session === null || !list) return;
+      const a = e.payload;
+      if (a.type === "toggle")
+        updateList(session, (l) => ({ ...l, checked: l.checked.map((c, i) => (i === a.index ? !c : c)) }));
+      else closeListAndSend(session, listOk(a.type === "pick" ? { ...list, checked: [], cursor: a.index } : list));
+    });
     return () => {
       document.removeEventListener("keydown", onDom);
       document.removeEventListener("keyup", onDom);
@@ -327,6 +337,7 @@ export function App() {
       window.removeEventListener(SENT_EVENT, onSent);
       forwarded.then((f) => f());
       mouse.then((f) => f());
+      mapList.then((f) => f());
       menu.then((f) => f());
     };
   }, []);
@@ -381,6 +392,7 @@ export function App() {
         break;
       case "list":
         s.list = ev.active ? (ev.lines ?? []) : undefined;
+        s.listChecked = undefined;
         break;
       case "worldMoved":
         // 移動先から #ex-notice が届くまで(Philly の RewriteSaveData)
@@ -409,8 +421,18 @@ export function App() {
   const update = (session: number, f: (t: Tab) => Tab) =>
     setTabs((ts) => ts.map((t) => (t.session === session ? f(t) : t)));
 
+  // チェックは map 窓のリストにも出す
   const updateList = (session: number, f: (l: ListState) => ListState) =>
-    update(session, (t) => (t.list ? { ...t, list: f(t.list) } : t));
+    update(session, (t) => {
+      if (!t.list) return t;
+      const list = f(t.list);
+      const s = mapStates.current.get(session);
+      if (s && s.listChecked !== list.checked) {
+        s.listChecked = list.checked;
+        if (session === activeRef.current) sendMapState(session);
+      }
+      return { ...t, list };
+    });
 
   /**
    * 発言と priv が届いた時の知らせ(Philly.ini の [TaskBarFlash])。
