@@ -18,7 +18,7 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
   - [x] Alt+S(看板の検索)、Shift+Alt+C・A・U。語や数を聞くダイアログ(AskDialog)を作り、支払い金額にも使う #3 #40
   - [ ] 系統魔法の前に武器を外す処理(AutoUnequipSystemMagic)#4
 - [x] マップのクリックで移動、右クリックで攻撃(Philly の `MapForm.cpp` の MouseDirection)。押している間はマウスの向きへ進む
-  - [ ] マウスカーソルをスキンの `Cursor/*.cur` にする(今はブラウザ標準の矢印のカーソル)#5
+  - [x] マウスカーソルをスキンの `Cursor/*.cur` にする #5
   - [x] 北固定で Shift か Ctrl を押しながらマウスを向けると、その向きを向く(NorthFixTurn)#6
 
 ## P3: 入力と会話
@@ -44,9 +44,9 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 - [x] s-edit(1行入力)と m-edit(看板などの複数行入力。Philly の MEditForm)。S(write)から開く。s-edit は Philly と同じく入力欄で答える
   - [ ] タグメニュー(`TagMenu.xml`)とタグの無効化 #11
 - [x] priv(Philly の PrivForm)。相手の組ごとに会話を分け、`priv <番号> /*to=相手*/本文` を相手ごとと自分に送る。3人以上の会話も宛先のタグで見分ける。`#ulist` で番号を取り直す
-  - [ ] `#ulist` の返事を待ってから送る(Philly の RequestUlistWait は最大 60 秒待つ。今は手元の一覧で送る)#12
+  - [x] `#ulist` の返事を待ってから送る(Philly の RequestUlistWait は最大 60 秒待つ)#12
 - [x] EagleEye 窓(Philly の EagleEyeForm)。受けたら窓を出す。人のマス(属性 0x58)には t_man を重ねる(Philly はスキンの既定グラ「人・銅像」。作者の指定で変えた)
-  - [ ] `#mapset-define` のチップ定義(属性の下位2ビット)。マップ本体も未対応 #13
+  - [x] `#mapset-define` のチップ定義(属性の下位2ビット)。EagleEye はまだ #mapset のチップだけ #13
   - [x] アイテムのマスを Philly と同じくチップ 19 で描く #14
 - [x] 世界移動(`#ch-srv` → `#reserve` → `#rsv-ok` → `#trans` → `#trs-ok` → `#ch-srv-ok`)。Philly の `PersonalThread.cpp` classTransportCharacter に合わせた(移動後は `#open` を送らない、失敗時の通知先も Philly と同じ)。移動先は登録したキャラにも書き戻す
 - [x] `#more` の間は `#end-more` 以外の行をログにし、コマンドとして解析しない(Philly の `PersonalThread.cpp:707-858`)。看板に `#ch-srv` を書かれると、読んだ人がキャラ ID を外部のサーバへ送ってしまう為。Python 版との差なので、正解データには `#more` の中の `#` の行を入れない
@@ -59,18 +59,18 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 - [x] LANU 系のグラフィックスを使わない(作者の指定)。同梱スキンから消し、同梱の `Index.txt` の既定グラを PCGL のキャラグラ(t_man・t_elf・t_dog・t_fightery・t_golem1・tak_bslime)に付け替えた。利用者の Philly フォルダにあっても読まない
 
 - [x] メニューバー(`MainForm.dfm` の構成、`Style/Menu.txt` で表示を切り替える)。ファイル・操作・行動・魔法・表示の項目はキーと同じ操作にした
-  - [ ] キャラクターとツールのメニュー、操作のメニューの大声・全タブ・ログ保存の切り替え #16
-- [ ] 窓の吸い付きと位置記憶(Windows のみ)#17
+  - [x] キャラクターとツールのメニュー、操作のメニューの大声・全タブ・ログ保存の切り替え #16
+- [ ] 窓の吸い付きと位置記憶(Windows のみ)。位置と大きさの記憶は済み(tauri-plugin-window-state)#17
 - [x] 設定画面と `Philly.ini` の取り込み。今の項目はフルキー移動、リピートの時間、F8〜F12、Alt+G。設定フォルダの `settings.json` に置く
   - [ ] 他の項目(ログ表示、通知、フォントなど)の設定と取り込み #18
 - [x] 効果音。Philly フォルダの `Config/SoundRegexp.ini` と `SoundFile.ini` を読み、受信した行に最初に一致した規則の WAV を鳴らす(ファイルが空ならタスクバーの点滅)。設定で切り替える
   - [x] `#more` の間は鳴らさない(Philly は #more の外だけで照合する)#19
 - [ ] BGM(MIDI)#20
 - [x] タスクバーの点滅と裏タブの未読表示。発言と priv が届いた時だけ(GtOnly=on)、大声では点滅しない(Loud=off)
-  - [ ] 点滅させない正規表現(`NotTaskBarFlashRegexp.ini`)と、裏タブで HP・MP が減った時の印 #21
+  - [x] 点滅させない正規表現(Philly が読むのは `NotFlashRegexp.ini`)と、裏タブで HP・MP が減った時の印 #21
 - [x] 「ログを固定」の切り替え(ログを最下行に固定する。既定 on。off は Philly の「ログスクロール停止」)。スクロールバーを常に出す
 - [x] ログの保存(LogAutoSave)。入力欄のツールバーでタブごとに切り替え、`<アプリのログフォルダ>/<表示名>/<yyyymmdd>.html` に Log.css 付きで書く
-  - [ ] テキストでの保存(LogSaveHtml=off)と、保存フォルダを開くボタン #22
+  - [x] テキストでの保存(LogSaveHtml=off)と、保存フォルダを開くボタン #22
 
 ## P5
 
