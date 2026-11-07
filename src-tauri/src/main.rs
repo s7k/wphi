@@ -113,6 +113,18 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     #[test]
+    fn dir_name_is_safe_on_windows() {
+        use super::dir_name;
+        assert_eq!(dir_name("勇者/A:B"), "勇者_A_B");
+        assert_eq!(dir_name(" a. "), "a");
+        assert_eq!(dir_name(".."), "_");
+        assert_eq!(dir_name("con"), "con_");
+        assert_eq!(dir_name("NUL.txt"), "NUL.txt_");
+        assert_eq!(dir_name("COM1"), "COM1_");
+        assert_eq!(dir_name("COMET"), "COMET");
+    }
+
+    #[test]
     fn finds_the_folder_the_user_put_the_app_in() {
         assert_eq!(
             app_folder(Path::new("/Users/a/WPHI/WPHI.app/Contents/MacOS/wphi"), None),
@@ -336,8 +348,19 @@ fn disconnect(session: u32, sessions: State<'_, Sessions>) {
     sessions.senders.lock().unwrap().remove(&session);
 }
 
-/// ログの保存先のフォルダ(`<アプリのログフォルダ>/<表示名>`)。表示名はファイル名に使えない文字を置き換える。
+/// ログの保存先のフォルダ(`<アプリのログフォルダ>/<表示名>`)。
 fn log_dir(app: &tauri::AppHandle, label: &str) -> Result<std::path::PathBuf, String> {
+    Ok(app
+        .path()
+        .app_log_dir()
+        .map_err(|e| e.to_string())?
+        .join(dir_name(label)))
+}
+
+/// 表示名をフォルダ名にする。ファイル名に使えない文字は `_` にし、前後の `.` と空白を落とす
+/// (Windows は末尾の `.` と空白を落とすので、`a.` が `a` と同じフォルダになる)。
+/// `CON`・`NUL` などの Windows の予約名は、デバイスを指してしまうので `_` を足す。
+fn dir_name(label: &str) -> String {
     let safe: String = label
         .chars()
         .map(|c| {
@@ -348,15 +371,23 @@ fn log_dir(app: &tauri::AppHandle, label: &str) -> Result<std::path::PathBuf, St
             }
         })
         .collect();
-    let safe = safe.trim_matches('.').trim();
-    let safe = if safe.is_empty() { "_" } else { safe };
-    Ok(app.path().app_log_dir().map_err(|e| e.to_string())?.join(safe))
+    let safe = safe.trim_matches(|c: char| c == '.' || c.is_whitespace());
+    if safe.is_empty() {
+        return "_".into();
+    }
+    let stem = safe.split('.').next().unwrap_or(safe).to_ascii_uppercase();
+    let reserved = ["CON", "PRN", "AUX", "NUL"].contains(&stem.as_str())
+        || (stem.len() == 4
+            && (stem.starts_with("COM") || stem.starts_with("LPT"))
+            && stem.as_bytes()[3].is_ascii_digit());
+    if reserved { format!("{safe}_") } else { safe.into() }
 }
 
 /// ログを日ごとの HTML に足す(Philly の LogAutoSave と LogSaveHtml=on)。`date` は UI が決めた利用者の地域の日付(yyyymmdd)。
 /// 新しいファイルにはスキンの Log.css を埋め込み、ブラウザで開いた時もログ欄と同じ見た目にする。
+// async にして、メインスレッドの外でファイルを開く(1行ごとに呼ぶので、同期だと UI を止める)
 #[tauri::command]
-fn append_log(app: tauri::AppHandle, label: String, date: String, html: String) -> Result<String, String> {
+async fn append_log(app: tauri::AppHandle, label: String, date: String, html: String) -> Result<String, String> {
     use std::io::Write;
     if date.len() != 8 || !date.bytes().all(|b| b.is_ascii_digit()) {
         return Err(format!("日付が不正: {date}"));
