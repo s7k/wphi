@@ -187,6 +187,10 @@ export function App() {
       case "mode":
         s.mode = ev;
         break;
+      case "worldMoved":
+        // 移動先から #ex-notice が届くまで(Philly の RewriteSaveData)
+        s.world = s.area = "???";
+        break;
       case "notice":
         if (ev.mapset !== undefined) s.mapset = ev.mapset;
         else if (ev.world !== undefined) s.world = ev.world;

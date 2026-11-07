@@ -31,7 +31,7 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 - [ ] s-edit(1行入力)と m-edit(看板などの複数行入力。Philly の MEditForm)。S(write)から開く
 - [ ] priv 窓(Philly の PrivForm)。相手ごとに窓を開き、`priv <番号> <本文>` で送る
 - [ ] EagleEye 窓(Philly の EagleEyeForm)
-- [ ] 世界移動(`#ch-srv` → `#reserve` → `#rsv-ok` → `#trans` → `#trs-ok` → `#ch-srv-ok`)。phi-client-web の `session.py` から移植する
+- [x] 世界移動(`#ch-srv` → `#reserve` → `#rsv-ok` → `#trans` → `#trs-ok` → `#ch-srv-ok`)。Philly の `PersonalThread.cpp` classTransportCharacter に合わせた(移動後は `#open` を送らない、失敗時の通知先も Philly と同じ)。移動先は登録したキャラにも書き戻す
 - [ ] `#more` の間は `#` で始まる行をコマンドとして解析しない(Philly の `PersonalThread.cpp:1040`)。Python 版との差になるので、正解データの扱いも決める
 
 ## P4

@@ -141,7 +141,19 @@ fn connect(
     let no = sessions.next.fetch_add(1, Ordering::Relaxed);
     let (tx, rx) = mpsc::channel(64);
     sessions.senders.lock().unwrap().insert(no, tx);
+    let store = store_path(&app)?;
     tauri::async_runtime::spawn(session::run(Login { host, port, id }, rx, move |ev| {
+        // 世界移動したら、登録したキャラの接続先を書き換える(Philly の RewriteSaveData)
+        if let UiEvent::Ui(session::UiOnly::WorldMoved { host, port }) = &ev {
+            let mut s = Store::load(&store);
+            if let Some(c) = s.characters.iter_mut().find(|c| c.label == label) {
+                c.host = host.clone();
+                c.port = *port;
+            }
+            if let Err(e) = s.save(&store) {
+                eprintln!("接続先を保存出来ません: {e}");
+            }
+        }
         // UI の窓が閉じていれば送れないだけなので、失敗は無視する
         let _ = on_event.send(ev);
     }));
