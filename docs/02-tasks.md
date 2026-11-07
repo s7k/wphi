@@ -52,6 +52,9 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 
 ## P4
 
+- [x] 拡張マップ(マッピング)。phi-client-web の automapStore から移植した。サーバが絶対座標(`#ex-pos`。朱蓮だけ)を付けた 7×7 の北固定マップの地形を世界ごとに localStorage へ貯め、通常マップの外周に暗くして敷く。外周の幅はマップの欄に等倍で収まる分だけ(最大4マス)
+  - [ ] 貯めた地図を消す操作
+
 - [x] LANU 系のグラフィックスを使わない(作者の指定)。同梱スキンから消し、同梱の `Index.txt` の既定グラを PCGL のキャラグラ(t_man・t_elf・t_dog・t_fightery・t_golem1・tak_bslime)に付け替えた。利用者の Philly フォルダにあっても読まない
 
 - [x] メニューバー(`MainForm.dfm` の構成、`Style/Menu.txt` で表示を切り替える)。ファイル・操作・行動・魔法・表示の項目はキーと同じ操作にした

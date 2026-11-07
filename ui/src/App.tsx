@@ -9,6 +9,7 @@ import { SENT_EVENT } from "./keyInput";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, menuAction, moveInput } from "./keys.ts";
 import { assetUrl } from "./asset";
+import { absorb, loadTiles, saveTiles, type Tiles } from "./automap.ts";
 import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, shortcutText, type Settings } from "./settings.ts";
 import { SettingsPanel } from "./SettingsPanel";
@@ -293,11 +294,22 @@ export function App() {
     };
   }, []);
 
+  // 拡張マップの記録(世界名 → 地形)。保存した先の localStorage を map 窓が読む
+  const automaps = useRef(new Map<string, Tiles>());
+  function recordAutomap(world: string, ev: Extract<UiEvent, { type: "map" }>) {
+    const prev = automaps.current.get(world) ?? loadTiles(world);
+    const next = absorb(prev, ev);
+    automaps.current.set(world, next ?? prev);
+    if (next) saveTiles(world, next);
+  }
+
   function onMapEvent(session: number, ev: UiEvent) {
     const s = mapStates.current.get(session) ?? { session, mapset: "" };
     switch (ev.type) {
       case "map":
         s.map = ev;
+        // 拡張マップ。世界ごとに見えた地形を貯める。盲目中は視界が霧で埋まるので貯めない
+        if (s.world && s.world !== "???" && !s.cond?.blind) recordAutomap(s.world, ev);
         if (session === activeRef.current) mover.current?.onMap();
         break;
       case "status":

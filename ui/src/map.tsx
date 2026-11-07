@@ -8,6 +8,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { assetUrl } from "./asset";
+import { AUTOMAP_RING, compose, loadTiles, storageKey, type Tiles } from "./automap.ts";
 import { drawMap, type ImageRefs } from "./drawMap";
 import { KEY_EVENT, MOUSE_EVENT, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { mouseDir } from "./mouseDir.ts";
@@ -74,7 +75,33 @@ function MapWindow() {
   }, []);
 
   const map = state?.map;
-  const dim = map ? gridDim(map.size) : 7;
+
+  // 拡張マップ。main 窓が localStorage に貯めた地形を、通常マップの外周に暗くして敷く。
+  // 拡大縮小はしないので、外周の幅はマップの欄に等倍で収まる分だけ(最大 AUTOMAP_RING)
+  const world = state?.world;
+  const [tiles, setTiles] = useState<Tiles>({});
+  useEffect(() => {
+    if (!world) return;
+    setTiles(loadTiles(world));
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === storageKey(world)) setTiles(loadTiles(world));
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [world]);
+  const [ring, setRing] = useState(0);
+  useEffect(() => {
+    const el = mapCanvas.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const cells = Math.floor(Math.min(el.clientWidth, el.clientHeight) / CHIP_SIZE);
+      setRing(Math.max(0, Math.min(AUTOMAP_RING, Math.floor((cells - 7) / 2))));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const automap = map ? compose(map, tiles, ring) : null;
+  const dim = automap?.dim ?? (map ? gridDim(map.size) : 7);
   const northFix = !map || (map.size === 7 && map.style !== "turn");
 
   // マップのマウス操作。左ボタンでその向きへ進み、右ボタンで hit(Philly の MapForm.cpp)
@@ -126,7 +153,21 @@ function MapWindow() {
       items: image(assetUrl("items")),
       chara: image,
     };
-    drawMap(ctx, { size: map.size, mapset: state.mapset, cells: map.cells, chars: map.chars }, imgs, frame);
+    if (!automap) {
+      drawMap(ctx, { size: map.size, mapset: state.mapset, cells: map.cells, chars: map.chars }, imgs, frame);
+      return;
+    }
+    drawMap(
+      ctx,
+      { size: map.size, dim: automap.dim, mapset: state.mapset, cells: automap.cells, chars: automap.chars },
+      imgs,
+      frame,
+    );
+    // 記録地図から描いたマスを暗くし、今見えているマスと見分ける
+    ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+    automap.recalled.forEach((on, i) => {
+      if (on) ctx.fillRect((i % automap.dim) * CHIP_SIZE, Math.floor(i / automap.dim) * CHIP_SIZE, CHIP_SIZE, CHIP_SIZE);
+    });
   });
 
   // 名前の一覧は上の行から順に並べる(CharacterNameList.cpp の SetNameList)
