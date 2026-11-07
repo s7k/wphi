@@ -254,17 +254,19 @@ PCGL は、同じ PCGL で配布する事を条件に、変更した二次著作
 
 ### 6.1 窓
 
-Philly の窓をそのまま Tauri の窓にする。
+Tauri の窓は main・map・eagleeye の3枚にする。
 マップ窓は Philly と同じく1枚だけ作り(`Philly.cpp:83`)、アクティブなタブのキャラを表示する。
+map と eagleeye は、閉じるボタンで破棄せずに隠す。
 
 | 窓 | Philly | 内容 |
 |---|---|---|
 | main | `MainForm.dfm` | メニューバー、キャラのタブ、ログ、入力欄、ステータスバー |
 | map | `MapForm.dfm` | マップ、横の領域、HP/MP とステータスのパネル、ステータスバー |
 | eagleeye | `EagleEyeForm.dfm` | EagleEye の俯瞰マップ |
-| priv | `PrivForm.dfm` | 相手ごとのプライベート発言 |
-| medit | `MEditForm.dfm` | 看板などの複数行入力 |
-| settings | (Philly は INI を直接編集) | 設定画面 |
+
+Philly で別窓だった priv(`PrivForm.dfm`)、看板エディタ(`MEditForm.dfm`)、リスト、設定は、main 窓の中に置く。
+priv は main 窓の右、看板エディタ・リスト・設定はログ欄の上に重ねる。
+別窓にする案もあったが、実際に使って main 窓の中で足りると判断した(2026-11-07)。
 
 `Philly.ini` の `MapOverlapMain` などで指定する「メイン窓より常に上」は、Tauri の窓の親子関係で実現する。
 
