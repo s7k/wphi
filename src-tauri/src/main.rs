@@ -2,6 +2,7 @@
 
 mod assets;
 mod characters;
+mod menu;
 mod register;
 mod session;
 mod settings;
@@ -391,11 +392,30 @@ fn main() {
         .setup(|app| {
             app.manage(Mutex::new(Arc::new(load_assets(app.handle())?)));
             app.manage(Mutex::new(Arc::new(load_sounds(app.handle()))));
+            // メニューバーは main 窓だけに付ける
+            let menu_txt = app
+                .path()
+                .resource_dir()
+                .ok()
+                .and_then(|d| std::fs::read(d.join("phi/Skins/Mine/Style/Menu.txt")).ok())
+                .map(|b| phi_proto::codec::decode(&b))
+                .unwrap_or_default();
+            if let Some(main) = app.get_webview_window("main") {
+                main.set_menu(menu::build(app.handle(), &menu_txt)?)?;
+            }
             #[cfg(target_os = "linux")]
             if let Some(window) = app.get_webview_window("main") {
                 enable_ime_preedit(&window);
             }
             Ok(())
+        })
+        .on_menu_event(|app, event| {
+            use tauri::Emitter;
+            if event.id().0 == "exit" {
+                app.exit(0);
+                return;
+            }
+            let _ = app.emit_to("main", menu::MENU_EVENT, event.id().0.clone());
         })
         .register_uri_scheme_protocol("phi-asset", |ctx, req| {
             asset_response(ctx.app_handle(), &req.uri().to_string())

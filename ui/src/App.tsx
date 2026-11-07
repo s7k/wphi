@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, type ForwardedKey } from "./keyInput";
-import { keyAction, listKeyAction, moveInput } from "./keys.ts";
+import { keyAction, listKeyAction, menuAction, moveInput } from "./keys.ts";
 import { assetUrl } from "./asset";
 import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, shortcutText, type Settings } from "./settings.ts";
@@ -240,6 +240,17 @@ export function App() {
     document.addEventListener("keyup", onDom);
     window.addEventListener("blur", onBlur);
     const forwarded = listen<ForwardedKey>(KEY_EVENT, (e) => onKey(e.payload));
+    // メニューバー(src-tauri/src/menu.rs)
+    const menu = listen<string>("phi-menu", (e) => {
+      const id = e.payload;
+      const session = activeRef.current;
+      if (id === "settings") return setSettingsOpen(true);
+      if (session === null) return;
+      if (id === "priv") return update(session, (t) => ({ ...t, privOpen: !t.privOpen }));
+      const action = menuAction(id);
+      const openBoard = () => update(session, (t) => ({ ...t, board: true }));
+      if (action) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap });
+    });
     // マップのマウス操作(Philly の MapForm.cpp の FormMouseDown)
     const mouse = listen<ForwardedMouse>(MOUSE_EVENT, (e) => {
       const m = e.payload;
@@ -256,6 +267,7 @@ export function App() {
       window.removeEventListener("blur", onBlur);
       forwarded.then((f) => f());
       mouse.then((f) => f());
+      menu.then((f) => f());
     };
   }, []);
 

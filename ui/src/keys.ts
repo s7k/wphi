@@ -273,3 +273,41 @@ export function listKeyAction(e: KeyInput, ctx: KeyContext): ListKeyAction | nul
   if (digit) return { send: digit[1] };
   return LIST[n.code] ?? null;
 }
+
+/** メニューバーの項目(src-tauri/src/menu.rs の id) → キーと同じ操作。設定とプリブは App が受け持つ */
+export function menuAction(id: string): KeyAction | null {
+  const send = (s: string): KeyAction => ({ send: s });
+  const table: Record<string, KeyAction> = {
+    get: NONE.KeyZ,
+    put: NONE.KeyX,
+    use: NONE.KeyC,
+    sort: NONE.KeyV,
+    floor: NONE.KeyF,
+    read: NONE.KeyA,
+    write: NONE.KeyS,
+    erase: NONE.KeyD,
+    board: NONE.KeyB,
+    pay: NONE.KeyP,
+    spells: NONE.KeyR,
+    equip: NONE.KeyQ,
+    unequip: NONE.KeyW,
+    check: NONE.KeyM,
+    skills: send("skills"),
+    "wizard-eye": ALT.KeyW,
+    "wizard-light": SHIFT_ALT.KeyW,
+    list: SHIFT_ALT.KeyL,
+    "eagle-eye": ALT.KeyE,
+    identify: ALT.KeyI,
+    "wizard-lock": ALT.KeyL,
+    unlock: ALT.KeyU,
+    detect: ALT.KeyD,
+    create: ALT.KeyC,
+    destroy: SHIFT_ALT.KeyD,
+    analyze: ALT.KeyA,
+    forget: ALT.KeyF,
+    call: ALT.KeyB,
+    return: ALT.KeyR,
+    map: SHIFT.F5,
+  };
+  return table[id] ?? null;
+}
