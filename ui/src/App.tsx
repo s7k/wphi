@@ -149,26 +149,17 @@ function LogView(props: { lines: string[] }) {
 }
 
 function InputLine(props: { session: number; disabled: boolean }) {
-  const [text, setText] = useState("");
-
+  // value を React に持たせない。ログが届くたびの再描画で value を書き戻すと、WebKitGTK が変換中の文字を消す
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    // IME の変換確定の Enter では送らない
-    if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+    // IME の変換確定の Enter では送らない。WebKit は確定の keydown で isComposing を false にし、keyCode 229 を返す
+    if (e.key !== "Enter" || e.nativeEvent.isComposing || e.keyCode === 229) return;
     e.preventDefault();
-    invoke("send_line", { session: props.session, text }).catch((err) => console.error(err));
-    setText("");
+    const input = e.currentTarget;
+    invoke("send_line", { session: props.session, text: input.value }).catch((err) => console.error(err));
+    input.value = "";
   }
 
-  return (
-    <input
-      className="input-line"
-      value={text}
-      disabled={props.disabled}
-      onChange={(e) => setText(e.target.value)}
-      onKeyDown={onKeyDown}
-      autoFocus
-    />
-  );
+  return <input className="input-line" disabled={props.disabled} onKeyDown={onKeyDown} autoFocus />;
 }
 
 function ConnectForm(props: { onConnect: (host: string, port: number, id: string) => void }) {

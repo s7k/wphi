@@ -15,6 +15,10 @@ cargo test --workspace
 npm run tauri dev   # アプリを起動する
 ```
 
+GNOME(Wayland)と ibus の組み合わせでは、Wayland のままだと IME の変換候補がカーソルから離れた位置に出る。
+この為 Linux では、`GDK_BACKEND` と `GTK_IM_MODULE` が未設定ならアプリが `x11` と `ibus` を選ぶ(`src-tauri/src/main.rs` の `prefer_x11_ime`)。
+`GTK_IM_MODULE` は `XMODIFIERS` が ibus を指す時だけ設定する。
+
 ## 構成
 
 | ディレクトリ | 内容 |

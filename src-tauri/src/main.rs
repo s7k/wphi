@@ -57,7 +57,27 @@ fn log_css(app: tauri::AppHandle) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// GNOME(Wayland)と ibus では、Wayland のまま動かすと IME の変換候補がカーソルから離れた位置に出る。
+/// X11(XWayland)で動かし、GTK の ibus モジュールを使うと正しい位置に出る。
+/// 利用者が指定した値は変えない。
+#[cfg(target_os = "linux")]
+fn prefer_x11_ime() {
+    let unset = |k| std::env::var_os(k).is_none();
+    // SAFETY: GTK とスレッドを起動する前に呼ぶ
+    unsafe {
+        if unset("GDK_BACKEND") {
+            std::env::set_var("GDK_BACKEND", "x11");
+        }
+        if unset("GTK_IM_MODULE") && std::env::var("XMODIFIERS").is_ok_and(|v| v.contains("ibus")) {
+            std::env::set_var("GTK_IM_MODULE", "ibus");
+        }
+    }
+}
+
 fn main() {
+    #[cfg(target_os = "linux")]
+    prefer_x11_ime();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(Sessions::default())
