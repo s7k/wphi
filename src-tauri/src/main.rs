@@ -601,6 +601,15 @@ fn main() {
             tauri::async_runtime::spawn_blocking(move || responder.respond(asset_response(&app, &uri)));
         })
         .plugin(tauri_plugin_opener::init())
+        // 窓の位置と大きさを覚え、次に開いた時に戻す(#17)。map と EagleEye は閉じると隠すだけなので、
+        // 見えているかは戻さない(起動した時に EagleEye が出てしまう)
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all() - tauri_plugin_window_state::StateFlags::VISIBLE,
+                )
+                .build(),
+        )
         // 窓が自分のページ以外へ移らないようにする(#49)。リンクは UI が既定のブラウザで開く
         .plugin(
             tauri::plugin::Builder::<tauri::Wry>::new("stay-in-app")
