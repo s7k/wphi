@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { privLines, privPartners, usersFromEvent } from "./priv.ts";
+import { capConvs, privLines, privPartners, usersFromEvent } from "./priv.ts";
 
 const users = usersFromEvent([
   { key: "u3", name: "自分" },
@@ -26,4 +26,12 @@ test("送る行", () => {
     failed: ["いない人"],
   });
   assert.deepEqual(privLines(["いない人"], "x", users, "自分"), { lines: [], failed: ["いない人"] });
+});
+
+test("会話が上限を超えたら、表示中でない一番古い会話を捨てる(#53)", () => {
+  const convs = [{ to: ["A"] }, { to: ["B"] }, { to: ["C"] }];
+  assert.deepEqual(capConvs(convs, "B", 3), convs);
+  assert.deepEqual(capConvs(convs, "B", 2), [{ to: ["B"] }, { to: ["C"] }]);
+  // 一番古いのが表示中なら、その次を捨てる
+  assert.deepEqual(capConvs(convs, "A", 2), [{ to: ["A"] }, { to: ["C"] }]);
 });

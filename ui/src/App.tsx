@@ -14,7 +14,7 @@ import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, shortcutText, type Settings } from "./settings.ts";
 import { SettingsPanel } from "./SettingsPanel";
 import { NewCharacter } from "./NewCharacter";
-import { partnersKey, privLines, privPartners, usersFromEvent, type User } from "./priv.ts";
+import { capConvs, partnersKey, privLines, privPartners, usersFromEvent, type User } from "./priv.ts";
 import { PrivPanel, type PrivConv } from "./PrivPanel";
 import { ListOverlay } from "./ListOverlay";
 import { listNo, listOk, moreNo, newList, type ListState } from "./list.ts";
@@ -429,7 +429,8 @@ export function App() {
             partnersKey(c.to) === key ? { ...c, lines: pushLine(c.lines, line), unread: t.privActive !== key } : c,
           )
         : [...t.privs, { to, lines: pushLine([], line), unread: true }];
-      return { ...t, privs, privOpen: true, privActive: t.privActive ?? key };
+      const active = t.privActive ?? key;
+      return { ...t, privs: capConvs(privs, active), privOpen: true, privActive: active };
     });
   }
 

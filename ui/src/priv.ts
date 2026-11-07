@@ -25,6 +25,16 @@ export function privPartners(from: string, html: string, self: string): string[]
 
 export const partnersKey = (to: string[]) => [...to].sort().join("\n");
 
+/** 会話の数の上限。宛先のタグを変えながら送られても、会話が増え続けないようにする(#53) */
+export const MAX_CONVS = 50;
+
+/** 上限を超えたら、表示中でない会話のうち一番古く作った物を捨てる(会話は作った順に並ぶ) */
+export function capConvs<T extends { to: string[] }>(convs: T[], active: string | null, max = MAX_CONVS): T[] {
+  if (convs.length <= max) return convs;
+  const drop = convs.findIndex((c) => partnersKey(c.to) !== active);
+  return convs.filter((_, i) => i !== drop);
+}
+
 /** 送る行。相手ごとに priv <番号> を付け、宛先のタグを前置する。番号の分からない相手は失敗として返す */
 export function privLines(to: string[], text: string, users: User[], self: string): { lines: string[]; failed: string[] } {
   const no = (name: string) => users.find((u) => u.name === name)?.no;
