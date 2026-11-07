@@ -336,6 +336,11 @@ impl EagleEyeAccum {
     }
 }
 
+/// リストの行の上限。実際のリストは数十行。
+const MAX_LIST_LINES: usize = 1000;
+/// 1フレームのキャラの上限。15x15 のマップに 1マス数人でも足りる。
+const MAX_MAP_CHARS: usize = 1000;
+
 /// 状態を持つ行パーサ。1行から0個以上のイベントを返す。
 #[derive(Default)]
 pub struct Parser {
@@ -415,7 +420,10 @@ impl Parser {
         }
 
         if self.in_list {
-            self.list_lines.push(decode(raw));
+            // `#end-list` が来ないまま増え続けないよう上限を置く(#52)
+            if self.list_lines.len() < MAX_LIST_LINES {
+                self.list_lines.push(decode(raw));
+            }
             return Vec::new();
         }
 
@@ -750,6 +758,9 @@ impl Parser {
             self.chara_clear_pending = false;
         }
         let magnify = self.name_magnify.iter().find(|(n, _)| *n == name).map(|&(_, m)| m);
+        if self.map_chars.len() >= MAX_MAP_CHARS {
+            return;
+        }
         self.map_chars.push(Chara {
             id,
             x,
