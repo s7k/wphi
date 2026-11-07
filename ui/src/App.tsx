@@ -386,11 +386,12 @@ export function App() {
     });
   }
 
-  // #ulist は 10 秒に1回まで(PrivForm.cpp の RequestUlistWait)
-  const lastUlist = useRef(0);
+  // #ulist はセッションごとに 10 秒に1回まで(PrivForm.cpp の RequestUlistWait)
+  const lastUlist = useRef(new Map<number, number>());
   function requestUlist(session: number) {
-    if (performance.now() - lastUlist.current < 10_000) return;
-    lastUlist.current = performance.now();
+    const now = performance.now();
+    if (now - (lastUlist.current.get(session) ?? -Infinity) < 10_000) return;
+    lastUlist.current.set(session, now);
     sendLine(session, "#ulist");
   }
 
