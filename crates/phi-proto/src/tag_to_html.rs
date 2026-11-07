@@ -8,8 +8,26 @@
 //! - `color=` と `font=` の値に使える文字を絞る
 //! - `/*img=...*/` の画像は `http://` と `https://` だけを許す
 
-use fancy_regex::{Captures, Regex};
+use fancy_regex::{Captures, Regex, Replacer};
+use std::borrow::Cow;
 use std::sync::LazyLock;
+
+/// 置き換え。backtrack の上限を超えたら置き換えずに返す。
+/// fancy-regex の `replace` 系は上限を超えると panic し、受信のタスクごと落ちる。
+/// 看板の本文などで、読んだ人の接続を黙って切らせない為(#48)
+trait TryReplace {
+    fn sub_all<'t, R: Replacer>(&self, t: &'t str, rep: R) -> Cow<'t, str>;
+    fn sub1<'t, R: Replacer>(&self, t: &'t str, rep: R) -> Cow<'t, str>;
+}
+
+impl TryReplace for Regex {
+    fn sub_all<'t, R: Replacer>(&self, t: &'t str, rep: R) -> Cow<'t, str> {
+        self.try_replacen(t, 0, rep).unwrap_or(Cow::Borrowed(t))
+    }
+    fn sub1<'t, R: Replacer>(&self, t: &'t str, rep: R) -> Cow<'t, str> {
+        self.try_replacen(t, 1, rep).unwrap_or(Cow::Borrowed(t))
+    }
+}
 
 /// ログ表示の設定。既定値は Philly の `Config.cpp` と同じ。
 #[derive(Debug, Clone)]
@@ -99,23 +117,23 @@ pub fn to_html(text: &str, opts: &LogOptions) -> String {
         "もなりざ",
         r#"<font style="font-family:webdings;font-size:500%;line-height:100%">&#0159;</font>"#,
     );
-    t = BR_TAG.replace_all(&t, r#"<br class="phi_tag">"#).into_owned();
+    t = BR_TAG.sub_all(&t, r#"<br class="phi_tag">"#).into_owned();
     t = font_tags(&t, loud, opts);
 
     if IMG_WND.is_match(&t).unwrap_or(false) {
-        t = IMG_WND.replace_all(&t, "<!--$1-->").into_owned();
+        t = IMG_WND.sub_all(&t, "<!--$1-->").into_owned();
     } else if let Some(with_images) = image_tags(&t, loud, opts) {
         t = with_images;
     } else if opts.url_link {
-        t = outside_tags(&t, |s| URL.replace_all(s, r#"<a href="$1">$1</a>"#).into_owned());
+        t = outside_tags(&t, |s| URL.sub_all(s, r#"<a href="$1">$1</a>"#).into_owned());
     }
 
-    t = EMPTY_TAG.replace_all(&t, "<!---->").into_owned();
-    t = TO_TAG.replace_all(&t, "<!--$1-->").into_owned();
+    t = EMPTY_TAG.sub_all(&t, "<!---->").into_owned();
+    t = TO_TAG.sub_all(&t, "<!--$1-->").into_owned();
     if !opts.not_interpreted_tag_disp {
-        t = ANY_TAG.replace_all(&t, "<!--$1-->").into_owned();
+        t = ANY_TAG.sub_all(&t, "<!--$1-->").into_owned();
     }
-    t = NEWLINE.replace_all(&t, "<br />").into_owned();
+    t = NEWLINE.sub_all(&t, "<br />").into_owned();
 
     // 発言("名前 &gt; 本文")の本文だけタブを空白にする
     if let Some((head, body)) = t.split_once("&gt; ") {
@@ -126,7 +144,7 @@ pub fn to_html(text: &str, opts: &LogOptions) -> String {
     if let Some(rest) = t.strip_prefix(' ') {
         t = format!("&nbsp;{rest}");
     }
-    t = SPACE_AROUND_TAG.replace_all(&t, "$1&nbsp;").into_owned();
+    t = SPACE_AROUND_TAG.sub_all(&t, "$1&nbsp;").into_owned();
 
     change_name_font(&t)
 }
@@ -182,13 +200,13 @@ fn font_tags(text: &str, loud: bool, opts: &LogOptions) -> String {
 }
 
 fn font_open_tag(this: &str, loud: bool, opts: &LogOptions) -> String {
-    let mut class = CLASS_KEY.replace_all(this, "${1}_").into_owned();
-    class = CLASS_SIZE_PLUS.replace_all(&class, "size__").into_owned();
-    class = CLASS_HPMP.replace_all(&class, "${1}__$2").into_owned();
-    class = CLASS_777.replace_all(&class, "${1}_777").into_owned();
+    let mut class = CLASS_KEY.sub_all(this, "${1}_").into_owned();
+    class = CLASS_SIZE_PLUS.sub_all(&class, "size__").into_owned();
+    class = CLASS_HPMP.sub_all(&class, "${1}__$2").into_owned();
+    class = CLASS_777.sub_all(&class, "${1}_777").into_owned();
     if loud && !opts.large_disp_loud {
         // 大声では大きな文字を無効にする
-        class = CLASS_LOUD_SIZE.replace_all(&class, "size_${1}_").into_owned();
+        class = CLASS_LOUD_SIZE.sub_all(&class, "size_${1}_").into_owned();
     }
 
     let mut style = String::new();
@@ -238,7 +256,7 @@ fn image_tags(text: &str, loud: bool, opts: &LogOptions) -> Option<String> {
     let mut last_url = None;
     let mut out = outside_tags(&t, |s| {
         IMG_URL
-            .replace_all(s, |c: &Captures| {
+            .sub_all(s, |c: &Captures| {
                 last_url = Some(c[1].to_string());
                 if opts.image_link_disp {
                     format!(r#"<div><img src="{}" align="top" />"#, &c[1])
@@ -322,17 +340,30 @@ fn expand_tabs(text: &str, width: usize) -> String {
 
 /// 発言者名に `class_name` を付ける(Philly の `ChangeNameFont`)。
 fn change_name_font(html: &str) -> String {
-    let plain = HTML_TAG.replace_all(html, "");
+    let plain = HTML_TAG.sub_all(html, "");
     if !NAME_TEST.is_match(&plain).unwrap_or(false) {
         return html.to_string();
     }
-    NAME.replace(html, r#"<font class="class_name">$1</font> &gt;"#)
+    NAME.sub1(html, r#"<font class="class_name">$1</font> &gt;"#)
         .into_owned()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn replace_gives_up_instead_of_panicking() {
+        // backtrack の上限を小さくして、上限を超えさせる
+        let re = fancy_regex::RegexBuilder::new(r"(a+)+(?=b)")
+            .backtrack_limit(10)
+            .build()
+            .unwrap();
+        let text = "a".repeat(30) + "c";
+        assert!(re.try_replacen(&text, 0, "x").is_err());
+        assert_eq!(re.sub_all(&text, "x"), text);
+        assert_eq!(re.sub1(&text, "x"), text);
+    }
 
     fn html(text: &str) -> String {
         to_html(text, &LogOptions::default())
