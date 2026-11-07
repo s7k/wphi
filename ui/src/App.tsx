@@ -3,7 +3,10 @@ import { emitTo, listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 
-import { handleGameKey, isTextTarget } from "./keyInput";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isTextTarget, KEY_EVENT, keyContext, runKeyAction, sendLine, type ForwardedKey } from "./keyInput";
+import { keyAction, moveInput } from "./keys.ts";
+import { MoveRepeat } from "./moveRepeat.ts";
 import { MAP_STATE_EVENT, type MapState, type UiEvent } from "./protocol";
 
 // src-tauri/src/characters.rs の Store
@@ -95,27 +98,76 @@ export function App() {
     };
   }, []);
 
-  // 入力欄の外で押したキーは Philly の操作にする(MainForm.cpp の ApplicationEventsMessage)
+  // 入力欄の外で押したキーは Philly の操作にする(MainForm.cpp の ApplicationEventsMessage)。
+  // map 窓で押したキーも KEY_EVENT で届き、ここでまとめて処理する
   const tabsRef = useRef<Tab[]>([]);
   tabsRef.current = tabs;
+  const mover = useRef<MoveRepeat | null>(null);
   useEffect(() => {
-    const onKeyDown = (e: globalThis.KeyboardEvent) => {
-      if (e.isComposing || isTextTarget(e) || activeRef.current === null) return;
-      handleGameKey(e, mapStates.current.get(activeRef.current), {
-        focusInput: () => document.querySelector<HTMLInputElement>(".input-line")?.focus(),
-        nextTab: () => {
-          const ts = tabsRef.current;
-          if (ts.length === 0) return;
-          const i = ts.findIndex((t) => t.session === activeRef.current);
-          setActive(ts[(i + 1) % ts.length].session);
-        },
-      });
+    if (active === null) {
+      mover.current = null;
+      return;
+    }
+    const session = active;
+    mover.current = new MoveRepeat(
+      (text) => sendLine(session, text),
+      () => keyContext(mapStates.current.get(session)).northFix,
+    );
+    const timer = setInterval(() => mover.current?.tick(), 50);
+    return () => clearInterval(timer);
+  }, [active]);
+
+  useEffect(() => {
+    const focusInput = () => {
+      getCurrentWindow().setFocus();
+      document.querySelector<HTMLInputElement>(".input-line")?.focus();
     };
-    document.addEventListener("keydown", onKeyDown);
-    const focus = listen("phi-focus-input", () => document.querySelector<HTMLInputElement>(".input-line")?.focus());
+    const nextTab = () => {
+      const ts = tabsRef.current;
+      if (ts.length === 0) return;
+      const i = ts.findIndex((t) => t.session === activeRef.current);
+      setActive(ts[(i + 1) % ts.length].session);
+    };
+    /** 操作にしたら true */
+    const onKey = (e: ForwardedKey): boolean => {
+      const session = activeRef.current;
+      if (session === null) return false;
+      if (e.type === "blur") {
+        mover.current?.releaseAll();
+        return false;
+      }
+      const ctx = keyContext(mapStates.current.get(session));
+      const move = moveInput(e, ctx);
+      if (move) {
+        if (e.type === "keydown") mover.current?.keyDown(move.key, move.mods, e.repeat);
+        else mover.current?.keyUp(move.key);
+        return true;
+      }
+      if (e.type !== "keydown") return false;
+      const action = keyAction(e, ctx);
+      if (!action) return false;
+      // 押し続けによる自動リピートは送らない
+      if (!e.repeat) runKeyAction(action, session, { focusInput, nextTab });
+      return true;
+    };
+    const onDom = (e: globalThis.KeyboardEvent) => {
+      if (e.isComposing || isTextTarget(e)) {
+        // 入力欄へ移った後に離したキーで、移動キーが押されたままにならないようにする
+        if (e.type === "keyup") onKey({ ...pick(e), type: "keyup" });
+        return;
+      }
+      if (onKey({ ...pick(e), type: e.type as "keydown" | "keyup" })) e.preventDefault();
+    };
+    const onBlur = () => mover.current?.releaseAll();
+    document.addEventListener("keydown", onDom);
+    document.addEventListener("keyup", onDom);
+    window.addEventListener("blur", onBlur);
+    const forwarded = listen<ForwardedKey>(KEY_EVENT, (e) => onKey(e.payload));
     return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      focus.then((f) => f());
+      document.removeEventListener("keydown", onDom);
+      document.removeEventListener("keyup", onDom);
+      window.removeEventListener("blur", onBlur);
+      forwarded.then((f) => f());
     };
   }, []);
 
@@ -124,6 +176,7 @@ export function App() {
     switch (ev.type) {
       case "map":
         s.map = ev;
+        if (session === activeRef.current) mover.current?.onMap();
         break;
       case "status":
         s.status = ev;
@@ -164,6 +217,9 @@ export function App() {
       switch (ev.type) {
         case "log":
           append(session, ev.html);
+          // リピート移動中に壁に当たった時(Philly の PersonalThread.cpp の RecvCannotGo)
+          if (session === activeRef.current && /DM<\/font> &gt; (進めません\.|Can not go\.)/.test(ev.html))
+            mover.current?.onCannotGo();
           break;
         case "error":
           append(session, systemNg(ev.message));
@@ -213,6 +269,11 @@ export function App() {
       <div className="status-bar">{tab ? (tab.closed ? "切断" : "接続中") : "キャラ選択"}</div>
     </div>
   );
+}
+
+function pick(e: globalThis.KeyboardEvent) {
+  const { code, shiftKey, ctrlKey, altKey, metaKey, repeat } = e;
+  return { code, shiftKey, ctrlKey, altKey, metaKey, repeat };
 }
 
 function TabBar(props: {

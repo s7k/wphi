@@ -4,7 +4,7 @@
 // Philly は入力欄の外(ログ欄・マップ窓など)にフォーカスがある時だけキーを操作に使う。
 // キーは KeyboardEvent.code で判定する。key は IME やキー配列で値が変わる為である。
 //
-// ponytail: 2キー同時押しの斜め移動と、押し続けた時のリピート移動はまだ無い。押し続けても1回しか送らない
+// 移動キーは moveInput で取り出し、押し続けた時の処理は moveRepeat.ts が行う。
 
 /** 入力欄の外で押したキーに対する操作。 */
 export type KeyAction =
@@ -23,10 +23,10 @@ export type KeyContext = {
   fullKeyMove: boolean;
 };
 
-type Mods = "none" | "shift" | "ctrl";
+export type Mods = "none" | "shift" | "ctrl";
 
 /** テンキーと矢印キー → Philly の移動キー(Const.h の TMoveKeyNo) */
-type MoveKey = "2" | "4" | "5" | "6" | "7" | "8" | "9" | "up" | "down" | "left" | "right";
+export type MoveKey = "2" | "4" | "5" | "6" | "7" | "8" | "9" | "up" | "down" | "left" | "right";
 
 const MOVE_KEYS: Record<string, MoveKey> = {
   Numpad2: "2",
@@ -158,19 +158,35 @@ const CTRL: Record<string, KeyAction> = {
   Tab: { nextTab: true },
 };
 
-/** 入力欄の外で押したキーを操作にする。操作でなければ null。 */
-export function keyAction(
-  e: Pick<KeyboardEvent, "code" | "shiftKey" | "ctrlKey" | "altKey" | "metaKey">,
-  ctx: KeyContext,
-): KeyAction | null {
+type KeyInput = Pick<KeyboardEvent, "code" | "shiftKey" | "ctrlKey" | "altKey" | "metaKey">;
+
+function normalize(e: KeyInput, ctx: KeyContext): { code: string; mods: Mods } | null {
   if (e.altKey || e.metaKey || (e.shiftKey && e.ctrlKey)) return null;
   const mods: Mods = e.shiftKey ? "shift" : e.ctrlKey ? "ctrl" : "none";
   // Philly は Alt 以外の時にフルキーをテンキーへ読み替える
   const code = ctx.fullKeyMove ? (FULL_KEY_MOVE[e.code] ?? e.code) : e.code;
+  return { code, mods };
+}
 
-  // Shift の 5 と 7 はマップの大きさを変える(移動より先に見る)
-  if (mods === "shift" && SHIFT[code]) return SHIFT[code];
-  const move = MOVE_KEYS[code];
-  if (move) return { send: (ctx.northFix ? NORTH_FIX : TURN)[mods][move] };
-  return (mods === "none" ? NONE : mods === "ctrl" ? CTRL : {})[code] ?? null;
+/** 移動キーなら、そのキーと修飾キーを返す。Shift の 5 と 7 はマップの大きさを変えるので移動ではない */
+export function moveInput(e: KeyInput, ctx: KeyContext): { key: MoveKey; mods: Mods } | null {
+  const n = normalize(e, ctx);
+  if (!n || (n.mods === "shift" && SHIFT[n.code])) return null;
+  const key = MOVE_KEYS[n.code];
+  return key ? { key, mods: n.mods } : null;
+}
+
+/** 移動キーのコマンド。go は進む、そうでなければ向きを変えるだけ(Philly の GetMoveCommand の戻り値 1 と 0) */
+export function moveCommand(key: MoveKey, mods: Mods, northFix: boolean): { text: string; go: boolean } {
+  const text = (northFix ? NORTH_FIX : TURN)[mods][key];
+  return { text, go: text.startsWith("go") };
+}
+
+/** 入力欄の外で押したキーを、移動以外の操作にする。操作でなければ null。 */
+export function keyAction(e: KeyInput, ctx: KeyContext): KeyAction | null {
+  const n = normalize(e, ctx);
+  if (!n) return null;
+  if (n.mods === "shift" && SHIFT[n.code]) return SHIFT[n.code];
+  if (MOVE_KEYS[n.code]) return null;
+  return (n.mods === "none" ? NONE : n.mods === "ctrl" ? CTRL : {})[n.code] ?? null;
 }

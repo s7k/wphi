@@ -3,9 +3,8 @@
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Window } from "@tauri-apps/api/window";
 import { assetUrl } from "./asset";
-import { handleGameKey } from "./keyInput";
+import { KEY_EVENT, type ForwardedKey } from "./keyInput";
 import { drawMap, type ImageRefs } from "./drawMap";
 import { CHIP_SIZE, gridDim } from "./mapRender";
 import { MAP_STATE_EVENT, type CondEvent, type MapState, type StatusEvent } from "./protocol";
@@ -50,22 +49,26 @@ function MapWindow() {
     };
   }, []);
 
-  // マップ窓で押したキーは常に操作にする(Philly も FormMap のキーを KeyDown に回す)
-  const stateRef = useRef<MapState | null>(null);
-  stateRef.current = state;
+  // マップ窓で押したキーは main 窓へ送り、そこで操作にする(Philly も FormMap のキーを KeyDown に回す)
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
+    const forward = (k: ForwardedKey) => emitTo("main", KEY_EVENT, k).catch(console.error);
+    const onKey = (e: KeyboardEvent) => {
       if (e.isComposing) return;
-      handleGameKey(e, stateRef.current ?? undefined, {
-        focusInput: () => {
-          Window.getByLabel("main").then((w) => w?.setFocus());
-          emitTo("main", "phi-focus-input");
-        },
-        nextTab: () => {},
-      });
+      // Tab や Space でマップ窓の中が動かないようにする
+      e.preventDefault();
+      const { code, shiftKey, ctrlKey, altKey, metaKey, repeat } = e;
+      forward({ type: e.type as "keydown" | "keyup", code, shiftKey, ctrlKey, altKey, metaKey, repeat });
     };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    const onBlur = () =>
+      forward({ type: "blur", code: "", shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, repeat: false });
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("keyup", onKey);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keyup", onKey);
+      window.removeEventListener("blur", onBlur);
+    };
   }, []);
 
   const map = state?.map;

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { keyAction } from "./keys";
+import type { KeyAction, KeyContext } from "./keys.ts";
 import type { MapState } from "./protocol";
 
 /**
@@ -9,29 +9,32 @@ import type { MapState } from "./protocol";
  */
 const FULL_KEY_MOVE = true;
 
-/** 入力欄の外で押したキーを Philly の操作として送る。操作にしたら true。 */
-export function handleGameKey(
-  e: KeyboardEvent,
-  state: MapState | undefined,
-  hooks: { focusInput: () => void; nextTab: () => void },
-): boolean {
-  if (!state || state.session < 0) return false;
-  const map = state.map;
+/** map 窓から main 窓へ転送するキー入力(main 窓が移動とキー操作をまとめて処理する) */
+export const KEY_EVENT = "phi-key";
+export type ForwardedKey = Pick<KeyboardEvent, "code" | "shiftKey" | "ctrlKey" | "altKey" | "metaKey" | "repeat"> & {
+  type: "keydown" | "keyup" | "blur";
+};
+
+export function keyContext(state: MapState | undefined): KeyContext {
+  const map = state?.map;
+  // Philly は 7x7 の北固定(ExMapSize57 && !ExMapStyleTurn)の時だけ方角で進む
   const northFix = !map || (map.size === 7 && map.style !== "turn");
-  const action = keyAction(e, { northFix, fullKeyMove: FULL_KEY_MOVE });
-  if (!action) return false;
-  e.preventDefault();
-  // ponytail: 押し続けによるリピートは送らない。Philly のリピート移動(マップの受信に合わせて進む)は後で作る
-  if (e.repeat) return true;
-  const send = (text: string) => invoke("send_line", { session: state.session, text }).catch(console.error);
-  if ("send" in action) send(action.send);
+  return { northFix, fullKeyMove: FULL_KEY_MOVE };
+}
+
+export function sendLine(session: number, text: string) {
+  invoke("send_line", { session, text }).catch(console.error);
+}
+
+/** 移動以外のキー操作を行う */
+export function runKeyAction(action: KeyAction, session: number, hooks: { focusInput: () => void; nextTab: () => void }) {
+  if ("send" in action) sendLine(session, action.send);
   else if ("pay" in action) {
     // ponytail: ブラウザ標準の入力ダイアログ。Philly の金額ダイアログ(IntInputDialog)に寄せるのは後
     const amount = window.prompt("支払い金額");
-    if (amount !== null && /^\d+$/.test(amount.trim())) send(`pay ${amount.trim()}`);
+    if (amount !== null && /^\d+$/.test(amount.trim())) sendLine(session, `pay ${amount.trim()}`);
   } else if ("focusInput" in action) hooks.focusInput();
   else hooks.nextTab();
-  return true;
 }
 
 /** 入力欄やボタンで押したキーは文字入力として扱う */
