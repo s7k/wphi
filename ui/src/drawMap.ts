@@ -25,6 +25,8 @@ import {
   hasItem,
   itemNo,
   itemDrawRect,
+  arrangeRow,
+  CHARA_Y_ABOVE_FLOOR,
   buildWaterGrid,
   waterQuarterPatterns,
   waterQuarterChip,
@@ -146,12 +148,10 @@ export function drawMap(
       }
     }
 
-    // 4. キャラ(この行)。移植元準拠で (x, layer) 昇順に描画(C++同順)。
-    const rowChars = input.chars
-      .filter((c) => c.y === row && c.x >= 0 && c.x < dim)
-      .sort((a, b) => (a.x - b.x) || (a.layer - b.layer));
-    for (const ch of rowChars) {
-      drawChara(ctx, ch, cs, scale, imgs, animFrame);
+    // 4. キャラ(この行)。同じマスに2人いれば横にずらす(arrangeRow)
+    const rowChars = input.chars.filter((c) => c.y === row && c.x >= 0 && c.x < dim);
+    for (const { ch, dx } of arrangeRow(rowChars)) {
+      drawChara(ctx, ch, cs, scale, imgs, animFrame, dx * scale);
     }
   }
 
@@ -231,6 +231,7 @@ function drawChara(
   scale: number,
   imgs: ImageRefs,
   animFrame: number,
+  dx = 0,
 ): void {
   const img = imgs.chara(charaUrl(ch));
   if (!img) {
@@ -240,14 +241,14 @@ function drawChara(
     ctx.font = `bold ${14 * scale}px "Noto Sans JP", "Noto Sans CJK JP", "Segoe UI", "BIZ UDPGothic", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(nameInitial(ch.name), ch.x * cs + cs / 2, ch.y * cs + cs / 2);
+    ctx.fillText(nameInitial(ch.name), ch.x * cs + cs / 2 + dx, ch.y * cs + cs / 2);
     ctx.restore();
     return;
   }
   // 拡大表示(scale=2)は通常キャラも右側32×32フレームを使い等倍中央配置。
   const r = charaSrcRect(ch.dir, ch.gigant, animFrame, scale === 2);
-  const baseX = ch.x * cs + Math.floor((cs - r.sw) / 2);
-  const baseY = ch.y * cs + Math.floor((cs - CHARA_H) / 2);
+  const baseX = ch.x * cs + Math.floor((cs - r.sw) / 2) + dx;
+  const baseY = ch.y * cs + Math.floor((cs - CHARA_H) / 2) - CHARA_Y_ABOVE_FLOOR * scale;
 
   // 巨大キャラ magnify(#ex-obj): 描画原点補正 + 拡大サイズ。scale で拡大。
   if (ch.magnify) {

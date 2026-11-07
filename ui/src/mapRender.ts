@@ -21,6 +21,11 @@ import type { MapCell } from './protocol';
 export const CHIP_SIZE = 32;
 /** チップシート1セルの高さ(px)。上16px透過。 */
 export const CHIP_HEIGHT = 48;
+/**
+ * マップの上の余白(px)。一番上の行のチップのはみ出し(48-32)の分。
+ * Philly のマップのバッファも 7マス + 16px の高さで、一番上の行の壁やキャラの頭を切らない(Const.h MAP_BUFFER_HEIGHT)
+ */
+export const MAP_TOP = CHIP_HEIGHT - CHIP_SIZE;
 /** チップ総数。 */
 export const CHIP_COUNT = 32;
 /** 透過PNGチップシート1行あたりの列数(16)。 */
@@ -172,6 +177,15 @@ export function isCircleChip(chipByte: number): boolean {
   return CIRCLE_CHIPS.has(chipByte);
 }
 
+/** アイテムを床の上端から上げる量(px)。Philly の YPos+8 と床の YPos+16 の差 */
+export const ITEM_Y_ABOVE_FLOOR = 8;
+
+/**
+ * キャラを床の上端から上げる量(px)。Philly はキャラを YPos+CHARACTER_HEIGHT_OFFSET(32/6=5)に描き
+ * (MakeMap.cpp DrawOneCharaGra)、床は YPos+16 から始まるので、その差
+ */
+export const CHARA_Y_ABOVE_FLOOR = 11;
+
 /** アイテムクリップ高(円内に収める可視高 = 32-11)。 */
 export const ITEM_CLIP_H = ITEM_SPRITE_SIZE - 11; // 21
 
@@ -206,8 +220,9 @@ export function itemDrawRect(
 } {
   const s = ITEM_SPRITE_SIZE;
   const srcX = no * s;
-  // アイテムはチップ上端から8px下げ(C++ YPos+8)。拡大時は ×scale。
-  const drawY = dstY + 8 * scale;
+  // Philly はチップ(高さ48)を YPos から描き、床はその16px下から始まる。アイテムは YPos+8(MakeMap.cpp DrawItem)、
+  // つまり床の上端の8px上に描き、箱などの上に乗って見える。dstY は床の上端なので 8px 上げる。拡大時は ×scale
+  const drawY = dstY - ITEM_Y_ABOVE_FLOOR * scale;
 
   if (isCircleChip(chipByte)) {
     // DrawPart: 上11pxクリップで可視21pxのみ。item 5/6 は内容を src_y+5。
@@ -264,6 +279,42 @@ export function dirToRow(dir: string | number): number {
 /** gigant フラグが巨大('*')か。 */
 export function isGiant(gigant: string | undefined): boolean {
   return gigant === '*';
+}
+
+/**
+ * 1行のキャラを描く順と、横にずらす量(等倍の px)。(x, layer) の順に描く(Philly の SetCharaGraData)。
+ * 同じマスに2人いる時(#42。Philly の DrawOneLineCharaGra を作者の指定で変えた)
+ * - 16x32 が2人: 左右に8pxずつずらして並べる(Philly と同じ)
+ * - 32x32 と 16x32: 32x32 を先(下)に描き、16x32 を後(上)にして右へ8px寄せる
+ * 3人以上や 32x32 が2人の時はずらさない
+ */
+export function arrangeRow<T extends { x: number; layer: number; gigant: string }>(
+  chars: T[],
+): { ch: T; dx: number }[] {
+  const sorted = [...chars].sort((a, b) => a.x - b.x || a.layer - b.layer);
+  const out: { ch: T; dx: number }[] = [];
+  for (let i = 0; i < sorted.length; ) {
+    let j = i;
+    while (j < sorted.length && sorted[j].x === sorted[i].x) j++;
+    const cell = sorted.slice(i, j);
+    i = j;
+    if (cell.length === 2) {
+      const [a, b] = cell;
+      const ga = isGiant(a.gigant);
+      const gb = isGiant(b.gigant);
+      if (!ga && !gb) {
+        out.push({ ch: a, dx: -8 }, { ch: b, dx: 8 });
+        continue;
+      }
+      if (ga !== gb) {
+        const [big, small] = ga ? [a, b] : [b, a];
+        out.push({ ch: big, dx: 0 }, { ch: small, dx: 8 });
+        continue;
+      }
+    }
+    for (const ch of cell) out.push({ ch, dx: 0 });
+  }
+  return out;
 }
 
 /** キャラ通常フレーム幅(px)。 */

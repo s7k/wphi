@@ -12,7 +12,7 @@ import { compose, ringFor, loadTiles, storageKey, type Tiles } from "./automap.t
 import { drawMap, type ImageRefs } from "./drawMap";
 import { KEY_EVENT, MOUSE_EVENT, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { mouseDir } from "./mouseDir.ts";
-import { CHIP_SIZE, gridDim } from "./mapRender";
+import { CHIP_SIZE, MAP_TOP, gridDim } from "./mapRender";
 import { MAP_STATE_EVENT, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
 import { hideOnClose, useImages } from "./windowUtil";
@@ -99,7 +99,7 @@ function MapWindow() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const ring = ringFor(area.w, area.h, CHIP_SIZE);
+  const ring = ringFor(area.w, area.h - MAP_TOP, CHIP_SIZE);
   const automap = map ? compose(map, tiles, ring) : null;
   const dim = automap?.dim ?? (map ? gridDim(map.size) : 7);
   const northFix = !map || (map.size === 7 && map.style !== "turn");
@@ -109,11 +109,11 @@ function MapWindow() {
   const mouseDown = useRef(false);
   const sendMouse = (m: ForwardedMouse) => emitTo("main", MOUSE_EVENT, m).catch(console.error);
   const dirAt = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // canvas は等倍で中央に描いているので、要素の中心がマップの中心
+    // canvas は等倍。マップは上の余白(MAP_TOP)の下から描いている
     const r = e.currentTarget.getBoundingClientRect();
     const size = dim * CHIP_SIZE;
-    const x = e.clientX - (r.left + r.width / 2) + size / 2;
-    const y = e.clientY - (r.top + r.height / 2) + size / 2;
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top - MAP_TOP;
     return mouseDir(x, y, size, size, northFix, e.shiftKey || e.ctrlKey);
   };
   const onMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -148,6 +148,11 @@ function MapWindow() {
   useEffect(() => {
     const ctx = mapCanvas.current?.getContext("2d");
     if (!ctx || !map || !state) return;
+    // 上の余白を黒で塗り、マップはその下から描く(一番上の行のはみ出しは余白に出る)
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, ctx.canvas.width, MAP_TOP);
+    ctx.translate(0, MAP_TOP);
     const imgs: ImageRefs = {
       chip: image(assetUrl("chip", { mapset: state.mapset })),
       items: image(assetUrl("items")),
@@ -183,12 +188,12 @@ function MapWindow() {
           <canvas
             ref={mapCanvas}
             width={dim * CHIP_SIZE}
-            height={dim * CHIP_SIZE}
+            height={dim * CHIP_SIZE + MAP_TOP}
             // 中央に置く。位置を整数にして、半ピクセルずれて画像がにじまないようにする
             style={{
               cursor,
               left: Math.floor((area.w - dim * CHIP_SIZE) / 2),
-              top: Math.floor((area.h - dim * CHIP_SIZE) / 2),
+              top: Math.floor((area.h - dim * CHIP_SIZE - MAP_TOP) / 2),
             }}
             onMouseMove={onMouseMove}
             onMouseDown={onMouseDown}
