@@ -76,10 +76,10 @@ function systemOk(message: string): string {
 }
 
 /** ログを利用者の地域の日付のファイルに足す。保存先のパスを返す */
-function saveLog(label: string, line: string): Promise<string | void> {
+function saveLog(label: string, line: string, asHtml: boolean): Promise<string | void> {
   const d = new Date();
   const date = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-  return invoke<string>("append_log", { label, date, html: line }).catch((e) => console.error(e));
+  return invoke<string>("append_log", { label, date, html: line, asHtml }).catch((e) => console.error(e));
 }
 
 function systemNg(message: string): string {
@@ -496,7 +496,7 @@ export function App() {
     const line = timePrefix() + html;
     update(session, (t) => ({ ...t, lines: pushLine(t.lines, line) }));
     const tab = tabsRef.current.find((t) => t.session === session);
-    if (tab?.logSave) saveLog(tab.label, line);
+    if (tab?.logSave) saveLog(tab.label, line, settingsRef.current.logSaveHtml);
   };
 
   async function connect(label: string) {
@@ -703,10 +703,11 @@ export function App() {
           onLogSave={(on) => {
             update(tab.session, (t) => ({ ...t, logSave: on }));
             if (on)
-              saveLog(tab.label, timePrefix() + "ログの保存を始めました")
+              saveLog(tab.label, timePrefix() + "ログの保存を始めました", settings.logSaveHtml)
                 .then((path) => path && append(tab.session, systemOk(`ログを ${path} に保存します`)))
                 .catch(console.error);
           }}
+          onOpenLogDir={() => invoke("open_log_dir", { label: tab.label }).catch((e) => append(tab.session, systemNg(String(e))))}
           onPriv={() => {
             requestUlist(tab.session);
             update(tab.session, (t) => ({ ...t, privOpen: !t.privOpen }));
@@ -813,6 +814,7 @@ function InputEditor(props: {
   onPriv: () => void;
   logSave: boolean;
   onLogSave: (on: boolean) => void;
+  onOpenLogDir: () => void;
   logFollow: boolean;
   onLogFollow: (on: boolean) => void;
 }) {
@@ -929,6 +931,9 @@ function InputEditor(props: {
           <input type="checkbox" checked={props.logSave} onChange={(e) => props.onLogSave(e.target.checked)} />
           ログ保存
         </label>
+        <button className="toggle" title="ログの保存先のフォルダを開く" onClick={props.onOpenLogDir}>
+          保存先
+        </button>
         <button className="toggle" onClick={props.onPriv}>
           priv
         </button>

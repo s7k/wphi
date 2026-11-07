@@ -9,6 +9,8 @@ export type Settings = {
   altGWord: string;
   /** ログに出てきた文字列で効果音を鳴らす(Philly.ini の SoundPlay) */
   soundPlay: boolean;
+  /** ログを HTML で保存する。off ならテキスト */
+  logSaveHtml: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -19,6 +21,7 @@ export const DEFAULT_SETTINGS: Settings = {
   listShortcuts: ["", "", "", "", ""],
   altGWord: "",
   soundPlay: true,
+  logSaveHtml: true,
 };
 
 /** Philly.ini の文字列の \n を改行にする */

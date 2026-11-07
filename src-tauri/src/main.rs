@@ -124,6 +124,16 @@ mod tests {
     }
 
     #[test]
+    fn html_to_text() {
+        assert_eq!(
+            super::html_to_text(r#"12:00 <font class="a">勇者</font> &gt; a&amp;b<br class="phi_tag">&lt;c&gt;"#),
+            "12:00 勇者 > a&b <c>"
+        );
+        // &amp;lt; は &lt; のまま
+        assert_eq!(super::html_to_text("&amp;lt;"), "&lt;");
+    }
+
+    #[test]
     fn dir_name_is_safe_on_windows() {
         use super::dir_name;
         assert_eq!(dir_name("勇者/A:B"), "勇者_A_B");
@@ -427,13 +437,30 @@ fn dir_name(label: &str) -> String {
 /// 新しいファイルにはスキンの Log.css を埋め込み、ブラウザで開いた時もログ欄と同じ見た目にする。
 // async にして、メインスレッドの外でファイルを開く(1行ごとに呼ぶので、同期だと UI を止める)
 #[tauri::command]
-async fn append_log(app: tauri::AppHandle, label: String, date: String, html: String) -> Result<String, String> {
+async fn append_log(
+    app: tauri::AppHandle,
+    label: String,
+    date: String,
+    html: String,
+    as_html: bool,
+) -> Result<String, String> {
     use std::io::Write;
     if date.len() != 8 || !date.bytes().all(|b| b.is_ascii_digit()) {
         return Err(format!("日付が不正: {date}"));
     }
     let dir = log_dir(&app, &label)?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // テキストで保存する時(Philly の LogSaveHtml=off)は、タグを除いた文字だけを <日付>.txt に書く
+    if !as_html {
+        let path = dir.join(format!("{date}.txt"));
+        let mut f = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+        writeln!(f, "{}", html_to_text(&html)).map_err(|e| e.to_string())?;
+        return Ok(path.display().to_string());
+    }
     let path = dir.join(format!("{date}.html"));
     let new = !path.exists();
     let mut f = std::fs::OpenOptions::new()
@@ -452,6 +479,44 @@ async fn append_log(app: tauri::AppHandle, label: String, date: String, html: St
     }
     writeln!(f, "<div>{html}</div>").map_err(|e| e.to_string())?;
     Ok(path.display().to_string())
+}
+
+/// ログの1行の HTML から文字だけを取り出す。タグを除き、文字参照を戻す。改行(<br>)は空白にする
+fn html_to_text(html: &str) -> String {
+    let mut out = String::new();
+    let mut rest = html;
+    while let Some(i) = rest.find('<') {
+        out.push_str(&rest[..i]);
+        let tag = &rest[i..];
+        let end = tag.find('>').map_or(tag.len(), |e| e + 1);
+        if tag[..end].to_ascii_lowercase().starts_with("<br") {
+            out.push(' ');
+        }
+        rest = &tag[end..];
+    }
+    out.push_str(rest);
+    [
+        ("&lt;", "<"),
+        ("&gt;", ">"),
+        ("&quot;", "\""),
+        ("&#39;", "'"),
+        ("&nbsp;", " "),
+        ("&hearts;", "♥"),
+        ("&amp;", "&"),
+    ]
+    .iter()
+    .fold(out, |s, (from, to)| s.replace(from, to))
+}
+
+/// 表示名のログの保存先のフォルダを、OS のファイルマネージャで開く。無ければ作る
+#[tauri::command]
+async fn open_log_dir(app: tauri::AppHandle, label: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let dir = log_dir(&app, &label)?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    app.opener()
+        .open_path(dir.display().to_string(), None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 /// ログと同じ HTML にする(看板エディタのプレビュー。Philly の MEditForm も TagToHtml を使う)。
@@ -561,6 +626,7 @@ fn main() {
             connect,
             send_line,
             send_lines,
+            open_log_dir,
             disconnect,
             log_css,
             log_html,

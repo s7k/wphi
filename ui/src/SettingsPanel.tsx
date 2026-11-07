@@ -33,6 +33,10 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
           ログに出てきた文字列で効果音を鳴らす(Philly の Config/SoundRegexp.ini と SoundFile.ini)
         </label>
         <label>
+          <input type="checkbox" checked={s.logSaveHtml} onChange={(e) => set("logSaveHtml", e.target.checked)} />
+          ログを HTML で保存する(off ならテキスト)
+        </label>
+        <label>
           移動キーを押してからリピートに入るまで(ms)
           <input type="number" value={s.repeatStartMs} onChange={(e) => set("repeatStartMs", Number(e.target.value))} />
         </label>

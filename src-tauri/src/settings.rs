@@ -23,6 +23,8 @@ pub struct Settings {
     pub alt_g_word: String,
     /// ログに出てきた文字列で効果音を鳴らす([Sound] SoundPlay)
     pub sound_play: bool,
+    /// ログを HTML で保存する。off ならテキスト([Log] LogSaveHtml)
+    pub log_save_html: bool,
 }
 
 impl Default for Settings {
@@ -35,6 +37,7 @@ impl Default for Settings {
             list_shortcuts: Default::default(),
             alt_g_word: String::new(),
             sound_play: true,
+            log_save_html: true,
         }
     }
 }
@@ -72,6 +75,9 @@ impl Settings {
         }
         if let Some(v) = get("Shortcut", "AltGWord") {
             self.alt_g_word = v.clone();
+        }
+        if let Some(v) = get("Log", "LogSaveHtml") {
+            self.log_save_html = on(v);
         }
         if let Some(v) = get("Sound", "SoundPlay") {
             self.sound_play = on(v);
