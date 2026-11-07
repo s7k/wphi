@@ -30,7 +30,7 @@ GNOME(Wayland)と ibus の組み合わせでは、Wayland のままだと IME �
 
 どの OS の分も、その OS の上でしかビルド出来ない。
 3つまとめて作る時は、GitHub Actions の `build`(`.github/workflows/build.yml`)を手動で動かすか、`v` で始まるタグを push する。
-出来た配布物は、実行結果のページの Artifacts からダウンロードする。
+出来た配布物は、実行結果のページの Artifacts からダウンロードする。タグを push した時は、そのタグの Releases にも置く。
 Artifacts には、インストーラなどの他に、展開してそのまま使える zip(`WPHI-<版>-<OS>.zip`)が入る。
 zip は `tools/package.sh windows|linux|macos` で、ビルドの後に手元でも作れる。
 
