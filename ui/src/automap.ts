@@ -37,7 +37,9 @@ export const storageKey = (world: string) => `phi_automap:${world}`;
 export function loadTiles(world: string): Tiles {
   try {
     const s = localStorage.getItem(storageKey(world));
-    return s ? (JSON.parse(s) as Tiles) : {};
+    const v: unknown = s ? JSON.parse(s) : {};
+    // 形の違う物が入っていたら、無かった事にする
+    return v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Tiles) : {};
   } catch {
     return {};
   }

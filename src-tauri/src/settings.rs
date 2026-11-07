@@ -107,6 +107,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn parse_ini_edge_cases() {
+        let ini = parse_ini("a=0\n[S]\nk = \"x;y\" ; c\nnoequal\nq=\"open\nv = 1 ; c\n");
+        assert_eq!(
+            ini,
+            vec![
+                // 節の前の行は節の名前が空
+                ("".into(), "a".into(), "0".into()),
+                // " で囲んだ値の中の ; は注釈にしない
+                ("S".into(), "k".into(), "x;y".into()),
+                // 閉じていない " はそのまま値にする
+                ("S".into(), "q".into(), "\"open".into()),
+                ("S".into(), "v".into(), "1".into()),
+            ]
+        );
+    }
+
+    #[test]
     fn imports_philly_ini() {
         let ini = codec::encode(
             "[Move]\r\nFullKeyMove=off                         ; フルキー\r\nRepeatModeStartTime=300 ; ms\r\n\

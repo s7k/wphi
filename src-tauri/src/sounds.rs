@@ -83,6 +83,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn perl_regex_flags() {
+        // i・s・m・x だけを fancy-regex のフラグにし、g などは捨てる
+        assert!(perl_regex("/abc/ig").unwrap().is_match("ABC").unwrap());
+        assert!(perl_regex("/a.b/s").unwrap().is_match("a\nb").unwrap());
+        assert!(perl_regex("/^b/m").unwrap().is_match("a\nb").unwrap());
+        assert!(!perl_regex("/^b/").unwrap().is_match("a\nb").unwrap());
+        // / で囲んでいない行と、壊れた正規表現は規則にしない
+        assert!(perl_regex("abc").is_none());
+        assert!(perl_regex("/(/").is_none());
+    }
+
+    #[test]
     fn loads_philly_sound_config() {
         let root = std::env::temp_dir().join(format!("wphi-sound-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
