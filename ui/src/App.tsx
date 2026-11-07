@@ -206,16 +206,10 @@ export function App() {
         return false;
       }
       const ctx = keyContext(mapStates.current.get(session), settingsRef.current.fullKeyMove);
-      const move = moveInput(e, ctx);
-      if (move) {
-        if (e.type === "keydown") mover.current?.keyDown(move.key, move.mods, e.repeat);
-        else mover.current?.keyUp(move.key);
-        return true;
-      }
-      if (e.type !== "keydown") return false;
-      // リスト表示中は番号や取り消しのキーを先に見る(Philly の KeyBindListMode)
+      // リスト表示中は、番号・取り消し・カーソルのキーを移動より先に見る(Philly の KeyDown は KeyBindListMode が先)。
+      // フルキー移動の 7・8・9 やテンキーの 2・4・6・8、上下の矢印は、リスト表示中は番号とカーソルになる
       const list = tabsRef.current.find((t) => t.session === session)?.list;
-      const listAction = list ? listKeyAction(e, ctx) : null;
+      const listAction = list && e.type === "keydown" ? listKeyAction(e, ctx) : null;
       if (list && listAction) {
         if (e.repeat && !("listCursor" in listAction) && !("listToggle" in listAction)) return true;
         if ("send" in listAction) closeListAndSend(session, listAction.send);
@@ -224,6 +218,13 @@ export function App() {
         else updateList(session, (l) => moveListCursor(l, listAction));
         return true;
       }
+      const move = moveInput(e, ctx);
+      if (move) {
+        if (e.type === "keydown") mover.current?.keyDown(move.key, move.mods, e.repeat);
+        else mover.current?.keyUp(move.key);
+        return true;
+      }
+      if (e.type !== "keydown") return false;
       // F8〜F12 と Alt+G(設定で決まる文字列)
       const shortcut = shortcutText(e, settingsRef.current, !!list);
       if (shortcut !== null) {

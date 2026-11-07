@@ -63,6 +63,9 @@ test("リスト表示中のキー", () => {
   const full = { northFix: true, fullKeyMove: true };
   assert.deepEqual(listKeyAction(key("Digit3"), north), { send: "3" });
   assert.deepEqual(listKeyAction(key("Numpad9"), north), { send: "9" });
+  // フルキー移動の 7・8 はリスト表示中は番号(移動より先に見る)
+  assert.deepEqual(listKeyAction(key("Digit7"), full), { send: "7" });
+  assert.deepEqual(listKeyAction(key("Digit8"), full), { send: "8" });
   // フルキー移動の k はテンキーの 2 なので番号の 2
   assert.deepEqual(listKeyAction(key("KeyK"), full), { send: "2" });
   assert.deepEqual(listKeyAction(key("Escape"), north), { send: "." });
