@@ -27,7 +27,9 @@ export type KeyAction =
   | { write: true }
   /** 入力欄へフォーカスを移す */
   | { focusInput: true }
-  | { nextTab: true };
+  | { nextTab: true }
+  /** メニューの項目と同じ事をする(接続・切断など。App のメニューの処理に任せる) */
+  | { menu: string };
 
 export type AskOptions = { title: string; label: string; numeric?: boolean };
 
@@ -112,6 +114,7 @@ const NORTH_FIX: Record<Mods, Record<MoveKey, string>> = {
 
 /** 修飾キーなし(KeyBindNone)。移動以外 */
 const NONE: Record<string, KeyAction> = {
+  Pause: { menu: "force-close" },
   KeyA: { send: "read" },
   KeyB: { send: "board" },
   KeyC: { send: "use" },
@@ -162,6 +165,7 @@ const NONE: Record<string, KeyAction> = {
 
 const SHIFT: Record<string, KeyAction> = {
   F5: { toggleMap: true },
+  F1: { menu: "force-close" },
   Space: { send: "hit" },
   KeyT: { send: "#ex-map style=solid" },
   Digit5: { send: "#ex-map size=40" },
@@ -172,6 +176,7 @@ const SHIFT: Record<string, KeyAction> = {
 
 /** Alt(KeyBindAlt)。G(AltGWord)は設定の文字列なので shortcutText で扱う */
 const ALT: Record<string, KeyAction> = {
+  Pause: { menu: "all-force-close" },
   KeyA: { send: "cast\nanalyze", cancelList: 1, systemMagic: "keep" },
   KeyB: {
     send: "cast\ncall", cancelList: 1, systemMagic: "reequip",

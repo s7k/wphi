@@ -33,12 +33,27 @@ type Table = &'static [(&'static str, &'static [(&'static str, &'static str)])];
 const MENUS: Table = &[
     (
         "ファイル",
-        &[("settings", "設定(&S)..."), ("-", ""), ("exit", "終了(&X)")],
+        &[
+            ("connect", "接続(&O)"),
+            ("disconnect", "切断(&D)"),
+            ("force-close", "強制切断(&Z) (Shift+F1, Pause)"),
+            ("-", ""),
+            ("all-connect", "全接続(&A)"),
+            ("all-disconnect", "全切断(&Y)"),
+            ("all-force-close", "全強制切断(&W) (Alt+Pause)"),
+            ("-", ""),
+            ("close-tab", "タブを閉じる"),
+            ("-", ""),
+            ("settings", "設定(&S)..."),
+            ("-", ""),
+            ("exit", "終了(&X)"),
+        ],
     ),
     (
         "キャラクター",
         &[
             ("next-tab", "次のタブ (Ctrl+Tab)"),
+            ("prev-tab", "前のタブ (Ctrl+Shift+Tab)"),
             ("new-tab", "キャラを選ぶ(新しいタブ)"),
         ],
     ),

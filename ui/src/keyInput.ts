@@ -90,6 +90,7 @@ export function runKeyAction(
     hooks.openBoard();
   }
   else if ("focusInput" in action) hooks.focusInput();
+  else if ("menu" in action) invoke("menu_select", { id: action.menu }).catch(console.error);
   else hooks.nextTab();
 }
 

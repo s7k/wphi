@@ -82,6 +82,10 @@ test("メニューの項目", () => {
   assert.deepEqual(menuAction("wizard-eye"), { send: "cast\nwizard eye", cancelList: 1, systemMagic: "reequip" });
   assert.deepEqual(menuAction("map"), { toggleMap: true });
   for (const id of ["search", "charge-spell", "appear", "disappear"]) assert.notEqual(menuAction(id), null, id);
+  // 強制切断のキー(#77)
+  assert.deepEqual(act(key("Pause"), north), { menu: "force-close" });
+  assert.deepEqual(act(key("F1", { shift: true }), north), { menu: "force-close" });
+  assert.deepEqual(act(key("Pause", { alt: true }), north), { menu: "all-force-close" });
   assert.deepEqual(menuAction("map-turn"), { send: "#ex-map style=turn" });
   assert.deepEqual(menuAction("map-solid"), { send: "#ex-map style=solid" });
   assert.ok((menuAction("return") as { confirm?: string }).confirm);

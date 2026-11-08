@@ -352,11 +352,11 @@ export function App() {
       getCurrentWindow().setFocus();
       document.querySelector<HTMLTextAreaElement>(".input-line")?.focus();
     };
-    const nextTab = () => {
+    const nextTab = (step = 1) => {
       const ts = tabsRef.current;
       if (ts.length === 0) return;
       const i = ts.findIndex((t) => t.session === activeRef.current);
-      setActive(ts[(i + 1) % ts.length].session);
+      setActive(ts[(i + step + ts.length) % ts.length].session);
     };
     const systemMagic = () => ({
       unequip: settingsRef.current.autoUnequipSystemMagic,
@@ -377,6 +377,11 @@ export function App() {
       });
     /** 操作にしたら true */
     const onKey = (e: ForwardedKey): boolean => {
+      // 前のタブ(Ctrl+Shift+Tab)。keys.ts は Ctrl と Shift を一緒に押したキーを扱わないので、ここで見る
+      if (e.type === "keydown" && e.code === "Tab" && e.ctrlKey && e.shiftKey && !e.altKey) {
+        nextTab(-1);
+        return true;
+      }
       const session = activeRef.current;
       if (session === null) return false;
       const ctx = keyContext(mapStates.current.get(session), settingsRef.current.fullKeyMove);
@@ -446,6 +451,13 @@ export function App() {
       const session = activeRef.current;
       if (id === "settings") return setSettingsOpen(true);
       if (id === "next-tab") return nextTab();
+      if (id === "prev-tab") return nextTab(-1);
+      // 接続・切断(#77)。全〜はタブ上の全キャラ
+      const tabsNow = tabsRef.current;
+      if (id === "all-connect") return tabsNow.filter((t) => t.closed).forEach((t) => connect(t.label, t.session));
+      if (id === "all-disconnect")
+        return tabsNow.filter((t) => !t.closed).forEach((t) => invoke("disconnect", { session: t.session }).catch(console.error));
+      if (id === "all-force-close") return tabsNow.filter((t) => !t.closed).forEach((t) => forceClose(t.session));
       if (id === "new-tab") return setActive(null);
       if (id === "open-config-dir") return void invoke("open_config_dir").catch((e) => setError(String(e)));
       if (id === "trace")
@@ -458,6 +470,11 @@ export function App() {
       // 入力欄のツールバーと同じ切り替え。状態は InputEditor が持つ
       if (INPUT_MENU.includes(id)) return void window.dispatchEvent(new CustomEvent(INPUT_MENU_EVENT, { detail: id }));
       if (id === "priv") return togglePriv(session);
+      const cur = tabsNow.find((t) => t.session === session);
+      if (id === "connect") return cur?.closed ? void connect(cur.label, session) : undefined;
+      if (id === "disconnect") return void invoke("disconnect", { session }).catch(console.error);
+      if (id === "force-close") return cur?.closed ? undefined : forceClose(session);
+      if (id === "close-tab") return close(session);
       if (id.startsWith("mm:")) return runMaster(id, session);
       if (id === "automap-clear") return clearAutomap(mapStates.current.get(session)?.world);
       // 選んだ項目はチェックが勝手に切り替わるので、今のモードに付け直す。サーバが切り替えたら地図を受けた時にまた付け直す
@@ -760,7 +777,11 @@ export function App() {
     linesPort.current.port2.postMessage(null);
   };
 
-  async function connect(label: string) {
+  /**
+   * 接続する。replace を渡すと、そのタブ(切れたタブ)で接続し直し、ログと priv はそのまま残す(Philly の 接続。#77)。
+   * 渡さなければ新しいタブを開く
+   */
+  async function connect(label: string, replace?: number) {
     // connect が返る前に届いた分は貯めておき、タブを作ってから流す。Channel は onmessage の無い間に届いた分を捨てる(#70)
     const early: UiEvent[] = [];
     let handle: ((ev: UiEvent) => void) | null = null;
@@ -839,6 +860,15 @@ export function App() {
           onMapEvent(session, ev);
       }
     };
+    if (replace !== undefined) {
+      forgetSession(replace);
+      setTabs((ts) =>
+        ts.map((t) => (t.session === replace ? { ...t, session, closed: false, list: null, board: false, users: [] } : t)),
+      );
+      setActive((a) => (a === replace ? session : a));
+      early.splice(0).forEach(handle);
+      return;
+    }
     setTabs((ts) => [
       ...ts,
       {
@@ -865,7 +895,20 @@ export function App() {
   function close(session: number) {
     invoke("disconnect", { session }).catch((e) => console.error(e));
     setTabs((ts) => ts.filter((t) => t.session !== session));
-    // セッションごとに覚えた物も消す(#35)
+    forgetSession(session);
+    // 裏のタブを閉じた時は、表のタブをそのまま出す(#62)
+    setActive((a) => (a === session ? null : a));
+  }
+
+  /** 強制切断(Philly の ForceClose)。#x を送らずに切る。切れた知らせは届かないので、ここで切断にする */
+  function forceClose(session: number) {
+    invoke("force_disconnect", { session }).catch(console.error);
+    update(session, (t) => (t.closed ? t : { ...t, closed: true }));
+    append(session, systemNg("強制切断しました"));
+  }
+
+  /** セッションごとに覚えた物を消す(#35) */
+  function forgetSession(session: number) {
     mapStates.current.delete(session);
     listFlows.current.delete(session);
     lastUlist.current.delete(session);
@@ -873,8 +916,6 @@ export function App() {
     const wait = ulistWaits.current.get(session);
     if (wait) window.clearTimeout(wait.timer);
     ulistWaits.current.delete(session);
-    // 裏のタブを閉じた時は、表のタブをそのまま出す(#62)
-    setActive((a) => (a === session ? null : a));
   }
 
   const tab = tabs.find((t) => t.session === active);

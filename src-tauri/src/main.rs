@@ -31,6 +31,8 @@ use tokio::sync::mpsc;
 struct Sessions {
     next: AtomicU32,
     senders: Mutex<HashMap<u32, mpsc::Sender<String>>>,
+    /// 接続のタスク。強制切断で止める(#77)
+    tasks: Mutex<HashMap<u32, tauri::async_runtime::JoinHandle<()>>>,
 }
 
 /// 設定フォルダ(characters.json・settings.json と、キャラの .phirc の置き場)。
@@ -395,7 +397,7 @@ fn connect(
     sessions.senders.lock().unwrap().insert(no, tx);
     let store = store_path(&app)?;
     let cleanup = app.clone();
-    tauri::async_runtime::spawn(async move {
+    let task = tauri::async_runtime::spawn(async move {
         session::run(Login { host, port, id }, rx, move |ev| {
             // 世界移動したら、登録したキャラの接続先を書き換える(Philly の RewriteSaveData)
             if let UiEvent::Ui(session::UiOnly::WorldMoved { host, port }) = &ev {
@@ -429,7 +431,9 @@ fn connect(
         .await;
         // サーバ側から切れた時も送信キューを消す。消すのが disconnect だけだと、切れた接続の分が残り続ける(#72)
         cleanup.state::<Sessions>().senders.lock().unwrap().remove(&no);
+        cleanup.state::<Sessions>().tasks.lock().unwrap().remove(&no);
     });
+    sessions.tasks.lock().unwrap().insert(no, task);
     Ok(no)
 }
 
@@ -480,6 +484,16 @@ fn exit_app(app: &tauri::AppHandle) {
 fn disconnect(session: u32, sessions: State<'_, Sessions>) {
     // 送信キューを閉じると、接続のタスクが #x を送って終わる
     sessions.senders.lock().unwrap().remove(&session);
+}
+
+/// 強制切断(Philly の ForceClose)。#x を送らずに接続を切る。サーバが応答しない時などに使う(#77)
+#[tauri::command]
+fn force_disconnect(session: u32, sessions: State<'_, Sessions>) {
+    sessions.senders.lock().unwrap().remove(&session);
+    if let Some(task) = sessions.tasks.lock().unwrap().remove(&session) {
+        // タスクを止めると、接続(TcpStream)を捨てて閉じる
+        task.abort();
+    }
 }
 
 /// main 窓を最小化したら、見えている map 窓と EagleEye も最小化し、main 窓を戻したら一緒に戻す。
@@ -919,6 +933,7 @@ fn main() {
             master_magic_xml,
             set_master_menu,
             disconnect,
+            force_disconnect,
             log_css,
             log_html,
             append_log,
