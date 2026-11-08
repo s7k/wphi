@@ -82,5 +82,9 @@ export function runKeyAction(
 /** 入力欄やボタンで押したキーは文字入力として扱う */
 export function isTextTarget(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement | null;
-  return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
+  if (!t) return false;
+  // チェックボックスやボタンは文字を打たないので、キーを操作に回す(#66)
+  if (t instanceof HTMLInputElement) return !NOT_TEXT_INPUTS.includes(t.type);
+  return t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable;
 }
+const NOT_TEXT_INPUTS = ["checkbox", "radio", "button", "submit", "reset", "range", "color", "file", "image"];
