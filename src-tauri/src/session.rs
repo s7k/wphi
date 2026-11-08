@@ -103,10 +103,39 @@ fn next_wake(last_recv: Instant, keepalive_sent: bool, warned: bool) -> Option<I
     }
 }
 
+/// 1行ずつの小さな送受信を待たせない。
+/// サーバ(v5y)は Nagle を切っていないので、前に送った分の ACK が来るまで次の地図を送らない。
+/// Windows は遅延 ACK を最大 200ms 待つ(Linux は 40ms ほど)ので、Windows だけ地図が遅れる。
+/// 遅延 ACK は Windows の SIO_TCP_SET_ACK_FREQUENCY で、この接続だけ切る
+fn tune(stream: &TcpStream) {
+    let _ = stream.set_nodelay(true);
+    #[cfg(windows)]
+    unsafe {
+        use std::os::windows::io::AsRawSocket;
+        use windows_sys::Win32::Networking::WinSock::{SIO_TCP_SET_ACK_FREQUENCY, WSAIoctl};
+        let freq: u32 = 1;
+        let mut returned = 0u32;
+        WSAIoctl(
+            stream.as_raw_socket() as _,
+            SIO_TCP_SET_ACK_FREQUENCY,
+            &freq as *const u32 as _,
+            4,
+            std::ptr::null_mut(),
+            0,
+            &mut returned,
+            std::ptr::null_mut(),
+            None,
+        );
+    }
+}
+
 pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: impl FnMut(UiEvent)) {
     let addr = (login.host.as_str(), login.port);
     let mut stream = match timeout(CONNECT_TIMEOUT, TcpStream::connect(addr)).await {
-        Ok(Ok(s)) => s,
+        Ok(Ok(s)) => {
+            tune(&s);
+            s
+        }
         Ok(Err(e)) => return emit(error(format!("接続出来ません: {e}"))),
         Err(_) => return emit(error("接続がタイムアウトしました".into())),
     };
@@ -272,6 +301,7 @@ async fn transfer(
             .await
             .ok()
             .and_then(|r| r.ok())
+            .inspect(tune)
             .map(|s| (s, host, port)),
         None => None,
     };
