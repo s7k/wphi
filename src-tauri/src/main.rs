@@ -259,7 +259,10 @@ fn get_settings(app: tauri::AppHandle) -> Result<settings::Settings, String> {
 
 #[tauri::command]
 fn save_settings(app: tauri::AppHandle, settings: settings::Settings) -> Result<(), String> {
-    settings.save(&settings_path(&app)?)
+    settings.save(&settings_path(&app)?)?;
+    // map 窓もマップの拡大率などを読むので、全部の窓へ知らせる
+    let _ = tauri::Emitter::emit(&app, menu::EXPERIMENT_EVENT, &settings);
+    Ok(())
 }
 
 /// 取り込んだ Philly フォルダの `Config/Philly.ini` から設定を取り込んで保存する。

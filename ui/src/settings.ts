@@ -9,13 +9,15 @@ export type Settings = {
   soundPlay: boolean;
   /** ログを HTML で保存する。off ならテキスト */
   logSaveHtml: boolean;
+  /** マップの拡大率(%) */
+  mapZoom: number;
   /** 実験的: 自分が進んだ時に地図を滑らかにずらす(表示のメニューで切り替える) */
   smoothMove: boolean;
   /** 拡張マップ。付属して位置を予想し、長押しのリピートを制御する。off なら 7x7 だけでリピートは OS 任せ(表示のメニュー) */
   automap: boolean;
 };
 
-/** 表示のメニューでチェックの付く項目を切り替えた時に、Rust が設定の全体を全部の窓へ送る(src-tauri/src/menu.rs) */
+/** 表示のメニューでチェックの付く項目を切り替えた時と、設定を保存した時に、Rust が設定の全体を全部の窓へ送る */
 export const EXPERIMENT_EVENT = "phi-experiment";
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -25,9 +27,16 @@ export const DEFAULT_SETTINGS: Settings = {
   altGWord: "",
   soundPlay: true,
   logSaveHtml: true,
+  mapZoom: 100,
   smoothMove: false,
   automap: true,
 };
+
+export const MAP_ZOOM_MIN = 50;
+export const MAP_ZOOM_MAX = 400;
+/** 拡大率(%)を、扱える範囲の整数にする。数でなければ 100 */
+export const clampZoom = (z: number) =>
+  Number.isFinite(z) ? Math.min(MAP_ZOOM_MAX, Math.max(MAP_ZOOM_MIN, Math.round(z))) : 100;
 
 /** Philly.ini の文字列の \n を改行にする */
 export const unescape = (s: string) => s.replace(/\\n/g, "\n");

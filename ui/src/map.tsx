@@ -15,7 +15,7 @@ import { trace } from "./trace.ts";
 import { KEY_EVENT, MOUSE_EVENT, sendLine, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
 import { CHIP_SIZE, MAP_TOP, SLIDE_MS, gridDim, slideStep } from "./mapRender";
-import { EXPERIMENT_EVENT, type Settings } from "./settings";
+import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
 import { MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
 import { hideOnClose, useImages } from "./windowUtil";
@@ -140,7 +140,9 @@ function MapWindow() {
   }, []);
   const [smooth, setSmooth] = useState(false);
   const [automapOn, setAutomapOn] = useState(true);
-  const ring = automapOn ? ringFor(area.w, area.h - MAP_TOP, CHIP_SIZE) : 0;
+  // マップの拡大率。canvas は等倍で描き、CSS で拡大縮小する。外周の幅は、拡大した大きさで欄に収まる分だけ
+  const [zoom, setZoom] = useState(1);
+  const ring = automapOn ? ringFor(area.w / zoom, area.h / zoom - MAP_TOP, CHIP_SIZE) : 0;
   // MapState は status などが変わっただけでも新しいオブジェクトで届くので、マップは中身で比べる
   const mapKey = JSON.stringify(map ?? null);
   const automap = useMemo(() => (map ? compose(map, tiles, ring) : null), [mapKey, world, tilesVer, ring]);
@@ -153,11 +155,11 @@ function MapWindow() {
   const sendList = (a: MapListAction) => emitTo("main", MAP_LIST_EVENT, a).catch(console.error);
   const sendMouse = (m: ForwardedMouse) => emitTo("main", MOUSE_EVENT, m).catch(console.error);
   const dirAt = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // canvas は等倍。マップは上の余白(MAP_TOP)の下から描いている
+    // canvas の座標に戻す。マップは上の余白(MAP_TOP)の下から描いている
     const r = e.currentTarget.getBoundingClientRect();
     const size = dim * CHIP_SIZE;
-    const x = e.clientX - r.left;
-    const y = e.clientY - r.top - MAP_TOP;
+    const x = (e.clientX - r.left) / zoom;
+    const y = (e.clientY - r.top) / zoom - MAP_TOP;
     return mouseDir(x, y, size, size, northFix, e.shiftKey || e.ctrlKey);
   };
   // 北固定で Shift か Ctrl を押しながら動かすと、マウスの方を向く(#6)。同じ向きは続けて送らない。
@@ -167,7 +169,7 @@ function MapWindow() {
     if (!northFix || !(e.shiftKey || e.ctrlKey) || mouseDown.current || !map || !state) return;
     const r = e.currentTarget.getBoundingClientRect();
     const size = dim * CHIP_SIZE;
-    const to = northFixTurn(e.clientX - r.left, e.clientY - r.top - MAP_TOP, size, size);
+    const to = northFixTurn((e.clientX - r.left) / zoom, (e.clientY - r.top) / zoom - MAP_TOP, size, size);
     const c = Math.floor(map.size / 2);
     const now = FACING[map.chars.find((ch) => ch.x === c && ch.y === c)?.dir ?? ""];
     if (!to || to === now || `${to}:${now}` === lastTurn.current) return;
@@ -209,6 +211,7 @@ function MapWindow() {
     const apply = (s: Settings) => {
       setSmooth(s.smoothMove);
       setAutomapOn(s.automap);
+      setZoom(clampZoom(s.mapZoom) / 100);
     };
     invoke<Settings>("get_settings").then(apply).catch(console.error);
     const unlisten = listen<Settings>(EXPERIMENT_EVENT, (e) => apply(e.payload));
@@ -292,8 +295,11 @@ function MapWindow() {
             // 中央に置く。位置を整数にして、半ピクセルずれて画像がにじまないようにする
             style={{
               cursor,
-              left: Math.floor((area.w - dim * CHIP_SIZE) / 2),
-              top: Math.floor((area.h - dim * CHIP_SIZE - MAP_TOP) / 2),
+              width: Math.round(dim * CHIP_SIZE * zoom),
+              height: Math.round((dim * CHIP_SIZE + MAP_TOP) * zoom),
+              imageRendering: zoom === 1 ? undefined : "pixelated",
+              left: Math.floor((area.w - dim * CHIP_SIZE * zoom) / 2),
+              top: Math.floor((area.h - (dim * CHIP_SIZE + MAP_TOP) * zoom) / 2),
             }}
             onMouseMove={onMouseMove}
             onMouseDown={onMouseDown}

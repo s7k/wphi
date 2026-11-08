@@ -1,7 +1,7 @@
 // 設定画面(Philly は Philly.ini を直接書き換える)。
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
-import type { Settings } from "./settings.ts";
+import { clampZoom, MAP_ZOOM_MAX, MAP_ZOOM_MIN, type Settings } from "./settings.ts";
 
 export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings) => void; onClose: () => void }) {
   const [s, setS] = useState(props.settings);
@@ -12,6 +12,8 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
 
   async function save(next: Settings) {
     try {
+      next = { ...next, mapZoom: clampZoom(next.mapZoom) };
+      setS(next);
       await invoke("save_settings", { settings: next });
       props.onSaved(next);
       setMessage("保存しました");
@@ -60,6 +62,18 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
         </table>
         <label>
           Alt+G で送る言葉 <input value={s.altGWord} onChange={(e) => set("altGWord", e.target.value)} />
+        </label>
+        <label>
+          マップの拡大率{" "}
+          <input
+            type="number"
+            min={MAP_ZOOM_MIN}
+            max={MAP_ZOOM_MAX}
+            step={10}
+            value={s.mapZoom}
+            onChange={(e) => set("mapZoom", Number(e.target.value))}
+          />{" "}
+          %(拡張マップの外周は、拡大した大きさでマップの欄に収まる分だけ)
         </label>
         {message && <p>{message}</p>}
       </div>

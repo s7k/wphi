@@ -21,6 +21,8 @@ pub struct Settings {
     pub sound_play: bool,
     /// ログを HTML で保存する。off ならテキスト([Log] LogSaveHtml)
     pub log_save_html: bool,
+    /// マップの拡大率(%)。マップの画像を拡大縮小する。拡張マップの外周は、拡大した大きさで欄に収まる分だけ(Philly に無い)
+    pub map_zoom: u32,
     /// 実験的: 自分が1マス進んだ時に、地図を滑らかにずらして描く。表示のメニューで切り替える(Philly に無い)
     pub smooth_move: bool,
     /// 拡張マップ(Philly に無い)。表示のメニューで切り替える。付属して、送った go に地図も「進めません」も来なければ
@@ -37,6 +39,7 @@ impl Default for Settings {
             alt_g_word: String::new(),
             sound_play: true,
             log_save_html: true,
+            map_zoom: 100,
             smooth_move: false,
             automap: true,
         }
