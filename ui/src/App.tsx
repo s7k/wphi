@@ -5,6 +5,7 @@ import { memo, useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { getVersion } from "@tauri-apps/api/app";
+import { latestRelease } from "./update.ts";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { SENT_EVENT, type Sent } from "./keyInput";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
@@ -126,6 +127,15 @@ export function App() {
     );
   // ログを最下行に固定する(既定 on。off は Philly の「ログスクロール停止」)
   const [logFollow, setLogFollow] = useState(true);
+  // 新しい版があれば、Release のページを開くか聞く(#25)。見られなくても何も出さない
+  useEffect(() => {
+    getVersion()
+      .then(latestRelease)
+      .then((r) => {
+        if (r && window.confirm(`新しい版 ${r.version} があります。\nダウンロードのページを開きますか？`)) return openUrl(r.url);
+      })
+      .catch(console.error);
+  }, []);
   useEffect(() => {
     invoke<Settings>("get_settings").then(setSettings).catch(console.error);
     // 表示のメニューで切り替えた分を覚える。覚えないと、設定の画面で保存した時に元に戻す

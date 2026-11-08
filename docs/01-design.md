@@ -296,7 +296,7 @@ WPHI も同じ作りにする。
 対策は次の3つで、P1 から入れる。
 
 - 手順1のエスケープを、マークアップ変換より前に必ず通す。`phi-proto` のテストに `<script>` や `onerror=` を含む行を入れる
-- CSP で `script-src 'self'` とし、インラインスクリプトを禁止する。画像はログ内の `img=` の為に `http:` と `https:` を許す。LAN と自分の機械を指す画像は、HTML にする時に捨てる(#55)
+- CSP で `script-src 'self'` とし、インラインスクリプトを禁止する。接続は新しい版を確かめる為に `https://api.github.com` だけを許す(#25)。画像はログ内の `img=` の為に `http:` と `https:` を許す。LAN と自分の機械を指す画像は、HTML にする時に捨てる(#55)
 - Tauri の capability で、窓ごとに呼べる command を絞る
 
 ### 6.4 キー操作
