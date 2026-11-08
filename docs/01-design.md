@@ -3,6 +3,7 @@
 旧 Windows クライアント Philly(C++Builder)を、Tauri 2 で作り直す為の設計。
 クライアント名は WPHI(2026-11-07 に決定)。識別子は `dev.wphi`、前の版がキャラ ID を置いたキーチェーンのサービス名は `wphi`、Tauri アプリの crate 名は `wphi`。
 見た目と操作は Philly に寄せる。
+クライアントが何をするか(サーバとのやり取り、キー、リスト、魔法)は [04-client-spec.md](04-client-spec.md) にまとめてある。この資料は WPHI の作りの判断を扱う。
 
 ## 参照資料
 
