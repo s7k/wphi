@@ -12,7 +12,7 @@ import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskO
 import { AskDialog } from "./AskDialog";
 import { TagMenu, type TagMenuAt } from "./TagMenuPopup";
 import { assetUrl } from "./asset";
-import { absorb, AUTOMAP_EVENT, loadTiles, removeTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
+import { absorb, AUTOMAP_EVENT, blockOf, loadTiles, removeTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, shortcutText, type Settings } from "./settings.ts";
 import { SettingsPanel } from "./SettingsPanel";
@@ -375,12 +375,13 @@ export function App() {
 
   // 拡張マップの記録(世界名 → 地形)。変わったマスは map 窓へ送り、localStorage へは5秒ごとにまとめて書く
   const automaps = useRef(new Map<string, Tiles>());
-  const unsavedWorlds = useRef(new Set<string>());
+  // 世界 → まだ書いていない区画
+  const unsavedWorlds = useRef(new Map<string, Set<string>>());
   const saveTimer = useRef<number | undefined>(undefined);
   function flushAutomaps() {
     window.clearTimeout(saveTimer.current);
     saveTimer.current = undefined;
-    for (const w of unsavedWorlds.current) saveTiles(w, automaps.current.get(w)!);
+    for (const [w, blocks] of unsavedWorlds.current) saveTiles(w, automaps.current.get(w)!, blocks);
     unsavedWorlds.current.clear();
   }
   /** その世界の貯めた地形を消す(#15) */
@@ -398,7 +399,9 @@ export function App() {
     if (!diff) return;
     Object.assign(tiles, diff);
     emitTo("map", AUTOMAP_EVENT, { world, diff } satisfies AutomapDiff).catch(console.error);
-    unsavedWorlds.current.add(world);
+    let blocks = unsavedWorlds.current.get(world);
+    if (!blocks) unsavedWorlds.current.set(world, (blocks = new Set()));
+    for (const k of Object.keys(diff)) blocks.add(blockOf(k));
     // ponytail: 落ちると最大5秒分の地形を失う。困るなら間隔を縮める
     saveTimer.current ??= window.setTimeout(flushAutomaps, 5000);
   }

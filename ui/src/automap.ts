@@ -32,14 +32,53 @@ export const AUTOMAP_EVENT = "phi-automap";
 /** clear の時は、その世界の貯めた地形を全部消してから diff を足す */
 export type AutomapDiff = { world: string; diff: Tiles; clear?: boolean };
 
+/** v0.1.13 までの、世界全体を1つにした鍵。読んだら区画の鍵へ移す */
 export const storageKey = (world: string) => `phi_automap:${world}`;
+
+/** localStorage へは BLOCK x BLOCK マスの区画ごとに書き、変わった区画だけを書き直す(#74)。
+ * 鍵は `phi_automap_blk:<区画>:<世界>`。区画を先に置くので、`:` を含む世界名でも取り違えない */
+const BLOCK = 32;
+const BLOCK_PREFIX = "phi_automap_blk:";
+const blockKey = (world: string, block: string) => `${BLOCK_PREFIX}${block}:${world}`;
+
+/** マスの鍵 "x,y" の区画 */
+export function blockOf(tile: string): string {
+  const [x, y] = tile.split(",").map(Number);
+  return `${Math.floor(x / BLOCK)},${Math.floor(y / BLOCK)}`;
+}
+
+/** tiles のうち blocks の区画のマスを、区画ごとに分ける(区画にマスが無ければ空) */
+export function groupByBlock(tiles: Tiles, blocks: Set<string>): Map<string, Tiles> {
+  const out = new Map<string, Tiles>([...blocks].map((b) => [b, {}]));
+  for (const [k, cell] of Object.entries(tiles)) {
+    const g = out.get(blockOf(k));
+    if (g) g[k] = cell;
+  }
+  return out;
+}
+
+function worldBlockKeys(world: string): string[] {
+  const keys: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k?.startsWith(BLOCK_PREFIX)) continue;
+    const rest = k.slice(BLOCK_PREFIX.length);
+    if (rest.slice(rest.indexOf(":") + 1) === world) keys.push(k);
+  }
+  return keys;
+}
+
+function parseTiles(s: string | null): Tiles {
+  const v: unknown = s ? JSON.parse(s) : {};
+  // 形の違う物が入っていたら、無かった事にする
+  return v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Tiles) : {};
+}
 
 export function loadTiles(world: string): Tiles {
   try {
-    const s = localStorage.getItem(storageKey(world));
-    const v: unknown = s ? JSON.parse(s) : {};
-    // 形の違う物が入っていたら、無かった事にする
-    return v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Tiles) : {};
+    const tiles = parseTiles(localStorage.getItem(storageKey(world)));
+    for (const k of worldBlockKeys(world)) Object.assign(tiles, parseTiles(localStorage.getItem(k)));
+    return tiles;
   } catch {
     return {};
   }
@@ -48,14 +87,19 @@ export function loadTiles(world: string): Tiles {
 export function removeTiles(world: string) {
   try {
     localStorage.removeItem(storageKey(world));
+    for (const k of worldBlockKeys(world)) localStorage.removeItem(k);
   } catch {
     // 読めない時は貯めてもいない
   }
 }
 
-export function saveTiles(world: string, tiles: Tiles) {
+/** blocks の区画を書き直す。古い形の鍵が残っていれば、全部の区画に移して消す */
+export function saveTiles(world: string, tiles: Tiles, blocks: Set<string>) {
   try {
-    localStorage.setItem(storageKey(world), JSON.stringify(tiles));
+    const old = localStorage.getItem(storageKey(world)) !== null;
+    const target = old ? new Set(Object.keys(tiles).map(blockOf)) : blocks;
+    for (const [b, t] of groupByBlock(tiles, target)) localStorage.setItem(blockKey(world, b), JSON.stringify(t));
+    if (old) localStorage.removeItem(storageKey(world));
   } catch {
     // 容量超過などで保存出来ない時は、メモリ上の地図だけで続ける
   }

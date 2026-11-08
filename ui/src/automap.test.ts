@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { absorb, compose, ringFor } from "./automap.ts";
+import { absorb, blockOf, compose, groupByBlock, ringFor } from "./automap.ts";
 import type { MapEvent } from "./protocol";
 
 const Q = "?".charCodeAt(0);
@@ -60,4 +60,16 @@ test("外周の幅は一番外のマスが半分以上見えれば出す", () =>
   assert.equal(ringFor(270, 400, 32), 1);
   assert.equal(ringFor(250, 400, 32), 0);
   assert.equal(ringFor(2000, 2000, 32), 4);
+});
+
+test("拡張マップを 32x32 の区画に分ける(負の座標も含む)", () => {
+  assert.equal(blockOf("0,0"), "0,0");
+  assert.equal(blockOf("31,32"), "0,1");
+  assert.equal(blockOf("-1,-33"), "-1,-2");
+  const cell = { chip: 1, attr: 0 } as never;
+  const g = groupByBlock({ "1,1": cell, "40,1": cell, "-5,0": cell }, new Set(["0,0", "-1,0", "9,9"]));
+  assert.deepEqual(Object.keys(g.get("0,0")!), ["1,1"]);
+  assert.deepEqual(Object.keys(g.get("-1,0")!), ["-5,0"]);
+  assert.deepEqual(g.get("9,9"), {});
+  assert.equal(g.has("1,0"), false);
 });
