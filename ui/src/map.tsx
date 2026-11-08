@@ -152,7 +152,8 @@ function MapWindow() {
     const y = e.clientY - r.top - MAP_TOP;
     return mouseDir(x, y, size, size, northFix, e.shiftKey || e.ctrlKey);
   };
-  // 北固定で Shift か Ctrl を押しながら動かすと、マウスの方を向く(#6)。同じ向きは続けて送らない
+  // 北固定で Shift か Ctrl を押しながら動かすと、マウスの方を向く(#6)。同じ向きは続けて送らない。
+  // 送った向きは今の向きと組で覚え、キーで向きが変わったら同じ向きへもまた送る(#68)
   const lastTurn = useRef<string | null>(null);
   const turnTo = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!northFix || !(e.shiftKey || e.ctrlKey) || mouseDown.current || !map || !state) return;
@@ -161,8 +162,8 @@ function MapWindow() {
     const to = northFixTurn(e.clientX - r.left, e.clientY - r.top - MAP_TOP, size, size);
     const c = Math.floor(map.size / 2);
     const now = FACING[map.chars.find((ch) => ch.x === c && ch.y === c)?.dir ?? ""];
-    if (!to || to === now || to === lastTurn.current) return;
-    lastTurn.current = to;
+    if (!to || to === now || `${to}:${now}` === lastTurn.current) return;
+    lastTurn.current = `${to}:${now}`;
     sendLine(state.session, `turn ${to}`);
   };
   const onMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
