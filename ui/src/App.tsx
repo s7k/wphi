@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { getVersion } from "@tauri-apps/api/app";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
-import { SENT_EVENT } from "./keyInput";
+import { SENT_EVENT, type Sent } from "./keyInput";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskOptions } from "./keys.ts";
 import { AskDialog } from "./AskDialog";
@@ -304,14 +304,15 @@ export function App() {
     const forwarded = listen<ForwardedKey>(KEY_EVENT, (e) => onKey(e.payload));
     // リスト表示中に何かを送ったら、続きのページの番号(ずれ+9)でない限りリストを閉じる(Philly の SendTextListCancel)。
     // v5y は「番号ではありません」でリストを取り消しても、リストの終わりを送ってこない
-    const onSent = (e: Event) => {
-      const { session, text } = (e as CustomEvent<{ session: number; text: string }>).detail;
+    const onSent = ({ session, text }: Sent) => {
       const list = tabsRef.current.find((t) => t.session === session)?.list;
       if (!list || text.trim() === moreNo(list)) return;
       update(session, (t) => ({ ...t, list: null }));
       onMapEvent(session, { type: "list", active: false });
     };
-    window.addEventListener(SENT_EVENT, onSent);
+    const onSentDom = (e: Event) => onSent((e as CustomEvent<Sent>).detail);
+    window.addEventListener(SENT_EVENT, onSentDom);
+    const sentFromMap = listen<Sent>(SENT_EVENT, (e) => onSent(e.payload));
     // メニューバー(src-tauri/src/menu.rs)
     const menu = listen<string>("phi-menu", (e) => {
       const id = e.payload;
@@ -357,7 +358,8 @@ export function App() {
     return () => {
       document.removeEventListener("keydown", onDom);
       document.removeEventListener("keyup", onDom);
-      window.removeEventListener(SENT_EVENT, onSent);
+      window.removeEventListener(SENT_EVENT, onSentDom);
+      sentFromMap.then((f) => f());
       forwarded.then((f) => f());
       mouse.then((f) => f());
       mapList.then((f) => f());

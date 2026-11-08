@@ -1,4 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
+import { emitTo } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { AskOptions, KeyAction, KeyContext, MoveKey } from "./keys.ts";
 import type { MapState } from "./protocol";
 
@@ -21,18 +23,25 @@ export function keyContext(state: MapState | undefined, fullKeyMove: boolean): K
   return { northFix, fullKeyMove };
 }
 
-/** 送った行を、同じ窓の中に SENT_EVENT で知らせる(リストを閉じる為。App が受ける) */
+/** 送った行を main 窓へ SENT_EVENT で知らせる(リストを閉じる為。App が受ける)。
+ * main 窓の中ではすぐ知らせ、map 窓からは Tauri のイベントで送る(#64) */
 export const SENT_EVENT = "phi-sent";
+export type Sent = { session: number; text: string };
+
+function notifySent(detail: Sent) {
+  if (getCurrentWindow().label === "main") window.dispatchEvent(new CustomEvent(SENT_EVENT, { detail }));
+  else emitTo("main", SENT_EVENT, detail).catch(console.error);
+}
 
 export function sendLine(session: number, text: string) {
   invoke("send_line", { session, text }).catch(console.error);
-  window.dispatchEvent(new CustomEvent(SENT_EVENT, { detail: { session, text } }));
+  notifySent({ session, text });
 }
 
 /** 改行を含む文字列(看板の本文、F8〜F12)を1行ずつ順に送る。sendLine は改行を含む文字列を送らない */
 export function sendLines(session: number, text: string) {
   invoke("send_lines", { session, lines: text.split(/\r?\n/) }).catch(console.error);
-  window.dispatchEvent(new CustomEvent(SENT_EVENT, { detail: { session, text } }));
+  notifySent({ session, text });
 }
 
 /** 移動以外のキー操作を行う */
