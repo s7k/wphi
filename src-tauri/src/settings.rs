@@ -11,10 +11,6 @@ use serde::{Deserialize, Serialize};
 pub struct Settings {
     /// フルキーの 789 uio jkl m をテンキーとして使う([Move] FullKeyMove)
     pub full_key_move: bool,
-    /// 移動キーを押してからリピートに入るまで(ms、[Move] RepeatModeStartTime)
-    pub repeat_start_ms: u32,
-    /// 移動キーを離してからリピートを終えるまで(ms、[Move] RepeatModeEndTime)
-    pub repeat_end_ms: u32,
     /// F8〜F12 で送る文字列。`\n` は改行([Shortcut] ShortcutF08〜F12)
     pub shortcuts: [String; 5],
     /// リスト表示中の F8〜F12([Shortcut] ListModeShortcutF08〜F12)
@@ -31,8 +27,6 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             full_key_move: true,
-            repeat_start_ms: 200,
-            repeat_end_ms: 100,
             shortcuts: Default::default(),
             list_shortcuts: Default::default(),
             alt_g_word: String::new(),
@@ -58,12 +52,6 @@ impl Settings {
         let on = |v: &String| v.eq_ignore_ascii_case("on") || v == "1" || v.eq_ignore_ascii_case("true");
         if let Some(v) = get("Move", "FullKeyMove") {
             self.full_key_move = on(v);
-        }
-        if let Some(v) = get("Move", "RepeatModeStartTime").and_then(|v| v.parse().ok()) {
-            self.repeat_start_ms = v;
-        }
-        if let Some(v) = get("Move", "RepeatModeEndTime").and_then(|v| v.parse().ok()) {
-            self.repeat_end_ms = v;
         }
         for (i, f) in ["F08", "F09", "F10", "F11", "F12"].iter().enumerate() {
             if let Some(v) = get("Shortcut", &format!("Shortcut{f}")) {
@@ -139,8 +127,6 @@ mod tests {
         let mut s = Settings::default();
         s.import_philly_ini(&ini);
         assert!(!s.full_key_move);
-        assert_eq!(s.repeat_start_ms, 300);
-        assert_eq!(s.repeat_end_ms, 100);
         assert_eq!(s.shortcuts[2], "1");
         assert_eq!(s.list_shortcuts[1], "1 2");
         assert_eq!(s.alt_g_word, "おやすみなさいませ");

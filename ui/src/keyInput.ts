@@ -11,7 +11,7 @@ export type ForwardedKey = Pick<KeyboardEvent, "code" | "shiftKey" | "ctrlKey" |
 
 /** map 窓から main 窓へ転送するマウス操作 */
 export const MOUSE_EVENT = "phi-mouse";
-export type ForwardedMouse = { type: "down" | "move"; keys: MoveKey[] } | { type: "up" | "hit" };
+export type ForwardedMouse = { type: "down"; keys: MoveKey[] } | { type: "hit" };
 
 /** フルキー移動は設定から(既定は on。Philly の既定は off だが、無いと 7・8・9 が番号として送られ発言になる) */
 export function keyContext(state: MapState | undefined, fullKeyMove: boolean): KeyContext {

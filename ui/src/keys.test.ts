@@ -16,7 +16,7 @@ const turn = { northFix: false, fullKeyMove: false };
 /** 移動キーなら送るコマンド、そうでなければ keyAction の結果 */
 function act(e: ReturnType<typeof key>, ctx: KeyContext) {
   const m = moveInput(e, ctx);
-  return m ? { send: moveCommand(m.key, m.mods, ctx.northFix).text } : keyAction(e, ctx);
+  return m ? { send: moveCommand(m.key, m.mods, ctx.northFix) } : keyAction(e, ctx);
 }
 
 test("北固定と回転で移動のコマンドが変わる", () => {

@@ -61,7 +61,7 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 - [x] メニューバー(`MainForm.dfm` の構成、`Style/Menu.txt` で表示を切り替える)。ファイル・操作・行動・魔法・表示の項目はキーと同じ操作にした
   - [x] キャラクターとツールのメニュー、操作のメニューの大声・全タブ・ログ保存の切り替え #16
 - [ ] 窓の吸い付きと位置記憶(Windows のみ)。位置と大きさの記憶は済み(tauri-plugin-window-state)#17
-- [x] 設定画面と `Philly.ini` の取り込み。今の項目はフルキー移動、リピートの時間、F8〜F12、Alt+G。設定フォルダの `settings.json` に置く
+- [x] 設定画面と `Philly.ini` の取り込み。今の項目はフルキー移動、F8〜F12、Alt+G。設定フォルダの `settings.json` に置く
   - [ ] 他の項目(ログ表示、通知、フォントなど)の設定と取り込み #18
 - [x] 効果音。Philly フォルダの `Config/SoundRegexp.ini` と `SoundFile.ini` を読み、受信した行に最初に一致した規則の WAV を鳴らす(ファイルが空ならタスクバーの点滅)。設定で切り替える
   - [x] `#more` の間は鳴らさない(Philly は #more の外だけで照合する)#19

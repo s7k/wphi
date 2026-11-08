@@ -4,7 +4,7 @@
 // Philly は入力欄の外(ログ欄・マップ窓など)にフォーカスがある時だけキーを操作に使う。
 // キーは KeyboardEvent.code で判定する。key は IME やキー配列で値が変わる為である。
 //
-// 移動キーは moveInput で取り出し、押し続けた時の処理は moveRepeat.ts が行う。
+// 移動キーは moveInput で取り出す。押し続けた時は OS のキーリピートの keydown のたびに送る。
 
 /** 入力欄の外で押したキーに対する操作。 */
 export type KeyAction =
@@ -234,9 +234,8 @@ export function moveInput(e: KeyInput, ctx: KeyContext): { key: MoveKey; mods: M
 }
 
 /** 移動キーのコマンド。go は進む、そうでなければ向きを変えるだけ(Philly の GetMoveCommand の戻り値 1 と 0) */
-export function moveCommand(key: MoveKey, mods: Mods, northFix: boolean): { text: string; go: boolean } {
-  const text = (northFix ? NORTH_FIX : TURN)[mods][key];
-  return { text, go: text.startsWith("go") };
+export function moveCommand(key: MoveKey, mods: Mods, northFix: boolean): string {
+  return (northFix ? NORTH_FIX : TURN)[mods][key];
 }
 
 /** 入力欄の外で押したキーを、移動以外の操作にする。操作でなければ null。 */

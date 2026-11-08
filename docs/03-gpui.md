@@ -74,7 +74,7 @@ Dioxus に移っても、Chrome と WebKit の違いの懸念は残る。
 
 ## 押しっぱなし移動の詰まりの候補
 
-押しっぱなし移動は、map 窓のキーを Tauri のイベントで main 窓へ送り、main 窓の JS の `setInterval(…, 50)` から `send_line` を呼んでいる(`ui/src/moveRepeat.ts`)。
+押しっぱなし移動は、map 窓のキーを Tauri のイベントで main 窓へ送り、main 窓の JS の `setInterval(…, 50)` から `send_line` を呼んでいる(`ui/src/moveRepeat.ts`)。v0.1.12 でこのリピートを外し、OS のキーリピートの keydown のたびに送る形にした(#44)。
 map 窓にフォーカスがある間、main 窓は裏の窓になる。
 WebView2 が main 窓のタイマーを間引くと、移動の間隔が延びる(推測。未検証)。
 

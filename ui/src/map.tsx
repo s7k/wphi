@@ -136,7 +136,7 @@ function MapWindow() {
   const dim = automap?.dim ?? (map ? gridDim(map.size) : 7);
   const northFix = !map || (map.size === 7 && map.style !== "turn");
 
-  // マップのマウス操作。左ボタンでその向きへ進み、右ボタンで hit(Philly の MapForm.cpp)
+  // マップのマウス操作。左ボタンでその向きへ1歩進み、右ボタンで hit(Philly の MapForm.cpp)。押し続けても繰り返さない
   const [cursor, setCursor] = useState("default");
   const mouseDown = useRef(false);
   const sendList = (a: MapListAction) => emitTo("main", MAP_LIST_EVENT, a).catch(console.error);
@@ -149,8 +149,6 @@ function MapWindow() {
     const y = e.clientY - r.top - MAP_TOP;
     return mouseDir(x, y, size, size, northFix, e.shiftKey || e.ctrlKey);
   };
-  // 押したまま動かした時は、向きが変わった時だけ main 窓へ送る
-  const lastKeys = useRef("");
   // 北固定で Shift か Ctrl を押しながら動かすと、マウスの方を向く(#6)。同じ向きは続けて送らない
   const lastTurn = useRef<string | null>(null);
   const turnTo = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -170,9 +168,6 @@ function MapWindow() {
     // スキンのカーソル。読めなければ CSS の矢印のカーソル
     const skin = d && SKIN_CURSOR[d.keys.join()];
     setCursor(d ? (skin ? `url("${assetUrl("cursor", { name: skin })}"), ${d.cursor}` : d.cursor) : "default");
-    if (!mouseDown.current || !d || d.keys.join() === lastKeys.current) return;
-    lastKeys.current = d.keys.join();
-    sendMouse({ type: "move", keys: d.keys });
   };
   const onMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button === 2) {
@@ -182,13 +177,10 @@ function MapWindow() {
     const d = e.button === 0 ? dirAt(e) : null;
     if (!d) return;
     mouseDown.current = true;
-    lastKeys.current = d.keys.join();
     sendMouse({ type: "down", keys: d.keys });
   };
   const onMouseUp = () => {
-    if (!mouseDown.current) return;
     mouseDown.current = false;
-    sendMouse({ type: "up" });
   };
   const direction = northFix ? 0 : (map?.dir ?? 0);
 

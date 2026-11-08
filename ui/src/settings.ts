@@ -1,8 +1,6 @@
 // src-tauri/src/settings.rs の Settings。
 export type Settings = {
   fullKeyMove: boolean;
-  repeatStartMs: number;
-  repeatEndMs: number;
   /** F8〜F12。\n は改行 */
   shortcuts: string[];
   listShortcuts: string[];
@@ -15,8 +13,6 @@ export type Settings = {
 
 export const DEFAULT_SETTINGS: Settings = {
   fullKeyMove: true,
-  repeatStartMs: 200,
-  repeatEndMs: 100,
   shortcuts: ["", "", "", "", ""],
   listShortcuts: ["", "", "", "", ""],
   altGWord: "",

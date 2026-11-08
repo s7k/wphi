@@ -8,7 +8,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { SENT_EVENT } from "./keyInput";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
-import { keyAction, listKeyAction, menuAction, moveInput, type AskOptions } from "./keys.ts";
+import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskOptions } from "./keys.ts";
 import { AskDialog } from "./AskDialog";
 import { TagMenu, type TagMenuAt } from "./TagMenuPopup";
 import { assetUrl } from "./asset";
@@ -21,7 +21,6 @@ import { capConvs, partnersKey, privLines, privPartners, usersFromEvent, type Us
 import { PrivPanel, type PrivConv } from "./PrivPanel";
 import { ListOverlay } from "./ListOverlay";
 import { listNo, listOk, moreNo, newList, type ListState } from "./list.ts";
-import { MoveRepeat } from "./moveRepeat.ts";
 import { trace } from "./trace.ts";
 import { EAGLE_EYE_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
@@ -214,29 +213,6 @@ export function App() {
   // map 窓で押したキーも KEY_EVENT で届き、ここでまとめて処理する
   const tabsRef = useRef<Tab[]>([]);
   tabsRef.current = tabs;
-  const mover = useRef<MoveRepeat | null>(null);
-  useEffect(() => {
-    if (active === null) {
-      mover.current = null;
-      return;
-    }
-    const session = active;
-    mover.current = new MoveRepeat(
-      (text) => sendLine(session, text),
-      () => keyContext(mapStates.current.get(session), true).northFix,
-      undefined,
-      { startMs: settings.repeatStartMs, endMs: settings.repeatEndMs },
-    );
-    // tick の間隔が延びたら記録する(裏の窓のタイマーの間引き)
-    let lastTick = performance.now();
-    const timer = setInterval(() => {
-      const now = performance.now();
-      if (now - lastTick > 150) trace(`main tick-gap ${Math.round(now - lastTick)}`);
-      lastTick = now;
-      mover.current?.tick();
-    }, 50);
-    return () => clearInterval(timer);
-  }, [active, settings.repeatStartMs, settings.repeatEndMs]);
 
   useEffect(() => {
     const focusInput = () => {
@@ -263,10 +239,7 @@ export function App() {
     const onKey = (e: ForwardedKey): boolean => {
       const session = activeRef.current;
       if (session === null) return false;
-      if (e.type === "blur") {
-        mover.current?.releaseAll();
-        return false;
-      }
+      if (e.type === "blur") return false;
       const ctx = keyContext(mapStates.current.get(session), settingsRef.current.fullKeyMove);
       // リスト表示中は、番号・取り消し・カーソルのキーを移動より先に見る(Philly の KeyDown は KeyBindListMode が先)。
       // フルキー移動の 7・8・9 やテンキーの 2・4・6・8、上下の矢印は、リスト表示中は番号とカーソルになる
@@ -286,10 +259,11 @@ export function App() {
         return true;
       }
       const move = moveInput(e, ctx);
+      // 押し続けた時は OS のキーリピートに任せ、keydown のたびに1歩送る(Philly より前のクライアントと同じ)。
+      // サーバは1ティックに1行ずつ処理するので、リピートが速いと離した後も少し歩く
       if (move) {
         trace(`main ${e.type} ${e.code}${e.repeat ? " repeat" : ""}`);
-        if (e.type === "keydown") mover.current?.keyDown(move.key, move.mods, e.repeat);
-        else mover.current?.keyUp(move.key);
+        if (e.type === "keydown") sendLine(session, moveCommand(move.key, move.mods, ctx.northFix));
         return true;
       }
       if (e.type !== "keydown") return false;
@@ -315,10 +289,8 @@ export function App() {
       }
       if (onKey({ ...pick(e), type: e.type as "keydown" | "keyup" })) e.preventDefault();
     };
-    const onBlur = () => mover.current?.releaseAll();
     document.addEventListener("keydown", onDom);
     document.addEventListener("keyup", onDom);
-    window.addEventListener("blur", onBlur);
     const forwarded = listen<ForwardedKey>(KEY_EVENT, (e) => onKey(e.payload));
     // リスト表示中に何かを送ったら、続きのページの番号(ずれ+9)でない限りリストを閉じる(Philly の SendTextListCancel)。
     // v5y は「番号ではありません」でリストを取り消しても、リストの終わりを送ってこない
@@ -360,9 +332,7 @@ export function App() {
       const session = activeRef.current;
       if (session === null) return;
       if (m.type === "hit") sendLine(session, "hit");
-      else if (m.type === "down") mover.current?.mouseDown(m.keys);
-      else if (m.type === "move") mover.current?.mouseMove(m.keys);
-      else mover.current?.mouseUp();
+      else sendLine(session, moveCommand(m.keys[0], "none", keyContext(mapStates.current.get(session), true).northFix));
     });
     // map 窓のリストのクリック(#9)
     const mapList = listen<MapListAction>(MAP_LIST_EVENT, (e) => {
@@ -377,7 +347,6 @@ export function App() {
     return () => {
       document.removeEventListener("keydown", onDom);
       document.removeEventListener("keyup", onDom);
-      window.removeEventListener("blur", onBlur);
       window.removeEventListener(SENT_EVENT, onSent);
       forwarded.then((f) => f());
       mouse.then((f) => f());
@@ -424,7 +393,6 @@ export function App() {
         trace("main map");
         // 拡張マップ。世界ごとに見えた地形を貯める。盲目中は視界が霧で埋まるので貯めない
         if (s.world && s.world !== "???" && !s.cond?.blind) recordAutomap(s.world, ev);
-        if (session === activeRef.current) mover.current?.onMap(ev.pos && `${ev.pos.x},${ev.pos.y},${ev.dir}`);
         break;
       case "status": {
         // 裏のタブで HP か MP が減ったら、タブに印を付ける
@@ -596,9 +564,6 @@ export function App() {
           append(session, ev.html);
           notifyTalk(session, ev.channel, ev.html, !!ev.noFlash);
           if (ev.channel === "priv" && ev.from) addPriv(session, ev.from, ev.html);
-          // リピート移動中に壁に当たった時(Philly の PersonalThread.cpp の RecvCannotGo)
-          if (session === activeRef.current && /DM<\/font> &gt; (進めません\.|Can not go\.)/.test(ev.html))
-            mover.current?.onCannotGo();
           break;
         case "error":
           append(session, systemNg(ev.message));
