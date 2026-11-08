@@ -418,7 +418,7 @@ export function App() {
       if (session === null) return;
       // 入力欄のツールバーと同じ切り替え。状態は InputEditor が持つ
       if (INPUT_MENU.includes(id)) return void window.dispatchEvent(new CustomEvent(INPUT_MENU_EVENT, { detail: id }));
-      if (id === "priv") return update(session, (t) => ({ ...t, privOpen: !t.privOpen }));
+      if (id === "priv") return togglePriv(session);
       if (id === "automap-clear") return clearAutomap(mapStates.current.get(session)?.world);
       // 選んだ項目はチェックが勝手に切り替わるので、今のモードに付け直す。サーバが切り替えたら地図を受けた時にまた付け直す
       if (["map-turn", "map-solid", "map-57", "map-40"].includes(id)) syncViewChecks(true);
@@ -597,6 +597,8 @@ export function App() {
 
   /** 受けた priv を相手の組の会話に足す。会話が無ければ作り、priv の画面を開く(Philly.ini の PopupPrivForm) */
   function addPriv(session: number, from: string, html: string) {
+    // priv が届いて画面が開く時も、相手の一覧を取り直す
+    if (!tabsRef.current.find((t) => t.session === session)?.privOpen) requestUlist(session);
     update(session, (t) => {
       const to = privPartners(from, html, t.self);
       if (to.length === 0) return t;
@@ -646,6 +648,12 @@ export function App() {
     if (!wait) return;
     window.clearTimeout(wait.timer);
     wait.timer = window.setTimeout(() => ulistDone(session), ULIST_QUIET_MS);
+  }
+
+  /** priv の画面を開くか閉じる。開く時は相手の一覧を取り直す(メニューから開いた時も。取り直さないと一覧が空のまま) */
+  function togglePriv(session: number) {
+    if (!tabsRef.current.find((t) => t.session === session)?.privOpen) requestUlist(session);
+    update(session, (t) => ({ ...t, privOpen: !t.privOpen }));
   }
 
   /** priv を送る。先に #ulist で番号を取り直す(Philly の PrivForm.cpp の SendPrivMessage) */
@@ -947,10 +955,7 @@ export function App() {
                 .catch(console.error);
           }}
           onOpenLogDir={() => invoke("open_log_dir", { label: tab.label }).catch((e) => append(tab.session, systemNg(String(e))))}
-          onPriv={() => {
-            requestUlist(tab.session);
-            update(tab.session, (t) => ({ ...t, privOpen: !t.privOpen }));
-          }}
+          onPriv={() => togglePriv(tab.session)}
           session={tab.session}
           sessions={tabs.filter((t) => !t.closed).map((t) => t.session)}
           disabled={tab.closed}
