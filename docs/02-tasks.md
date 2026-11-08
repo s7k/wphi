@@ -38,7 +38,7 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 - [x] リスト(`#list` 〜 `#end-list`)の表示と選択。番号キーで選び、0 は取り消し(`Command.cpp` の ListModeSend と KeyBindListMode)。ログの上のチェックリストとマップ窓の右の領域に出す
   - [x] リスト表示中に何かを送ったら、9 でない限りリストを閉じる(Philly の SendTextListCancel。v5y は取り消してもリストの終わりを送らない)
   - [x] 魔法を唱える操作の後に届く cast の一覧を出さない(Philly の NextListCancel)。空のリストも出さない
-  - [x] 9 で続きのページを送る処理と、番号のずれ(ListOffset)・範囲外の番号でリストを閉じる処理(ListEndTenKeyCertainly)#8 #43。範囲外の番号は後で、1番を誤って送らないよう何もしない事にした
+  - [x] 9 で続きのページを送る処理と、番号のずれ(ListOffset)・範囲外の番号でリストを閉じる処理(ListEndTenKeyCertainly)#8 #43。範囲外の番号は後で、1番を誤って送らないよう 0 と同じく取り消す事にした
   - [x] マップ窓のリストをクリックで選ぶ #9
   - [ ] リストの書き出し(Philly の「書き出し」ボタン)#10
 - [x] s-edit(1行入力)と m-edit(看板などの複数行入力。Philly の MEditForm)。S(write)から開く。s-edit は Philly と同じく入力欄で答える

@@ -31,12 +31,12 @@ export function listOk(l: ListState): string {
 
 /**
  * 番号キー n(1〜9)を押した時。送る番号と、送った後にリストを閉じるか。
- * 9 は続きのページで、続きが無ければ何もしない。範囲外の番号も何もしない。
+ * 9 は続きのページで、続きが無ければ何もしない。範囲外の番号は 0 と同じく取り消す。
  * Philly(ListEndTenKeyCertainly=on)は範囲外を OK にしてカーソルの行(ふつう1番)を送るが、
- * 装備が3つの時に unequip で 4 を押すと1番の武器を外すので、送らない
+ * 装備が3つの時に unequip で 4 を押すと1番の武器を外してしまう。戦闘中は文字のキーでもリストを取り消すので、それに揃える
  */
 export function listNo(l: ListState, n: number): { send: string; close: boolean } | null {
   if (n === 9) return hasMore(l) ? { send: moreNo(l), close: false } : null;
-  if (n > l.lines.length) return null;
+  if (n > l.lines.length) return { send: ".", close: true };
   return { send: String(l.offset + n), close: true };
 }
