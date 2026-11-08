@@ -66,6 +66,10 @@ pub struct Assets {
     converted: Mutex<HashMap<String, Arc<Vec<u8>>>>,
     /// `chara/*.ali` の別名 → グラ名(Philly `LoadAliasFile`)。
     aliases: HashMap<String, String>,
+    /// フォルダ → その中の名前(小文字)→ パス。一度読んだフォルダは読み直さない(#60)。
+    /// 無いファイルを探すたびに chara の全部を読むと、ファイルの多い Windows で遅い。
+    /// 置いた画像は起動し直すと使われる(README.txt の通り)
+    dirs: Mutex<HashMap<PathBuf, Arc<HashMap<String, PathBuf>>>>,
 }
 
 impl Assets {
@@ -77,6 +81,7 @@ impl Assets {
             cache: Mutex::default(),
             converted: Mutex::default(),
             aliases,
+            dirs: Mutex::default(),
         }
     }
 
@@ -152,7 +157,7 @@ impl Assets {
         let indexes = self
             .roots
             .iter()
-            .filter_map(|root| std::fs::read(find_path(root, &index_rel)?).ok())
+            .filter_map(|root| std::fs::read(self.find(root, &index_rel)?).ok())
             .chain(bundled(&index_rel).map(<[u8]>::to_vec));
         indexes.into_iter().find_map(|index| {
             let index = codec::decode(&index);
@@ -182,7 +187,7 @@ impl Assets {
     fn exists(&self, rel: &str) -> bool {
         safe_rel(rel)
             && !is_lanu(rel)
-            && (self.roots.iter().any(|r| find_path(r, rel).is_some()) || bundled(rel).is_some())
+            && (self.roots.iter().any(|r| self.find(r, rel).is_some()) || bundled(rel).is_some())
     }
 
     fn open(&self, rel: &str) -> Option<image::DynamicImage> {
@@ -208,13 +213,40 @@ impl Assets {
             .then(|| self.read(&format!("Skins/{SKIN}/Cursor/{name}.cur")))?
     }
 
+    /// `root` からの相対パスを、大文字と小文字を無視して探す(find_path と同じ)。フォルダの中身は覚えておく
+    fn find(&self, root: &Path, rel: &str) -> Option<PathBuf> {
+        let mut path = root.to_path_buf();
+        for part in rel.split('/') {
+            let listing = {
+                let mut dirs = self.dirs.lock().unwrap();
+                match dirs.get(&path) {
+                    Some(l) => l.clone(),
+                    None => {
+                        let l: HashMap<String, PathBuf> = std::fs::read_dir(&path)
+                            .map(|es| {
+                                es.filter_map(|e| e.ok())
+                                    .map(|e| (e.file_name().to_string_lossy().to_lowercase(), e.path()))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        let l = Arc::new(l);
+                        dirs.insert(path.clone(), l.clone());
+                        l
+                    }
+                }
+            };
+            path = listing.get(&part.to_lowercase())?.clone();
+        }
+        Some(path)
+    }
+
     fn read(&self, rel: &str) -> Option<Vec<u8>> {
         if !safe_rel(rel) || is_lanu(rel) {
             return None;
         }
         self.roots
             .iter()
-            .find_map(|root| std::fs::read(find_path(root, rel)?).ok())
+            .find_map(|root| std::fs::read(self.find(root, rel)?).ok())
             .or_else(|| bundled(rel).map(<[u8]>::to_vec))
     }
 }
@@ -361,6 +393,23 @@ mod tests {
         // 人・銅像(0x00)は t_man
         let man = a.get("chara", &query(&[("gra", "none"), ("code", "0")])).unwrap();
         assert_eq!(decode(&man), colorkey(&a.open("chara/t_man.bmp").unwrap(), TEAL));
+    }
+
+    /// フォルダの中身は一度だけ読み、大文字と小文字を無視して探す(#60)
+    #[test]
+    fn finds_from_cached_listing() {
+        let root = std::env::temp_dir().join(format!("wphi-dirs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("Chara")).unwrap();
+        std::fs::write(root.join("Chara").join("Dog.bmp"), b"x").unwrap();
+        let a = Assets::new(vec![root.clone()]);
+        assert_eq!(a.find(&root, "chara/dog.bmp"), Some(root.join("Chara").join("Dog.bmp")));
+        assert_eq!(a.find(&root, "chara/cat.bmp"), None);
+        // 読んだ後に足したファイルは、起動し直すまで使わない
+        std::fs::write(root.join("Chara").join("cat.bmp"), b"x").unwrap();
+        assert_eq!(a.find(&root, "chara/cat.bmp"), None);
+        assert_eq!(a.dirs.lock().unwrap().len(), 2);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// 名前やグラ名で探す場所の外を指させない(他のプレイヤーが発言の画像の URL で送れる)
