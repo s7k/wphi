@@ -310,8 +310,7 @@ export function App() {
         if (e.repeat && !("listCursor" in listAction) && !("listToggle" in listAction)) return true;
         if ("listNo" in listAction) {
           const r = listNo(list, listAction.listNo);
-          if (r && "ok" in r) closeListAndSend(session, listOk(list));
-          else if (r?.close) closeListAndSend(session, r.send);
+          if (r?.close) closeListAndSend(session, r.send);
           else if (r) sendLine(session, r.send);
         } else if ("send" in listAction) closeListAndSend(session, listAction.send);
         else if ("listOk" in listAction) closeListAndSend(session, listOk(list));
