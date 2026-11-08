@@ -1,3 +1,4 @@
+import { confirmBox } from "./MessageDialog";
 import { invoke } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -72,14 +73,17 @@ export function runKeyAction(
       sendLines(session, action.send.replace("{}", t));
     });
   } else if ("send" in action) {
-    if (action.confirm && !window.confirm(action.confirm)) return;
-    if (action.cancelList) hooks.cancelList(action.cancelList);
-    const sm = action.systemMagic && hooks.systemMagic();
-    // 武器を外すのは session.rs が受け持つ。唱える行をまとめて1行で渡し、サーバへは unequip だけを先に送る(#4)
-    if (sm && sm.unequip) {
-      const reequip = action.systemMagic === "reequip" && sm.equip ? 1 : 0;
-      sendLine(session, `${CAST_PREFIX}${reequip} ${action.send.split("\n").join("\t")}`);
-    } else sendLines(session, action.send);
+    const go = () => {
+      if (action.cancelList) hooks.cancelList(action.cancelList);
+      const sm = action.systemMagic && hooks.systemMagic();
+      // 武器を外すのは session.rs が受け持つ。唱える行をまとめて1行で渡し、サーバへは unequip だけを先に送る(#4)
+      if (sm && sm.unequip) {
+        const reequip = action.systemMagic === "reequip" && sm.equip ? 1 : 0;
+        sendLine(session, `${CAST_PREFIX}${reequip} ${action.send.split("\n").join("\t")}`);
+      } else sendLines(session, action.send);
+    };
+    if (action.confirm) confirmBox(action.confirm).then((ok) => ok && go());
+    else go();
   } else if ("toggleMap" in action) hooks.toggleMap();
   else if ("write" in action) {
     sendLine(session, "write");

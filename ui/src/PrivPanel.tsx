@@ -16,7 +16,7 @@ export function PrivPanel(props: {
   onSelect: (key: string) => void;
   onOpen: (to: string[]) => void;
   /** 送らなかった(宛先の確かめで断った)時は false。入力欄の文字を残す */
-  onSend: (to: string[], text: string) => boolean;
+  onSend: (to: string[], text: string) => Promise<boolean>;
   onClose: () => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
@@ -27,7 +27,10 @@ export function PrivPanel(props: {
     e.preventDefault();
     const text = e.currentTarget.value;
     if (text === "") return;
-    if (props.onSend(conv.to, text)) e.currentTarget.value = "";
+    const input = e.currentTarget;
+    props.onSend(conv.to, text).then((sent) => {
+      if (sent && input.value === text) input.value = "";
+    });
   }
 
   const others = props.users.filter((u) => u.name !== props.self);

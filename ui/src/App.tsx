@@ -12,6 +12,7 @@ import { SENT_EVENT, type Sent } from "./keyInput";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskOptions } from "./keys.ts";
 import { AskDialog } from "./AskDialog";
+import { alertBox, confirmBox, MessageDialogHost } from "./MessageDialog";
 import { TagMenu, type TagMenuAt } from "./TagMenuPopup";
 import { assetUrl } from "./asset";
 import { absorb, AUTOMAP_EVENT, blockOf, loadTiles, removeTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
@@ -133,7 +134,9 @@ export function App() {
     getVersion()
       .then(latestRelease)
       .then((r) => {
-        if (r && window.confirm(`新しい版 ${r.version} があります。\nダウンロードのページを開きますか？`)) return openUrl(r.url);
+        if (r) return confirmBox(`新しい版 ${r.version} があります。\nダウンロードのページを開きますか？`).then(async (ok) => {
+            if (ok) await openUrl(r.url);
+          });
       })
       .catch(console.error);
   }, []);
@@ -409,9 +412,9 @@ export function App() {
       if (id === "trace")
         return void invoke<boolean>("trace_on")
           .then((v) => invoke<string | null>("set_trace", { on: !v }))
-          .then((path) => window.alert(path ? `時刻の記録を始めました。\n${path}` : "時刻の記録を止めました。"))
+          .then((path) => alertBox(path ? `時刻の記録を始めました。\n${path}` : "時刻の記録を止めました。"))
           .catch((e) => setError(String(e)));
-      if (id === "version") return void getVersion().then((v) => window.alert(`WPHI ${v}`));
+      if (id === "version") return void getVersion().then((v) => alertBox(`WPHI ${v}`));
       if (session === null) return;
       // 入力欄のツールバーと同じ切り替え。状態は InputEditor が持つ
       if (INPUT_MENU.includes(id)) return void window.dispatchEvent(new CustomEvent(INPUT_MENU_EVENT, { detail: id }));
@@ -470,8 +473,8 @@ export function App() {
     unsavedWorlds.current.clear();
   }
   /** その世界の貯めた地形を消す(#15) */
-  function clearAutomap(world: string | undefined) {
-    if (!world || !window.confirm(`${world} の拡張マップを消します。\nよろしいですか？`)) return;
+  async function clearAutomap(world: string | undefined) {
+    if (!world || !(await confirmBox(`${world} の拡張マップを消します。\nよろしいですか？`))) return;
     automaps.current.set(world, {});
     unsavedWorlds.current.delete(world);
     pendingDiffs.current = pendingDiffs.current.filter((d) => d.world !== world);
@@ -646,11 +649,11 @@ export function App() {
   }
 
   /** priv を送る。先に #ulist で番号を取り直す(Philly の PrivForm.cpp の SendPrivMessage) */
-  function sendPriv(session: number, to: string[], text: string): boolean {
+  async function sendPriv(session: number, to: string[], text: string): Promise<boolean> {
     const key = partnersKey(to);
     const conv = tabsRef.current.find((t) => t.session === session)?.privs.find((c) => partnersKey(c.to) === key);
     if (conv?.confirm) {
-      const ok = window.confirm(
+      const ok = await confirmBox(
         `この会話の宛先は、受けた priv に書かれていた名前から作りました。\n送り先: ${to.join("、")}\nこの全員に送りますか？`,
       );
       if (!ok) return false;
@@ -734,10 +737,11 @@ export function App() {
           break;
         case "confirmTransfer": {
           // 悪意のあるサーバが、任意のホストへキャラ ID を送らせない為(#51)
-          const ok = window.confirm(
+          confirmBox(
             `別のサーバ(${ev.host}:${ev.port})の世界へ移動します。\n移動先へキャラの ID を送ります。よろしいですか？`,
-          );
-          invoke("send_line", { session, text: ok ? TRANSFER_YES : TRANSFER_NO }).catch(console.error);
+          )
+            .then((ok) => invoke("send_line", { session, text: ok ? TRANSFER_YES : TRANSFER_NO }))
+            .catch(console.error);
           break;
         }
         case "sound":
@@ -837,6 +841,7 @@ export function App() {
         } as React.CSSProperties
       }
     >
+      <MessageDialogHost />
       {asking && (
         <AskDialog
           key={asking.id}
@@ -1069,13 +1074,8 @@ function InputEditor(props: {
     const text = prepareLine(line.text, { ctrl, loud: loud && !allTab, lastLine: line.index + 1 >= line.count });
     if (text === null) return;
     const deliver = () => {
-      if (allTab) {
-        if (!window.confirm("全タブに発言します。\nよろしいですか？")) {
-          setAllTab(false);
-          return;
-        }
-        props.sessions.forEach((s) => sendLine(s, text));
-      } else sendLine(props.session, text);
+      if (allTab) props.sessions.forEach((s) => sendLine(s, text));
+      else sendLine(props.session, text);
       const next = afterSend(ta.value, ta.selectionStart);
       ta.value = next.value;
       ta.setSelectionRange(next.caret, next.caret);
@@ -1083,6 +1083,15 @@ function InputEditor(props: {
       ta.blur();
       ta.focus();
     };
+    // 全タブ発言は確かめてから送る。断ったら全タブ発言を解除し、入力欄はそのまま
+    if (allTab) {
+      confirmBox("全タブに発言します。\nよろしいですか？").then((ok) => {
+        if (ok) deliver();
+        else setAllTab(false);
+        ta.focus();
+      });
+      return;
+    }
     // Philly は大声の前に確認し、送ったら大声を解除する。「すべて大声」の後は確認しない
     if (loud && !allTab && !loudAll) {
       setLoudAsk({ deliver, ta });
