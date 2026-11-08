@@ -461,8 +461,7 @@ export function App() {
       // 接続・切断(#77)。全〜はタブ上の全キャラ
       const tabsNow = tabsRef.current;
       if (id === "all-connect") return tabsNow.filter((t) => t.closed).forEach((t) => connect(t.label, t.session));
-      if (id === "all-disconnect")
-        return tabsNow.filter((t) => !t.closed).forEach((t) => invoke("disconnect", { session: t.session }).catch(console.error));
+      if (id === "all-disconnect") return tabsNow.filter((t) => !t.closed).forEach((t) => disconnect(t.session));
       if (id === "all-force-close") return tabsNow.filter((t) => !t.closed).forEach((t) => forceClose(t.session));
       if (id === "new-tab") return setActive(null);
       if (id === "open-config-dir") return void invoke("open_config_dir").catch((e) => setError(String(e)));
@@ -478,7 +477,7 @@ export function App() {
       if (id === "priv") return togglePriv(session);
       const cur = tabsNow.find((t) => t.session === session);
       if (id === "connect") return cur?.closed ? void connect(cur.label, session) : undefined;
-      if (id === "disconnect") return void invoke("disconnect", { session }).catch(console.error);
+      if (id === "disconnect") return cur?.closed ? undefined : disconnect(session);
       if (id === "force-close") return cur?.closed ? undefined : forceClose(session);
       if (id === "close-tab") return close(session);
       if (id.startsWith("mm:")) return runMaster(id, session);
@@ -783,6 +782,8 @@ export function App() {
     linesPort.current.port2.postMessage(null);
   };
 
+  // 自分で切断したセッション。切れた知らせが届いた時に、サーバから切れたのと見分ける
+  const userClosing = useRef(new Set<number>());
   /**
    * 接続する。replace を渡すと、そのタブ(切れたタブ)で接続し直し、ログと priv はそのまま残す(Philly の 接続。#77)。
    * 渡さなければ新しいタブを開く
@@ -826,9 +827,14 @@ export function App() {
           if (ev.file) new Audio(assetUrl("sound", { no: String(ev.no) })).play().catch(console.error);
           else getCurrentWindow().requestUserAttention(UserAttentionType.Informational).catch(console.error);
           break;
-        case "connection":
+        case "connection": {
+          // Philly と同じく、自分で切った時とサーバから切れた時で行を分ける(Character.cpp・PersonalThread.cpp)
+          const mine = userClosing.current.delete(session);
+          if (!tabsRef.current.find((t) => t.session === session)?.closed)
+            append(session, mine ? systemOk("--- 切断しました ---") : systemNg("サーバーから切断されました。"));
           update(session, (t) => ({ ...t, closed: true }));
           break;
+        }
         case "userList":
           update(session, (t) => ({ ...t, users: usersFromEvent(ev.users) }));
           ulistArrived(session);
@@ -868,6 +874,7 @@ export function App() {
     };
     if (replace !== undefined) {
       forgetSession(replace);
+      append(session, systemOk("サーバーに接続します..."));
       setTabs((ts) =>
         ts.map((t) => (t.session === replace ? { ...t, session, closed: false, list: null, board: false, users: [] } : t)),
       );
@@ -895,6 +902,7 @@ export function App() {
       },
     ]);
     setActive(session);
+    append(session, systemOk("サーバーに接続します..."));
     early.splice(0).forEach(handle);
   }
 
@@ -910,11 +918,18 @@ export function App() {
   function forceClose(session: number) {
     invoke("force_disconnect", { session }).catch(console.error);
     update(session, (t) => (t.closed ? t : { ...t, closed: true }));
-    append(session, systemNg("強制切断しました"));
+    append(session, systemNg("--- 強制切断します ---"));
+  }
+
+  /** 切断(Philly の Close)。#x を送って切る。切れた知らせが届いた時に「切断しました」を出す */
+  function disconnect(session: number) {
+    userClosing.current.add(session);
+    invoke("disconnect", { session }).catch(console.error);
   }
 
   /** セッションごとに覚えた物を消す(#35) */
   function forgetSession(session: number) {
+    userClosing.current.delete(session);
     mapStates.current.delete(session);
     listFlows.current.delete(session);
     lastUlist.current.delete(session);
