@@ -21,7 +21,8 @@ export function parseMasterMagic(xml: string): MasterMenu | null {
   const text = (e: Element) => (e.textContent ?? "").replace(/&#xa;/g, "\n");
   const children = (e: Element, tag: string) => [...e.children].filter((c) => c.tagName === tag);
   return {
-    caption: root.getAttribute("caption") ?? "超魔法",
+    // 「超魔法(&S)」の (&S) は Windows のアクセスキー。他のメニューの名前に合わせて除く
+    caption: (root.getAttribute("caption") ?? "超魔法").replace(/\(&.\)/, "").replace("&", ""),
     menus: children(root, "menu").map((m) => ({
       caption: m.getAttribute("caption") ?? "",
       items: children(m, "item").map((it): MasterItem => {
