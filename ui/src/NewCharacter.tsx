@@ -1,5 +1,5 @@
 // 新規キャラ作成(Philly では別プログラムの PhillyNewCharacter.exe)。
-// 作ったキャラはそのまま一覧に入り、ID はキーチェーンに置く。
+// 作ったキャラはそのまま一覧に入り、ID は設定フォルダの .phirc に置く。
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 import { assetUrl } from "./asset";

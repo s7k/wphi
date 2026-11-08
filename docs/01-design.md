@@ -1,7 +1,7 @@
 # WPHI 設計
 
 旧 Windows クライアント Philly(C++Builder)を、Tauri 2 で作り直す為の設計。
-クライアント名は WPHI(2026-11-07 に決定)。識別子は `dev.wphi`、キーチェーンのサービス名は `wphi`、Tauri アプリの crate 名は `wphi`。
+クライアント名は WPHI(2026-11-07 に決定)。識別子は `dev.wphi`、前の版がキャラ ID を置いたキーチェーンのサービス名は `wphi`、Tauri アプリの crate 名は `wphi`。
 見た目と操作は Philly に寄せる。
 
 ## 参照資料
@@ -170,10 +170,13 @@ Philly が何秒で送っていたかは P1 で `PersonalThread.cpp` から確�
 
 Philly はキャラごとに `<名前>.chara\.phirc` を作り、1行目に ID、2〜3行目に `IP:ポート` を平文で書いている(`CharacterCommon.cpp:1203-1219`、`Const.cpp:66-68`)。
 ID はログインの認証情報そのものである。
-WPHI は ID を OS のキーチェーン(`keyring` crate)へ置き、IP とポートだけを設定ファイルに書く。
+WPHI も Philly と同じ形の `<表示名>.chara/.phirc` を、設定フォルダに置く(2026-11-08 に作者が決定)。
+OS のキーチェーンは macOS で開くたびに許可を求められるので使わない。macOS と Linux は自分だけが読める権限(0600)にする。
+設定フォルダは、macOS と Linux は `~/.config/wphi`、Windows は `%APPDATA%\dev.wphi`。
+前の版がキーチェーンに置いた ID は、初めて接続した時に `.phirc` へ移し、キーチェーンからは消す。
 キャラ選択の画面で Philly フォルダを指定すると、`*.chara\.phirc` を読み込んで既存のキャラを一覧へ取り込む(`src-tauri/src/characters.rs`)。
 一覧と、終了時に開いていたタブの表示名(Philly の `TabSession.ini` に当たる)は、設定フォルダの `characters.json` に置く。
-ID は一覧に書かず、接続の時に Rust 側がキーチェーンから読む。UI には返さない。
+ID は一覧に書かず、接続の時に Rust 側が `.phirc` から読む。UI には返さない。
 
 ## 5. 画像
 

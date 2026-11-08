@@ -33,12 +33,39 @@ struct Sessions {
     senders: Mutex<HashMap<u32, mpsc::Sender<String>>>,
 }
 
-fn store_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+/// 設定フォルダ(characters.json・settings.json と、キャラの .phirc の置き場)。
+/// macOS と Linux は ~/.config/wphi。Windows は OS の決める場所(%APPDATA%\dev.wphi)
+fn config_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    #[cfg(windows)]
+    return app.path().app_config_dir().map_err(|e| e.to_string());
+    #[cfg(not(windows))]
     Ok(app
         .path()
-        .app_config_dir()
+        .home_dir()
         .map_err(|e| e.to_string())?
-        .join("characters.json"))
+        .join(".config")
+        .join("wphi"))
+}
+
+/// 前の版の設定フォルダ(macOS は ~/Library/Application Support/dev.wphi、Linux は ~/.config/dev.wphi)から、
+/// 新しい設定フォルダへ characters.json と settings.json を写す。新しい方にあれば写さない
+fn migrate_config(app: &tauri::AppHandle) {
+    let (Ok(old), Ok(new)) = (app.path().app_config_dir(), config_dir(app)) else {
+        return;
+    };
+    if old == new {
+        return;
+    }
+    for name in ["characters.json", "settings.json"] {
+        let (from, to) = (old.join(name), new.join(name));
+        if from.exists() && !to.exists() && std::fs::create_dir_all(&new).is_ok() {
+            let _ = std::fs::copy(&from, &to);
+        }
+    }
+}
+
+fn store_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(config_dir(app)?.join("characters.json"))
 }
 
 #[tauri::command]
@@ -50,8 +77,14 @@ fn list_characters(app: tauri::AppHandle) -> Result<Store, String> {
 #[tauri::command]
 fn save_character(app: tauri::AppHandle, character: Character, id: String) -> Result<(), String> {
     Store::update(&store_path(&app)?, |store| {
+        let dir = config_dir(&app)?;
         if !id.is_empty() {
-            characters::set_id(&character.label, &id)?;
+            characters::set_id(&dir, &character, &id)?;
+        } else if store.find(&character.label).is_some_and(|old| *old != character) {
+            // 接続先だけを変えた時も、.phirc の接続先を書き換える
+            if let Ok(old_id) = characters::get_id(&dir, &character) {
+                characters::set_id(&dir, &character, &old_id)?;
+            }
         }
         store.upsert(character);
         Ok(())
@@ -63,7 +96,7 @@ fn delete_character(app: tauri::AppHandle, label: String) -> Result<(), String> 
     Store::update(&store_path(&app)?, |store| {
         store.characters.retain(|c| c.label != label);
         store.open_tabs.retain(|l| *l != label);
-        characters::delete_id(&label);
+        characters::delete_id(&config_dir(&app)?, &label);
         Ok(())
     })
 }
@@ -209,7 +242,7 @@ fn import_philly(
         store.philly_folder = Some(folder.clone());
         let mut labels = Vec::new();
         for p in characters::read_philly(std::path::Path::new(&folder))? {
-            characters::set_id(&p.character.label, &p.id)?;
+            characters::set_id(&config_dir(&app)?, &p.character, &p.id)?;
             labels.push(p.character.label.clone());
             store.upsert(p.character);
         }
@@ -267,11 +300,7 @@ fn asset_response(app: &tauri::AppHandle, uri: &str) -> tauri::http::Response<Ve
 }
 
 fn settings_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
-    Ok(app
-        .path()
-        .app_config_dir()
-        .map_err(|e| e.to_string())?
-        .join("settings.json"))
+    Ok(config_dir(app)?.join("settings.json"))
 }
 
 #[tauri::command]
@@ -321,12 +350,13 @@ async fn register_character(
     match register::register(&host, port, &name, &pass, image, &mail).await? {
         register::Outcome::Created(id) => {
             Store::update(&store_path(&app)?, |store| {
-                characters::set_id(&name, &id)?;
-                store.upsert(Character {
+                let ch = Character {
                     label: name.clone(),
                     host,
                     port,
-                });
+                };
+                characters::set_id(&config_dir(&app)?, &ch, &id)?;
+                store.upsert(ch);
                 Ok(())
             })?;
             Ok(name)
@@ -345,7 +375,7 @@ async fn register_character(
     }
 }
 
-/// 登録したキャラで接続する。ID はキーチェーンから読み、UI には渡さない。
+/// 登録したキャラで接続する。ID は .phirc から読み、UI には渡さない。
 #[tauri::command]
 fn connect(
     app: tauri::AppHandle,
@@ -358,7 +388,7 @@ fn connect(
         .find(&label)
         .ok_or_else(|| format!("{label} は登録されていません"))?
         .clone();
-    let id = characters::get_id(&label)?;
+    let id = characters::get_id(&config_dir(&app)?, &ch)?;
     let (host, port) = (ch.host, ch.port);
     let no = sessions.next.fetch_add(1, Ordering::Relaxed);
     let (tx, rx) = mpsc::channel(64);
@@ -626,7 +656,7 @@ fn html_to_text(html: &str) -> String {
 #[tauri::command]
 async fn open_config_dir(app: tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
-    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    let dir = config_dir(&app)?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     app.opener()
         .open_path(dir.display().to_string(), None::<&str>)
@@ -735,6 +765,7 @@ fn main() {
 
     tauri::Builder::default()
         .setup(|app| {
+            migrate_config(app.handle());
             app.manage(Mutex::new(Arc::new(load_assets(app.handle())?)));
             app.manage(Mutex::new(Arc::new(load_sounds(app.handle()))));
             // メニューバーは main 窓だけに付ける

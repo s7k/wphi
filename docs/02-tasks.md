@@ -74,7 +74,7 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 
 ## P5
 
-- [x] 新規キャラ作成(`#ex-register`。phi-client-web の `register.py` を移植した)。キャラ選択の画面で初期グラを選び、作ったキャラはそのまま一覧とキーチェーンに入る。改行や制御文字での行の差し込みは送る前に拒否する
+- [x] 新規キャラ作成(`#ex-register`。phi-client-web の `register.py` を移植した)。キャラ選択の画面で初期グラを選び、作ったキャラはそのまま一覧と `.phirc` に入る。改行や制御文字での行の差し込みは送る前に拒否する
   - [ ] 実サーバでの確認 #23
 - [x] Windows(NSIS)・Linux(deb・AppImage)・macOS(dmg、ユニバーサル)の配布物を GitHub Actions で作る設定(`.github/workflows/build.yml`)。Linux 版は手元でビルドして起動を確かめた
   - [x] 同梱のグラフィックスとスキンを実行ファイルに埋め込み、配布物に並べない(Windows の zip に phi が出ていた為)。PCGL の全文と出所の説明だけを licenses に入れる
