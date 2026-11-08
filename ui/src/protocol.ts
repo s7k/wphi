@@ -133,5 +133,7 @@ export type MapListAction = { type: "pick"; index: number } | { type: "toggle"; 
 
 /** Tauri のイベント名(main → map) */
 export const MAP_STATE_EVENT = "phi-map-state";
+/** Tauri のイベント名(map → main)。閉じるボタンで隠した時 */
+export const MAP_HIDDEN_EVENT = "phi-map-hidden";
 /** Tauri のイベント名(main → eagleeye) */
 export const EAGLE_EYE_EVENT = "phi-eagleeye";

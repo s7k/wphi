@@ -16,7 +16,7 @@ import { KEY_EVENT, MOUSE_EVENT, sendLine, type ForwardedKey, type ForwardedMous
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
 import { CHIP_SIZE, MAP_TOP, SLIDE_MS, gridDim, slideStep } from "./mapRender";
 import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
-import { MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type StatusEvent } from "./protocol";
+import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
 import { hideOnClose, useImages } from "./windowUtil";
 import "./style.css";
@@ -57,7 +57,8 @@ function MapWindow() {
   const prevStatus = useRef<{ session?: number; now?: StatusEvent; old?: StatusEvent }>({});
 
   useEffect(() => {
-    hideOnClose();
+    // 隠している間は main 窓が送らない(#75)
+    hideOnClose(() => emitTo("main", MAP_HIDDEN_EVENT).catch(console.error));
     const unlisten = listen<MapState>(MAP_STATE_EVENT, (e) => {
       const s = e.payload;
       trace("map recv");

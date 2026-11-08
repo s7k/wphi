@@ -23,7 +23,7 @@ import { ListOverlay } from "./ListOverlay";
 import { listNo, listOk, moreNo, newList, type ListState } from "./list.ts";
 import { trace } from "./trace.ts";
 import { PREDICT_TICK_MS, Predictor } from "./predict.ts";
-import { EAGLE_EYE_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type UiEvent } from "./protocol";
+import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
 import { pushLine, pushLines, type LogLine } from "./logLines.ts";
@@ -205,6 +205,17 @@ export function App() {
   };
   const mapStateQueued = useRef(false);
   const mapStateSession = useRef<number | null>(null);
+  const mapShown = useRef(true);
+  useEffect(() => {
+    Window.getByLabel("map")
+      .then((w) => w?.isVisible())
+      .then((v) => (mapShown.current = v ?? false))
+      .catch(console.error);
+    const hidden = listen(MAP_HIDDEN_EVENT, () => (mapShown.current = false));
+    return () => {
+      hidden.then((f) => f());
+    };
+  }, []);
   const sendMapState = (session: number | null) => {
     mapStateSession.current = session;
     if (mapStateQueued.current) return;
@@ -213,6 +224,8 @@ export function App() {
       mapStatePort.current = new MessageChannel();
       mapStatePort.current.port1.onmessage = () => {
         mapStateQueued.current = false;
+        // 隠した map 窓には送らない。拡張マップの差分は貯めておき、表示した時にまとめて送る(#75)
+        if (!mapShown.current) return;
         const s = mapStateSession.current;
         const state = s === null ? undefined : mapStates.current.get(s);
         const diffs = pendingDiffs.current.splice(0);
@@ -291,9 +304,12 @@ export function App() {
     const toggleMap = () =>
       Window.getByLabel("map").then(async (w) => {
         if (!w) return;
-        if (await w.isVisible()) await w.hide();
-        else {
+        if (await w.isVisible()) {
+          mapShown.current = false;
+          await w.hide();
+        } else {
           await w.show();
+          mapShown.current = true;
           sendMapState(activeRef.current);
         }
       });

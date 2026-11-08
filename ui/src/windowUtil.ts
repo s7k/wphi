@@ -3,11 +3,12 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useRef } from "react";
 
 /** 閉じるボタンで窓を破棄せずに隠す。破棄すると main 窓から送る先が無くなる */
-export function hideOnClose() {
+export function hideOnClose(onHide?: () => void) {
   const w = getCurrentWindow();
   w.onCloseRequested((e) => {
     e.preventDefault();
     w.hide().catch(console.error);
+    onHide?.();
   }).catch(console.error);
 }
 
