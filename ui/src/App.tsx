@@ -437,11 +437,13 @@ export function App() {
       const list = tabsRef.current.find((t) => t.session === session)?.list;
       const listAction = list && e.type === "keydown" ? listKeyAction(e, ctx) : null;
       if (list && listAction) {
-        if (e.repeat && !("listCursor" in listAction) && !("listToggle" in listAction)) return true;
+        // 押し続けのリピートは、カーソルとチェックと、9(続き。押し続けるとページを次々に足す。#84)だけ受け付ける
+        const repeatOk = "listCursor" in listAction || "listToggle" in listAction || ("listNo" in listAction && listAction.listNo === 9);
+        if (e.repeat && !repeatOk) return true;
         if ("listNo" in listAction) {
           const r = listNo(list, listAction.listNo);
           if (r?.close) closeListAndSend(session, r.send);
-          else if (r) sendLine(session, r.send);
+          else if (r) requestMore(session, r.send);
         } else if ("send" in listAction) closeListAndSend(session, listAction.send);
         else if ("listOk" in listAction) closeListAndSend(session, listOk(list));
         else if ("focusInput" in listAction) focusInput();
@@ -831,6 +833,12 @@ export function App() {
     closeList(session);
   }
 
+  /** 続きのページを頼む。届くまで 9 を受け付けない(#84) */
+  function requestMore(session: number, no: string) {
+    sendLine(session, no);
+    updateList(session, (l) => ({ ...l, waiting: true }));
+  }
+
   /** リストを閉じて map 窓に知らせる */
   function closeList(session: number) {
     update(session, (t) => ({ ...t, list: null }));
@@ -942,11 +950,12 @@ export function App() {
           else if (ev.mode === "end") update(session, (t) => ({ ...t, board: false }));
           break;
         case "list": {
-          const r = receiveList(listFlow(session), ev.active, ev.lines);
+          // 続きのページは、出しているリストの下に足す(#84)。map 窓にも溜めた全部を出す
+          const r = receiveList(listFlow(session), ev.active, ev.lines, tabsRef.current.find((t) => t.session === session)?.list);
           if (r === "close") closeList(session);
           else if (r) {
             update(session, (t) => ({ ...t, list: r }));
-            onMapEvent(session, ev);
+            onMapEvent(session, { ...ev, lines: r.lines });
           }
           break;
         }
@@ -1125,7 +1134,7 @@ export function App() {
               list={tab.list}
               onChange={(l) => updateList(tab.session, () => l)}
               onSend={(text) => closeListAndSend(tab.session, text)}
-              onMore={(text) => sendLine(tab.session, text)}
+              onMore={(text) => requestMore(tab.session, text)}
             />
           )}
         </div>

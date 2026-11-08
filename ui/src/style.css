@@ -844,3 +844,9 @@ body {
 .log-menu-area {
   display: contents;
 }
+
+/* リストの今のページの行の、1桁の番号(#84) */
+.list-key {
+  margin-right: 4px;
+  color: #808080;
+}

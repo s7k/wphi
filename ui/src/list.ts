@@ -1,32 +1,61 @@
 // リスト(#list 〜 #end-list)の番号の扱い(Philly の Command.cpp ListModeSend と CharacterCommon.cpp classListMode)。
 // サーバは続きのページ(9 の「続き」を選んだ後)を前のページの続きの番号で送る。1ページ目が 1〜9 なら 2ページ目は 9〜17。
 // 画面の番号(1〜9)にページの先頭のずれ(ListOffset)を足した番号をサーバへ送る。
+// 続きのページは前のページの下に足していく(Philly の classListMode::AddList。#84)。
 
 export type ListState = {
+  /** 溜めた全部の行。前のページの行も残す */
   lines: string[];
   checked: boolean[];
   cursor: number;
-  /** ページの先頭の行の番号 - 1(Philly の ListOffset) */
+  /** 今のページの先頭の行の番号 - 1(Philly の ListOffset) */
   offset: number;
+  /** 溜めた先頭の行の番号 - 1。溜めた中の i 番目の行の番号は start + i + 1 */
+  start: number;
+  /** 続きのページを頼んで、届くのを待っている。待つ間は 9 を受け付けない(Philly の More を落とす) */
+  waiting?: boolean;
 };
 
 /** 届いたページからリストを作る。ずれは先頭の行の最初の数(Philly の AddList は /\d+/ で番号を取る) */
 export function newList(lines: string[]): ListState {
   const first = /\d+/.exec(lines[0]?.replace(/\/\*.*?\*\//g, "") ?? "");
   const offset = first ? Math.max(Number(first[0]) - 1, 0) : 0;
-  return { lines, checked: lines.map(() => false), cursor: 0, offset };
+  return { lines, checked: lines.map(() => false), cursor: 0, offset, start: offset };
 }
 
+/**
+ * 届いたページを、前のリストの続きなら下に足す。前のリストの最後の行(9 番目の「続き」)は除く。
+ * 続きでなければ(番号が繋がらなければ)新しいリストにする
+ */
+export function addPage(prev: ListState | null | undefined, lines: string[]): ListState {
+  const page = newList(lines);
+  if (!prev || page.offset + 1 !== prev.start + prev.lines.length || prev.lines.length === 0) return page;
+  const kept = prev.lines.length - 1;
+  return {
+    lines: [...prev.lines.slice(0, kept), ...lines],
+    checked: [...prev.checked.slice(0, kept), ...lines.map(() => false)],
+    cursor: kept,
+    offset: page.offset,
+    start: prev.start,
+  };
+}
+
+/** 今のページの先頭の行の、溜めた中の位置 */
+export const pageTop = (l: ListState) => l.offset - l.start;
+
+/** 今のページの行の数 */
+const pageCount = (l: ListState) => l.lines.length - pageTop(l);
+
 /** 9 件目は続きのページの印(Philly の SynchronizeShowList で No が 9 なら More) */
-export const hasMore = (l: ListState) => l.lines.length >= 9;
+export const hasMore = (l: ListState) => pageCount(l) >= 9;
 
 /** 続きのページを頼む番号 */
 export const moreNo = (l: ListState) => String(l.offset + 9);
 
 /** チェックした番号を空白区切りで。何もチェックしていなければカーソルの行の番号 */
 export function listOk(l: ListState): string {
-  const nos = l.checked.flatMap((c, i) => (c ? [String(l.offset + i + 1)] : []));
-  return nos.length > 0 ? nos.join(" ") : String(l.offset + l.cursor + 1);
+  const nos = l.checked.flatMap((c, i) => (c ? [String(l.start + i + 1)] : []));
+  return nos.length > 0 ? nos.join(" ") : String(l.start + l.cursor + 1);
 }
 
 /**
@@ -36,8 +65,8 @@ export function listOk(l: ListState): string {
  * 装備が3つの時に unequip で 4 を押すと1番の武器を外してしまう。戦闘中は文字のキーでもリストを取り消すので、それに揃える
  */
 export function listNo(l: ListState, n: number): { send: string; close: boolean } | null {
-  if (n === 9) return hasMore(l) ? { send: moreNo(l), close: false } : null;
-  if (n > l.lines.length) return { send: ".", close: true };
+  if (n === 9) return hasMore(l) && !l.waiting ? { send: moreNo(l), close: false } : null;
+  if (n > pageCount(l)) return { send: ".", close: true };
   return { send: String(l.offset + n), close: true };
 }
 
@@ -57,7 +86,12 @@ export type ListFlow = { cancel: number; started: boolean };
  * #end-list の時、空のリストと、NextListCancel の印がある分は出さない(Philly の RecvListEnd)。
  * 出すリストか、閉じる("close")か、何もしない(null)かを返す
  */
-export function receiveList(flow: ListFlow, active: boolean, lines: string[] | undefined): ListState | "close" | null {
+export function receiveList(
+  flow: ListFlow,
+  active: boolean,
+  lines: string[] | undefined,
+  prev?: ListState | null,
+): ListState | "close" | null {
   if (!active) {
     flow.started = false;
     return "close";
@@ -70,5 +104,5 @@ export function receiveList(flow: ListFlow, active: boolean, lines: string[] | u
   const cancel = flow.cancel > 0;
   if (cancel) flow.cancel--;
   if (!lines?.length || cancel) return null;
-  return newList(lines);
+  return addPage(prev, lines);
 }
