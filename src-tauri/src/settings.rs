@@ -149,7 +149,9 @@ mod tests {
     fn default_json_is_current() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../ui/src/settings.default.json");
         let json = serde_json::to_string_pretty(&Settings::default()).unwrap() + "\n";
-        if std::fs::read_to_string(path).ok().as_deref() != Some(json.as_str()) {
+        // Windows の checkout は改行を CRLF にするので、改行を揃えて比べる
+        let current = std::fs::read_to_string(path).ok().map(|s| s.replace("\r\n", "\n"));
+        if current.as_deref() != Some(json.as_str()) {
             std::fs::write(path, &json).unwrap();
             panic!("{path} を書き直した。コミットする");
         }
