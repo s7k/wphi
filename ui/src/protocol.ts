@@ -118,6 +118,8 @@ export type MapState = {
   list?: string[];
   /** リストのチェック(main 窓のリストと同じ) */
   listChecked?: boolean[];
+  /** 前に送った後に変わった拡張マップのマス。MapState と同じ送信で送り、map 窓が1回で描く(#75) */
+  diffs?: { world: string; diff: Record<string, MapCell> }[];
 };
 
 /**

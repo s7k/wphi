@@ -59,6 +59,11 @@ function MapWindow() {
     const unlisten = listen<MapState>(MAP_STATE_EVENT, (e) => {
       const s = e.payload;
       trace("map recv");
+      // 拡張マップの差分は MapState と一緒に届く。同じ処理の中で足し、1回で描く
+      if (s.diffs?.length) {
+        for (const d of s.diffs) Object.assign(automapOf(d.world), d.diff);
+        setTilesVer((v) => v + 1);
+      }
       const p = prevStatus.current;
       // イベントのたびに別のオブジェクトで届くので、中身で比べる。#status が届くたびに1つ前の値になる。
       // タブを切り替えた時は、前のタブのキャラとの差を減った分にしない(#67)

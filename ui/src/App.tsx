@@ -175,6 +175,7 @@ export function App() {
   // map 窓へは、続けて届いた分を次のタスクでまとめて送る。#m57 と #status がそれぞれ 0.2 秒ごとに届き、1つ届くたびに MapState 全体を送っていた。
   // setTimeout を使わない。map 窓にフォーカスがある間 main 窓は裏の窓になり、WebView2 がタイマーを 1 秒ごとに間引くと地図が止まって見える(#44)
   const mapStatePort = useRef<MessageChannel | null>(null);
+  const pendingDiffs = useRef<AutomapDiff[]>([]);
   const mapStateQueued = useRef(false);
   const mapStateSession = useRef<number | null>(null);
   const sendMapState = (session: number | null) => {
@@ -187,8 +188,11 @@ export function App() {
         mapStateQueued.current = false;
         const s = mapStateSession.current;
         const state = s === null ? undefined : mapStates.current.get(s);
+        const diffs = pendingDiffs.current.splice(0);
         trace("main emit");
-        emitTo("map", MAP_STATE_EVENT, state ?? { session: -1, mapset: "" }).catch((e) => console.error(e));
+        emitTo("map", MAP_STATE_EVENT, { ...(state ?? { session: -1, mapset: "" }), diffs }).catch((e) =>
+          console.error(e),
+        );
       };
     }
     mapStatePort.current.port2.postMessage(null);
@@ -389,6 +393,7 @@ export function App() {
     if (!world || !window.confirm(`${world} の拡張マップを消します。\nよろしいですか？`)) return;
     automaps.current.set(world, {});
     unsavedWorlds.current.delete(world);
+    pendingDiffs.current = pendingDiffs.current.filter((d) => d.world !== world);
     removeTiles(world);
     emitTo("map", AUTOMAP_EVENT, { world, diff: {}, clear: true } satisfies AutomapDiff).catch(console.error);
   }
@@ -398,7 +403,7 @@ export function App() {
     const diff = absorb(tiles, ev);
     if (!diff) return;
     Object.assign(tiles, diff);
-    emitTo("map", AUTOMAP_EVENT, { world, diff } satisfies AutomapDiff).catch(console.error);
+    pendingDiffs.current.push({ world, diff });
     let blocks = unsavedWorlds.current.get(world);
     if (!blocks) unsavedWorlds.current.set(world, (blocks = new Set()));
     for (const k of Object.keys(diff)) blocks.add(blockOf(k));
