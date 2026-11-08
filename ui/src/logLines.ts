@@ -7,7 +7,11 @@ let nextId = 0;
 
 /** 末尾に1行足し、max を超えた古い行を捨てる */
 export function pushLine(lines: LogLine[], html: string, max = MAX_LINES): LogLine[] {
-  const keep = lines.length >= max ? lines.slice(lines.length - max + 1) : lines.slice();
-  keep.push({ id: nextId++, html });
-  return keep;
+  return pushLines(lines, [html], max);
+}
+
+/** 末尾に複数の行を足し、max を超えた古い行を捨てる */
+export function pushLines(lines: LogLine[], htmls: string[], max = MAX_LINES): LogLine[] {
+  const added = htmls.slice(-max).map((html) => ({ id: nextId++, html }));
+  return [...lines.slice(Math.max(0, lines.length + added.length - max)), ...added];
 }

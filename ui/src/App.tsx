@@ -1,7 +1,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { memo, useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { getVersion } from "@tauri-apps/api/app";
@@ -25,7 +25,7 @@ import { trace } from "./trace.ts";
 import { EAGLE_EYE_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
-import { pushLine, type LogLine } from "./logLines.ts";
+import { pushLine, pushLines, type LogLine } from "./logLines.ts";
 
 // src-tauri/src/characters.rs の Store
 type Character = { label: string; host: string; port: number };
@@ -459,8 +459,18 @@ export function App() {
     return f;
   };
 
+  // f が何も変えなければ元の配列を返し、App を描き直さない(#73)
   const update = (session: number, f: (t: Tab) => Tab) =>
-    setTabs((ts) => ts.map((t) => (t.session === session ? f(t) : t)));
+    setTabs((ts) => {
+      let changed = false;
+      const next = ts.map((t) => {
+        if (t.session !== session) return t;
+        const n = f(t);
+        if (n !== t) changed = true;
+        return n;
+      });
+      return changed ? next : ts;
+    });
 
   // チェックは map 窓のリストにも出す
   const updateList = (session: number, f: (l: ListState) => ListState) =>
@@ -560,11 +570,27 @@ export function App() {
     onMapEvent(session, { type: "list", active: false });
   }
 
+  // 続けて届いた行は次のタスクでまとめて足す。1行ごとに足すと、行の数だけ描き直しとレイアウトが走る(#73)
+  const pendingLines = useRef(new Map<number, string[]>());
+  const linesPort = useRef<MessageChannel | null>(null);
   const append = (session: number, html: string) => {
     const line = timePrefix() + html;
-    update(session, (t) => ({ ...t, lines: pushLine(t.lines, line) }));
     const tab = tabsRef.current.find((t) => t.session === session);
     if (tab?.logSave) saveLog(tab.label, line, settingsRef.current.logSaveHtml);
+    const queued = pendingLines.current.size > 0;
+    const q = pendingLines.current.get(session);
+    if (q) q.push(line);
+    else pendingLines.current.set(session, [line]);
+    if (queued) return;
+    if (!linesPort.current) {
+      linesPort.current = new MessageChannel();
+      linesPort.current.port1.onmessage = () => {
+        const all = pendingLines.current;
+        pendingLines.current = new Map();
+        setTabs((ts) => ts.map((t) => (all.has(t.session) ? { ...t, lines: pushLines(t.lines, all.get(t.session)!) } : t)));
+      };
+    }
+    linesPort.current.port2.postMessage(null);
   };
 
   async function connect(label: string) {
@@ -857,7 +883,7 @@ function TabBar(props: {
  * ログ欄。follow が on の時は、ログが増えるたびと、中の画像が読み込まれて高さが変わるたびに最下行へ移る。
  * off は Philly の「ログスクロール停止」に当たる
  */
-function LogView(props: { lines: LogLine[]; follow: boolean }) {
+const LogView = memo(function LogView(props: { lines: LogLine[]; follow: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const follow = useRef(props.follow);
@@ -887,7 +913,7 @@ function LogView(props: { lines: LogLine[]; follow: boolean }) {
       </div>
     </div>
   );
-}
+});
 
 /**
  * 入力欄(Philly の InputEdit)。Philly と同じ複数行のエディタで、Enter はカーソルの行を送り、送った行は欄に残す。
