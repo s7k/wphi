@@ -637,6 +637,13 @@ fn main() {
             }
             Ok(())
         })
+        // main 窓を閉じたらアプリを終える。map と EagleEye は閉じても隠すだけなので、残ったままだとアプリが終わらず、
+        // window-state が窓の位置を書き出す RunEvent::Exit も来ない(窓の位置が保存されなかった)
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                window.app_handle().exit(0);
+            }
+        })
         .on_menu_event(|app, event| {
             use tauri::Emitter;
             if event.id().0 == "exit" {
