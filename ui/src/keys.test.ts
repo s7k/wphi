@@ -36,14 +36,14 @@ test("行動キーと修飾キー", () => {
   assert.deepEqual(act(key("KeyT", { shift: true }), north), { send: "#ex-map style=solid" });
   assert.deepEqual(act(key("Digit5", { shift: true }), north), { send: "#ex-map size=40" });
   assert.deepEqual(act(key("Tab", { ctrl: true }), north), { nextTab: true });
-  assert.deepEqual(act(key("KeyW", { alt: true }), north), { send: "cast\nwizard eye", cancelList: 1 });
+  assert.deepEqual(act(key("KeyW", { alt: true }), north), { send: "cast\nwizard eye", cancelList: 1, systemMagic: "reequip" });
   assert.deepEqual(act(key("Digit3", { alt: true }), north), { send: "cast\n3", cancelList: 1 });
-  assert.deepEqual(act(key("KeyL", { alt: true, shift: true }), north), { send: "cast\nlist", cancelList: 1 });
+  assert.deepEqual(act(key("KeyL", { alt: true, shift: true }), north), { send: "cast\nlist", cancelList: 1, systemMagic: "reequip" });
   assert.ok((act(key("KeyR", { alt: true }), north) as { confirm?: string }).confirm);
   assert.deepEqual(act(key("F3"), north), { send: "cast\n3", cancelList: 1 });
   assert.deepEqual(act(key("F5", { shift: true }), north), { toggleMap: true });
   // Alt の時はフルキー移動の読み替えをしない
-  assert.deepEqual(act(key("KeyU", { alt: true }), { northFix: true, fullKeyMove: true }), { send: "cast\nunlock\nsee", cancelList: 1 });
+  assert.deepEqual(act(key("KeyU", { alt: true }), { northFix: true, fullKeyMove: true }), { send: "cast\nunlock\nsee", cancelList: 1, systemMagic: "reequip" });
   // Alt と矢印は移動にしない
   assert.equal(act(key("ArrowUp", { alt: true }), north), null);
   assert.equal(act(key("KeyQ", { alt: true }), north), null);
@@ -79,7 +79,7 @@ test("リスト表示中のキー", () => {
 
 test("メニューの項目", () => {
   assert.deepEqual(menuAction("get"), { send: "get" });
-  assert.deepEqual(menuAction("wizard-eye"), { send: "cast\nwizard eye", cancelList: 1 });
+  assert.deepEqual(menuAction("wizard-eye"), { send: "cast\nwizard eye", cancelList: 1, systemMagic: "reequip" });
   assert.deepEqual(menuAction("map"), { toggleMap: true });
   assert.deepEqual(menuAction("map-turn"), { send: "#ex-map style=turn" });
   assert.deepEqual(menuAction("map-solid"), { send: "#ex-map style=solid" });

@@ -12,6 +12,8 @@ use phi_proto::{
     tag_to_html::{LogOptions, to_html},
 };
 use serde::Serialize;
+
+use crate::auto_unequip::{AutoUnequip, strip_tags};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
@@ -183,6 +185,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
     let mut warned = false;
     // 今繋いでいるホスト。世界移動で変わる
     let mut host = login.host.clone();
+    let mut auto = AutoUnequip::default();
 
     loop {
         let wake = next_wake(last_recv, keepalive_sent, warned);
@@ -212,6 +215,14 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                 'lines: while let Some(line) = queue.pop_front() {
                     if crate::trace::on() {
                         crate::trace::write(&format!("recv {}", crate::trace::head(&String::from_utf8_lossy(&line))));
+                    }
+                    // 系統魔法の前に外した装備のリストなどは出さない(#4。Philly も #more の外だけで見る)
+                    let now = std::time::Instant::now();
+                    if !parser.in_more()
+                        && auto.active(now)
+                        && auto.filter(&strip_tags(&codec::decode(&line)), now, &mut reply)
+                    {
+                        continue 'lines;
                     }
                     for ev in parser.feed(&line) {
                         match ev {
@@ -296,7 +307,10 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     if text == "#ulist" {
                         parser.clear_users();
                     }
-                    reply.push(text)
+                    match auto.start(&text, std::time::Instant::now()) {
+                        Some(unequip) => reply.push(unequip.into()),
+                        None => reply.push(text),
+                    }
                 }
                 None => {
                     let _ = stream.write_all(&line_bytes("#x")).await;

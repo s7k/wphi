@@ -300,6 +300,10 @@ export function App() {
       const i = ts.findIndex((t) => t.session === activeRef.current);
       setActive(ts[(i + 1) % ts.length].session);
     };
+    const systemMagic = () => ({
+      unequip: settingsRef.current.autoUnequipSystemMagic,
+      equip: settingsRef.current.autoEquipSystemMagic,
+    });
     // マップ窓の表示・非表示(Philly の Shift+F5 DispMap)
     const toggleMap = () =>
       Window.getByLabel("map").then(async (w) => {
@@ -358,7 +362,7 @@ export function App() {
       // 押し続けによる自動リピートは送らない
       const openBoard = () => update(session, (t) => ({ ...t, board: true }));
       const cancelList = (n: number) => (listFlow(session).cancel += n);
-      if (!e.repeat) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList, ask });
+      if (!e.repeat) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList, ask, systemMagic });
       return true;
     };
     const onDom = (e: globalThis.KeyboardEvent) => {
@@ -403,7 +407,7 @@ export function App() {
       const action = menuAction(id);
       const openBoard = () => update(session, (t) => ({ ...t, board: true }));
       const cancelList = (n: number) => (listFlow(session).cancel += n);
-      if (action) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList, ask });
+      if (action) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList, ask, systemMagic });
     });
     // マップのマウス操作(Philly の MapForm.cpp の FormMouseDown)
     const mouse = listen<ForwardedMouse>(MOUSE_EVENT, (e) => {

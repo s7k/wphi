@@ -21,6 +21,10 @@ pub struct Settings {
     pub sound_play: bool,
     /// ログを HTML で保存する。off ならテキスト([Log] LogSaveHtml)
     pub log_save_html: bool,
+    /// 系統魔法の前に武器を外す([Automation] AutoUnequipSystemMagic)
+    pub auto_unequip_system_magic: bool,
+    /// 系統魔法の後に外した武器を装備し直す([Automation] AutoEquipSystemMagic)
+    pub auto_equip_system_magic: bool,
     /// マップの拡大率(%)。マップの画像を拡大縮小する。拡張マップの外周は、拡大した大きさで欄に収まる分だけ(Philly に無い)
     pub map_zoom: u32,
     /// 実験的: 自分が1マス進んだ時に、地図を滑らかにずらして描く。表示のメニューで切り替える(Philly に無い)
@@ -39,6 +43,8 @@ impl Default for Settings {
             alt_g_word: String::new(),
             sound_play: true,
             log_save_html: true,
+            auto_unequip_system_magic: true,
+            auto_equip_system_magic: false,
             map_zoom: 100,
             smooth_move: false,
             automap: true,
@@ -79,6 +85,12 @@ impl Settings {
         }
         if let Some(v) = get("Sound", "SoundPlay") {
             self.sound_play = on(v);
+        }
+        if let Some(v) = get("Automation", "AutoUnequipSystemMagic") {
+            self.auto_unequip_system_magic = on(v);
+        }
+        if let Some(v) = get("Automation", "AutoEquipSystemMagic") {
+            self.auto_equip_system_magic = on(v);
         }
     }
 }

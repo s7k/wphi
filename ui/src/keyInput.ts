@@ -45,6 +45,9 @@ export function sendLines(session: number, text: string) {
 }
 
 /** 移動以外のキー操作を行う */
+/** 系統魔法を唱える行の頭(src-tauri/src/auto_unequip.rs)。サーバへは送らない */
+export const CAST_PREFIX = "#wphi-cast ";
+
 export function runKeyAction(
   action: KeyAction,
   session: number,
@@ -57,6 +60,8 @@ export function runKeyAction(
     cancelList: (n: number) => void;
     /** 語や数を聞く。取り消したら null */
     ask: (opts: AskOptions) => Promise<string | null>;
+    /** 系統魔法の前に武器を外すか、唱えた後に装備し直すか(設定) */
+    systemMagic: () => { unequip: boolean; equip: boolean };
   },
 ) {
   if ("ask" in action) {
@@ -69,7 +74,12 @@ export function runKeyAction(
   } else if ("send" in action) {
     if (action.confirm && !window.confirm(action.confirm)) return;
     if (action.cancelList) hooks.cancelList(action.cancelList);
-    sendLines(session, action.send);
+    const sm = action.systemMagic && hooks.systemMagic();
+    // 武器を外すのは session.rs が受け持つ。唱える行をまとめて1行で渡し、サーバへは unequip だけを先に送る(#4)
+    if (sm && sm.unequip) {
+      const reequip = action.systemMagic === "reequip" && sm.equip ? 1 : 0;
+      sendLine(session, `${CAST_PREFIX}${reequip} ${action.send.split("\n").join("\t")}`);
+    } else sendLines(session, action.send);
   } else if ("toggleMap" in action) hooks.toggleMap();
   else if ("write" in action) {
     sendLine(session, "write");

@@ -16,7 +16,7 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 - [x] ファンクションキーと Alt の魔法(Philly の `Command.cpp` KeyBindNone の F1〜F7、KeyBindAlt、KeyBindShiftAlt)。Call と Return は送る前に確認する。Shift+F5 でマップ窓を出し入れする
   - [x] F8〜F12 のショートカットと Alt+G の言葉。リスト表示中の F8〜F12 はリスト用の文字列を送る
   - [x] Alt+S(看板の検索)、Shift+Alt+C・A・U。語や数を聞くダイアログ(AskDialog)を作り、支払い金額にも使う #3 #40
-  - [ ] 系統魔法の前に武器を外す処理(AutoUnequipSystemMagic)#4
+  - [x] 系統魔法の前に武器を外す処理(AutoUnequipSystemMagic)#4。src-tauri/src/auto_unequip.rs。実サーバでは未確認
 - [x] マップのクリックで移動、右クリックで攻撃(Philly の `MapForm.cpp` の MouseDirection)。1回のクリックで1歩進む(斜めは2方向を1歩ずつ)。押し続けても繰り返さない
   - [x] マウスカーソルをスキンの `Cursor/*.cur` にする #5
   - [x] 北固定で Shift か Ctrl を押しながらマウスを向けると、その向きを向く(NorthFixTurn)#6

@@ -9,6 +9,10 @@ export type Settings = {
   soundPlay: boolean;
   /** ログを HTML で保存する。off ならテキスト */
   logSaveHtml: boolean;
+  /** 系統魔法の前に武器を外す(AutoUnequipSystemMagic) */
+  autoUnequipSystemMagic: boolean;
+  /** 系統魔法の後に外した武器を装備し直す(AutoEquipSystemMagic) */
+  autoEquipSystemMagic: boolean;
   /** マップの拡大率(%) */
   mapZoom: number;
   /** 実験的: 自分が進んだ時に地図を滑らかにずらす(表示のメニューで切り替える) */
@@ -27,6 +31,8 @@ export const DEFAULT_SETTINGS: Settings = {
   altGWord: "",
   soundPlay: true,
   logSaveHtml: true,
+  autoUnequipSystemMagic: true,
+  autoEquipSystemMagic: false,
   mapZoom: 100,
   smoothMove: false,
   automap: true,

@@ -38,6 +38,23 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
           <input type="checkbox" checked={s.logSaveHtml} onChange={(e) => set("logSaveHtml", e.target.checked)} />
           ログを HTML で保存する(off ならテキスト)
         </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={s.autoUnequipSystemMagic}
+            onChange={(e) => set("autoUnequipSystemMagic", e.target.checked)}
+          />
+          系統魔法(Alt と Shift+Alt の魔法)の前に武器を外す
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={s.autoEquipSystemMagic}
+            disabled={!s.autoUnequipSystemMagic}
+            onChange={(e) => set("autoEquipSystemMagic", e.target.checked)}
+          />
+          系統魔法の後に外した武器を装備し直す(チャット場では off を勧める)
+        </label>
         <table>
           <thead>
             <tr>

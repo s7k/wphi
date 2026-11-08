@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod assets;
+mod auto_unequip;
 mod characters;
 mod jsonfile;
 mod menu;

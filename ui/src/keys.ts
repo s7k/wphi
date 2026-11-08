@@ -11,9 +11,11 @@ export type KeyAction =
   /**
    * confirm があれば、送る前に確認する(Philly の Call と Return)。
    * cancelList は、送った後に届くリストを出さない数(Philly の NextListCancel)。
-   * cast と魔法の名前をまとめて送ると、サーバは cast の魔法の一覧を返してから魔法の名前を選択として受ける
+   * cast と魔法の名前をまとめて送ると、サーバは cast の魔法の一覧を返してから魔法の名前を選択として受ける。
+   * systemMagic は系統魔法の印で、設定が on なら唱える前に武器を外す(Philly の AutoUnequipSystemMagic。#4)。
+   * "reequip" は、設定が on なら唱えた後に装備し直す。"keep" は装備し直さない(唱えた後にリストが来る魔法)
    */
-  | { send: string; confirm?: string; cancelList?: number }
+  | { send: string; confirm?: string; cancelList?: number; systemMagic?: "reequip" | "keep" }
   /** マップ窓の表示を切り替える(Shift+F5) */
   | { toggleMap: true }
   /**
@@ -170,32 +172,32 @@ const SHIFT: Record<string, KeyAction> = {
 
 /** Alt(KeyBindAlt)。G(AltGWord)は設定の文字列なので shortcutText で扱う */
 const ALT: Record<string, KeyAction> = {
-  KeyA: { send: "cast\nanalyze", cancelList: 1 },
+  KeyA: { send: "cast\nanalyze", cancelList: 1, systemMagic: "keep" },
   KeyB: {
-    send: "cast\ncall", cancelList: 1,
+    send: "cast\ncall", cancelList: 1, systemMagic: "reequip",
     confirm: "現在の位置を call します。\nReturn や死んでしまって再接続するときはこの位置になります。\nよろしいですか？",
   },
-  KeyC: { send: "cast\ncreate", cancelList: 1 },
-  KeyD: { send: "cast\ndetect", cancelList: 1 },
-  KeyE: { send: "cast\neagle eye", cancelList: 1 },
-  KeyF: { send: "cast\nforget", cancelList: 1 },
-  KeyI: { send: "cast\nidentify", cancelList: 1 },
-  KeyL: { send: "cast\nwizard lock\nsee", cancelList: 1 },
-  KeyP: { send: "cast\nparty eye", cancelList: 1 },
-  KeyR: { send: "cast\nreturn", cancelList: 1, confirm: "call 位置に帰還します。\n持っているアイテムを失う可能性があります。\nよろしいですか？" },
+  KeyC: { send: "cast\ncreate", cancelList: 1, systemMagic: "keep" },
+  KeyD: { send: "cast\ndetect", cancelList: 1, systemMagic: "keep" },
+  KeyE: { send: "cast\neagle eye", cancelList: 1, systemMagic: "reequip" },
+  KeyF: { send: "cast\nforget", cancelList: 1, systemMagic: "keep" },
+  KeyI: { send: "cast\nidentify", cancelList: 1, systemMagic: "reequip" },
+  KeyL: { send: "cast\nwizard lock\nsee", cancelList: 1, systemMagic: "reequip" },
+  KeyP: { send: "cast\nparty eye", cancelList: 1, systemMagic: "reequip" },
+  KeyR: { send: "cast\nreturn", cancelList: 1, systemMagic: "reequip", confirm: "call 位置に帰還します。\n持っているアイテムを失う可能性があります。\nよろしいですか？" },
   KeyS: { ask: { title: "看板検索", label: "検索する言葉を入力してください" }, send: "cast\nsearch\n{}", cancelList: 1 },
-  KeyU: { send: "cast\nunlock\nsee", cancelList: 1 },
-  KeyW: { send: "cast\nwizard eye", cancelList: 1 },
+  KeyU: { send: "cast\nunlock\nsee", cancelList: 1, systemMagic: "reequip" },
+  KeyW: { send: "cast\nwizard eye", cancelList: 1, systemMagic: "reequip" },
   ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((n) => [`Digit${n}`, { send: `cast\n${n}`, cancelList: 1 }])),
 };
 
 /** Shift+Alt(KeyBindShiftAlt) */
 const SHIFT_ALT: Record<string, KeyAction> = {
-  KeyW: { send: "cast\nwizard light", cancelList: 1 },
-  KeyE: { send: "#ex-switch eagleeye=text\ncast\neagle eye\n#ex-switch eagleeye=form", cancelList: 1 },
-  KeyL: { send: "cast\nlist", cancelList: 1 },
-  KeyD: { send: "cast\ndestroy", cancelList: 1 },
-  KeyC: { send: "cast\ncharge spell", cancelList: 1 },
+  KeyW: { send: "cast\nwizard light", cancelList: 1, systemMagic: "reequip" },
+  KeyE: { send: "#ex-switch eagleeye=text\ncast\neagle eye\n#ex-switch eagleeye=form", cancelList: 1, systemMagic: "reequip" },
+  KeyL: { send: "cast\nlist", cancelList: 1, systemMagic: "reequip" },
+  KeyD: { send: "cast\ndestroy", cancelList: 1, systemMagic: "keep" },
+  KeyC: { send: "cast\ncharge spell", cancelList: 1, systemMagic: "keep" },
   KeyA: { ask: { title: "召喚", label: "召喚するNPCの名前を入力してください" }, send: "cast\nappear {}", cancelList: 1 },
   KeyU: { ask: { title: "送喚", label: "送喚するNPCの名前を入力してください" }, send: "cast\ndisappear {}", cancelList: 1 },
 };
