@@ -67,10 +67,26 @@ export function NewCharacter(props: { onCreated: () => void; onError: (message: 
     >
       <h3>新規キャラ作成</h3>
       <label>
-        サーバ <input value={host} onChange={(e) => setHost(e.target.value)} required />
+        サーバ <input
+          value={host}
+          onChange={(e) => {
+            // グラの一覧はサーバごとに違うので、サーバを変えたら読み直す(#69)
+            setHost(e.target.value);
+            setGraphics(null);
+          }}
+          required
+        />
       </label>
       <label>
-        ポート <input value={port} onChange={(e) => setPort(e.target.value)} inputMode="numeric" required />
+        ポート <input
+          value={port}
+          onChange={(e) => {
+            setPort(e.target.value);
+            setGraphics(null);
+          }}
+          inputMode="numeric"
+          required
+        />
       </label>
       {graphics === null ? (
         <button type="submit" disabled={busy}>
