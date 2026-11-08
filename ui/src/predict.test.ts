@@ -65,7 +65,24 @@ test("返事を待っている移動があれば waiting", () => {
   advance(150);
   p.tick();
   assert.equal(p.waiting, false);
-  p.sent("go N");
   p.onMap("5,4,0");
+  p.sent("go N");
+  p.onMap("5,3,0");
   assert.equal(p.waiting, false);
+});
+
+test("地図が待つ時間より後に届く回線では、待つ時間を延ばし、先へ進んだ分を戻さない", () => {
+  const { p, advance } = setup();
+  p.onMap("5,5,0");
+  p.sent("go N");
+  advance(150);
+  assert.equal(p.tick(), true);
+  p.sent("go N");
+  // 1つ目の地図が 300ms 後に届いた。進んだとみなした1つ目の返事で、2つ目は待ったまま
+  advance(150);
+  p.onMap("5,4,0");
+  assert.equal(p.waiting, true);
+  assert.ok(p.wait >= 500);
+  advance(200);
+  assert.equal(p.tick(), false);
 });
