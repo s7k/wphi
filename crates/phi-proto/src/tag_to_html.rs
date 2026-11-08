@@ -7,6 +7,7 @@
 //! Philly との違いは2点で、どちらも他のプレイヤーの発言から CSS や URL を差し込ませない為である。
 //! - `color=` と `font=` の値に使える文字を絞る
 //! - `/*img=...*/` の画像は `http://` と `https://` だけを許す
+//! - LAN や自分の機械を指す画像は出さない。受けた人の環境から LAN の機器へ GET を出させない為(#55)
 
 use fancy_regex::{Captures, Regex, Replacer};
 use std::borrow::Cow;
@@ -258,6 +259,9 @@ fn image_tags(text: &str, loud: bool, opts: &LogOptions) -> Option<String> {
     let mut out = outside_tags(&t, |s| {
         IMG_URL
             .sub_all(s, |c: &Captures| {
+                if is_local_url(&c[1]) {
+                    return c[0].to_string();
+                }
                 last_url = Some(c[1].to_string());
                 if opts.image_link_disp {
                     format!(r#"<div><img src="{}" align="top" />"#, &c[1])
@@ -304,7 +308,9 @@ fn img_element(caps: &Captures) -> String {
             })
             .filter(|v| !v.is_empty())
     };
-    let Some(src) = value("img").filter(|s| s.starts_with("http://") || s.starts_with("https://")) else {
+    let Some(src) =
+        value("img").filter(|s| (s.starts_with("http://") || s.starts_with("https://")) && !is_local_url(s))
+    else {
         return String::new();
     };
     let mut tag = format!(r#"<img src="{src}""#);
@@ -319,6 +325,52 @@ fn img_element(caps: &Captures) -> String {
     }
     tag.push_str(" />");
     tag
+}
+
+/// URL のホストが LAN か自分の機械か(localhost・プライベートアドレス・リンクローカルなど)。
+/// ブラウザは `2130706433` や `0x7f.1` も 127.0.0.1 として読むので、16進の文字と数字と `.` だけのホストも LAN とみなす
+/// (`ab12.de` のような名前も巻き込むが、画像が出ないだけで済む)。
+// ponytail: 名前を引いて LAN のアドレスになるホスト(DNS rebinding)は防げない。防ぐなら WebView の要求を横取りして引いた先を見る
+fn is_local_url(url: &str) -> bool {
+    use std::net::{IpAddr, Ipv4Addr};
+    let rest = url.split_once("://").map_or(url, |(_, r)| r);
+    let authority = rest.split(['/', '?', '#', '\\']).next().unwrap_or("");
+    let host_port = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
+    let host = match host_port.strip_prefix('[') {
+        Some(v6) => v6.split(']').next().unwrap_or(""),
+        None => host_port.split(':').next().unwrap_or(""),
+    }
+    .trim_end_matches('.')
+    .to_ascii_lowercase();
+    let v4 = |a: Ipv4Addr| {
+        let [x, y, ..] = a.octets();
+        a.is_private()
+            || a.is_loopback()
+            || a.is_link_local()
+            || a.is_unspecified()
+            || a.is_broadcast()
+            || x == 0
+            || (x == 100 && (64..128).contains(&y))
+    };
+    match host.parse::<IpAddr>() {
+        Ok(IpAddr::V4(a)) => v4(a),
+        Ok(IpAddr::V6(a)) => {
+            let s = a.segments()[0];
+            a.is_loopback()
+                || a.is_unspecified()
+                || (s & 0xfe00) == 0xfc00
+                || (s & 0xffc0) == 0xfe80
+                || a.to_ipv4_mapped().is_some_and(v4)
+        }
+        Err(_) => {
+            host.is_empty()
+                || host == "localhost"
+                || host.ends_with(".localhost")
+                || host.ends_with(".local")
+                || host.bytes().all(|b| b.is_ascii_hexdigit() || b == b'.' || b == b'x')
+                    && host.bytes().any(|b| b.is_ascii_digit())
+        }
+    }
 }
 
 /// タブを空白にする。桁は Philly(cp932 のバイト数)に合わせ、ASCII を1、それ以外を2と数える。
@@ -413,6 +465,30 @@ mod tests {
             r#"<font class="color_http://x/onclick=alert(1)">a</font>"#
         );
         assert_eq!(html("/*img=javascript:alert(1)*/"), "");
+        // LAN と自分の機械を指す画像は出さない(#55)
+        for url in [
+            "http://192.168.0.1/a.png",
+            "http://10.1.2.3/a.png",
+            "http://172.16.0.1/a.png",
+            "http://127.0.0.1:8080/a.png",
+            "http://localhost/a.png",
+            "http://router.local/a.png",
+            "http://[::1]/a.png",
+            "http://[fe80::1]/a.png",
+            "http://2130706433/a.png",
+            "http://0x7f.1/a.png",
+            "http://user@192.168.0.1/a.png",
+        ] {
+            assert_eq!(html(&format!("/*img={url}*/")), "", "{url}");
+        }
+        assert_eq!(
+            html("/*img=http://e.test/a.png*/"),
+            r#"<img src="http://e.test/a.png" />"#
+        );
+        assert_eq!(
+            html("/*img=http://deadbeef.example/a.png*/"),
+            r#"<img src="http://deadbeef.example/a.png" />"#
+        );
         assert_eq!(
             html("/*img=https://e.test/a.png width=5000*/"),
             r#"<img src="https://e.test/a.png" width="1000" />"#
@@ -429,6 +505,8 @@ mod tests {
             html("http://e.test/a.png"),
             r#"<div><img src="http://e.test/a.png" align="top" /><br /><a href="http://e.test/a.png">http://e.test/a.png</a></div>"#
         );
+        // LAN の画像の URL は画像にせず、リンクのまま
+        assert!(!html("http://192.168.0.1/a.png").contains("<img"));
     }
 
     #[test]
