@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Predictor } from "./predict.ts";
+import { PREDICT_WAIT_MS, Predictor } from "./predict.ts";
 
 function setup() {
   let t = 0;
@@ -86,8 +86,8 @@ test("地図が待つ時間より後に届く回線では、待つ時間を延�
   advance(150);
   p.onMap("5,4,0");
   assert.equal(p.waiting, true);
-  assert.ok(p.wait >= 500);
-  advance(200);
+  assert.ok(p.wait >= 300);
+  advance(140);
   assert.equal(p.tick(), false);
 });
 
@@ -129,5 +129,16 @@ test("進んだとみなした移動に後から地図が来ても、待つ時�
   // 一様な所を歩き終えて、何秒か後に見え方が変わった
   advance(3000);
   p.onMap("5,0,0");
-  assert.equal(p.wait, 150);
+  assert.equal(p.wait, PREDICT_WAIT_MS);
+});
+
+test("待つ時間は、最近の返事の時間の最大より少し長い", () => {
+  const { p, advance } = setup();
+  p.onMap("5,0,0");
+  for (const [i, ms] of [70, 113, 85].entries()) {
+    p.sent("go S");
+    advance(ms);
+    p.onMap(`5,${i + 1},0`);
+  }
+  assert.equal(p.wait, 143);
 });

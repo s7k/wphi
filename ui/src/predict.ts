@@ -11,9 +11,14 @@ const STEP: Record<string, { dx: number; dy: number }> = {
   w: { dx: -1, dy: 0 },
 };
 
-/** 送った移動の返事を待つ時間(ms)の下限と上限。サーバは 0.1 秒に1行処理し、近ければ地図は 100ms 以内に届く。
- * 回線が遅いと地図が待つ時間より後に届き、予想で先へ進んだ分が戻って見える。なので届くまでの時間を測って待つ時間を延ばす */
-export const PREDICT_WAIT_MS = 150;
+/** 送った移動の返事を待つ時間(ms)の下限と上限。サーバは 0.1 秒に1行処理するので、近ければ地図は送ってから
+ * 0〜100ms ほど(サーバのティックのどこで届いたかで揺れる)で届く。回線が遅いと地図が待つ時間より後に届き、
+ * 予想で先へ進んだ分が戻って見える。なので最近の返事の時間の最大を測り、それより少し長く待つ */
+export const PREDICT_WAIT_MS = 120;
+/** 最近の返事の時間の最大に足す分 */
+const WAIT_MARGIN_MS = 30;
+/** 返事の時間を覚えておく数 */
+const SAMPLES = 8;
 const PREDICT_WAIT_MAX_MS = 1000;
 /** サーバは1ティック(0.1 秒)に1行しか処理しないので、進んだとみなすのもこれより詰めない */
 const SERVER_TICK_MS = 100;
@@ -32,8 +37,8 @@ export class Predictor {
   private guessed: Move[] = [];
   /** 最後に届いた地図の位置 */
   private base: { x: number; y: number } | null = null;
-  /** 移動を送ってから地図か「進めません」が届くまでの時間(ms)の平均 */
-  private rtt = 0;
+  /** 移動を送ってから地図か「進めません」が届くまでの時間(ms)。新しい方の SAMPLES 個 */
+  private samples: number[] = [];
   private lastGuess = -Infinity;
   private now: () => number;
 
@@ -51,14 +56,14 @@ export class Predictor {
     return this.queue.length > 0;
   }
 
-  /** 返事を待つ時間。測った返事の時間に、サーバの1ティックと揺れの分を足す */
+  /** 返事を待つ時間。平均で待つと、ティックの遅い側で届く地図を待ちきれず、半分ほどで外す */
   get wait(): number {
-    return Math.min(PREDICT_WAIT_MAX_MS, Math.max(PREDICT_WAIT_MS, this.rtt * 1.5 + 100));
+    const max = Math.max(0, ...this.samples) + WAIT_MARGIN_MS;
+    return Math.min(PREDICT_WAIT_MAX_MS, Math.max(PREDICT_WAIT_MS, max));
   }
 
   private measure(m: Move) {
-    const ms = this.now() - m.at;
-    this.rtt = this.rtt ? this.rtt * 0.7 + ms * 0.3 : ms;
+    this.samples = [...this.samples, this.now() - m.at].slice(-SAMPLES);
   }
 
   /** 行を送った時。北固定の go の時だけ数える */
