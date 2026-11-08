@@ -339,36 +339,42 @@ fn connect(
     let (tx, rx) = mpsc::channel(64);
     sessions.senders.lock().unwrap().insert(no, tx);
     let store = store_path(&app)?;
-    tauri::async_runtime::spawn(session::run(Login { host, port, id }, rx, move |ev| {
-        // 世界移動したら、登録したキャラの接続先を書き換える(Philly の RewriteSaveData)
-        if let UiEvent::Ui(session::UiOnly::WorldMoved { host, port }) = &ev {
-            let r = Store::update(&store, |s| {
-                if let Some(c) = s.characters.iter_mut().find(|c| c.label == label) {
-                    c.host = host.clone();
-                    c.port = *port;
+    let cleanup = app.clone();
+    tauri::async_runtime::spawn(async move {
+        session::run(Login { host, port, id }, rx, move |ev| {
+            // 世界移動したら、登録したキャラの接続先を書き換える(Philly の RewriteSaveData)
+            if let UiEvent::Ui(session::UiOnly::WorldMoved { host, port }) = &ev {
+                let r = Store::update(&store, |s| {
+                    if let Some(c) = s.characters.iter_mut().find(|c| c.label == label) {
+                        c.host = host.clone();
+                        c.port = *port;
+                    }
+                    Ok(())
+                });
+                if let Err(e) = r {
+                    eprintln!("接続先を保存出来ません: {e}");
                 }
-                Ok(())
-            });
-            if let Err(e) = r {
-                eprintln!("接続先を保存出来ません: {e}");
             }
-        }
-        // 効果音(Philly の SoundPlay)と、タスクバーを点滅させない行。システムの行は照合しない
-        let mut ev = ev;
-        let sound = match &mut ev {
-            UiEvent::Ui(session::UiOnly::Log { text, no_flash, .. }) if !text.is_empty() => {
-                let sounds = app.state::<Mutex<Arc<sounds::Sounds>>>().lock().unwrap().clone();
-                *no_flash = sounds.no_flash(text);
-                sounds.find(text).map(|no| (no, sounds.has_file(no)))
+            // 効果音(Philly の SoundPlay)と、タスクバーを点滅させない行。システムの行は照合しない
+            let mut ev = ev;
+            let sound = match &mut ev {
+                UiEvent::Ui(session::UiOnly::Log { text, no_flash, .. }) if !text.is_empty() => {
+                    let sounds = app.state::<Mutex<Arc<sounds::Sounds>>>().lock().unwrap().clone();
+                    *no_flash = sounds.no_flash(text);
+                    sounds.find(text).map(|no| (no, sounds.has_file(no)))
+                }
+                _ => None,
+            };
+            // UI の窓が閉じていれば送れないだけなので、失敗は無視する
+            let _ = on_event.send(ev);
+            if let Some((no, file)) = sound {
+                let _ = on_event.send(UiEvent::Ui(session::UiOnly::Sound { no, file }));
             }
-            _ => None,
-        };
-        // UI の窓が閉じていれば送れないだけなので、失敗は無視する
-        let _ = on_event.send(ev);
-        if let Some((no, file)) = sound {
-            let _ = on_event.send(UiEvent::Ui(session::UiOnly::Sound { no, file }));
-        }
-    }));
+        })
+        .await;
+        // サーバ側から切れた時も送信キューを消す。消すのが disconnect だけだと、切れた接続の分が残り続ける(#72)
+        cleanup.state::<Sessions>().senders.lock().unwrap().remove(&no);
+    });
     Ok(no)
 }
 
@@ -396,6 +402,23 @@ async fn send(sessions: &Sessions, session: u32, lines: Vec<String>) -> Result<(
         tx.send(l).await.map_err(|_| "接続が切れています".to_string())?;
     }
     Ok(())
+}
+
+/// 接続中のセッションに #x を送らせてからアプリを終える。送信キューを閉じると session::run が #x を送って終わる。
+/// 待たずに終えると、tokio のタスクは #x を送る前に捨てられる(#72)
+fn exit_app(app: &tauri::AppHandle) {
+    let connected = {
+        let sessions = app.state::<Sessions>();
+        let mut senders = sessions.senders.lock().unwrap();
+        let connected = !senders.is_empty();
+        senders.clear();
+        connected
+    };
+    if connected {
+        // ponytail: 決め打ちで待つ。遅い回線で足りなければ、各タスクの終わりを待つ形にする
+        std::thread::sleep(std::time::Duration::from_millis(300));
+    }
+    app.exit(0);
 }
 
 #[tauri::command]
@@ -643,13 +666,13 @@ fn main() {
         // window-state が窓の位置を書き出す RunEvent::Exit も来ない(窓の位置が保存されなかった)
         .on_window_event(|window, event| {
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
-                window.app_handle().exit(0);
+                exit_app(window.app_handle());
             }
         })
         .on_menu_event(|app, event| {
             use tauri::Emitter;
             if event.id().0 == "exit" {
-                app.exit(0);
+                exit_app(app);
                 return;
             }
             let _ = app.emit_to("main", menu::MENU_EVENT, event.id().0.clone());

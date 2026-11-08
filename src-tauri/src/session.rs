@@ -19,6 +19,8 @@ use tokio::{
 };
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// 送信の期限。相手が読まずに送信バッファが埋まると、受信も切断も止まる(#72)
+const WRITE_TIMEOUT: Duration = Duration::from_secs(30);
 /// 無受信がこの時間続いたら `#code-sjis` を送る(Philly の DISCONNECT_CHECK_TIME)。
 const KEEPALIVE_AFTER: Duration = Duration::from_secs(2 * 60);
 /// 無受信がこの時間続いたら UI に警告を出す(Philly の DISCONNECT_WARNING_TIME)。
@@ -216,11 +218,15 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
             }
         }
         let bytes: Vec<u8> = reply.iter().flat_map(|l| line_bytes(l)).collect();
-        if !bytes.is_empty()
-            && let Err(e) = stream.write_all(&bytes).await
-        {
-            emit(error(format!("送信に失敗しました: {e}")));
-            break;
+        if !bytes.is_empty() {
+            let sent = match timeout(WRITE_TIMEOUT, stream.write_all(&bytes)).await {
+                Ok(r) => r.map_err(|e| e.to_string()),
+                Err(_) => Err("30秒経っても送れません".into()),
+            };
+            if let Err(e) = sent {
+                emit(error(format!("送信に失敗しました: {e}")));
+                break;
+            }
         }
     }
     emit(UiEvent::Proto(Event::Connection {
