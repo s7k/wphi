@@ -164,6 +164,39 @@ pub fn build<R: Runtime>(
     let mut settings = settings.clone();
     let hidden = hidden_menus(menu_txt);
     let menu = Menu::new(app)?;
+    // macOS は窓ごとのメニューを出さず、画面の上のアプリのメニューを使う。先頭の項目はアプリ名の項目になるので、
+    // アプリ名の項目を先に置く。編集の項目が無いと、入力欄で Cmd+C・Cmd+V が効かない
+    #[cfg(target_os = "macos")]
+    {
+        menu.append(&Submenu::with_items(
+            app,
+            "WPHI",
+            true,
+            &[
+                &PredefinedMenuItem::about(app, None, None)?,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::hide(app, None)?,
+                &PredefinedMenuItem::hide_others(app, None)?,
+                &PredefinedMenuItem::show_all(app, None)?,
+                &PredefinedMenuItem::separator(app)?,
+                &MenuItem::with_id(app, "exit", "WPHI を終了", true, Some("Cmd+Q"))?,
+            ],
+        )?)?;
+        menu.append(&Submenu::with_items(
+            app,
+            "編集",
+            true,
+            &[
+                &PredefinedMenuItem::undo(app, None)?,
+                &PredefinedMenuItem::redo(app, None)?,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::cut(app, None)?,
+                &PredefinedMenuItem::copy(app, None)?,
+                &PredefinedMenuItem::paste(app, None)?,
+                &PredefinedMenuItem::select_all(app, None)?,
+            ],
+        )?)?;
+    }
     for (name, items) in MENUS {
         if hidden.iter().any(|h| h == name) {
             continue;

@@ -649,9 +649,17 @@ fn set_trace(app: tauri::AppHandle, on: bool) -> Result<Option<String>, String> 
 }
 
 /// main 窓のメニューの、表示のモードのチェックを付け直す(UI が地図を受けた時とメニューを選んだ時に呼ぶ)
+/// メニューバー。macOS はアプリのメニュー、他は main 窓のメニュー
+fn main_menu(app: &tauri::AppHandle) -> Option<tauri::menu::Menu<tauri::Wry>> {
+    #[cfg(target_os = "macos")]
+    return app.menu();
+    #[cfg(not(target_os = "macos"))]
+    app.get_webview_window("main").and_then(|w| w.menu())
+}
+
 #[tauri::command]
 fn set_view_checks(app: tauri::AppHandle, turn: bool, size57: bool) {
-    if let Some(menu) = app.get_webview_window("main").and_then(|w| w.menu()) {
+    if let Some(menu) = main_menu(&app) {
         menu::set_view_checks(&menu, turn, size57);
     }
 }
@@ -733,11 +741,16 @@ fn main() {
             let menu_txt = assets::bundled("Skins/Mine/Style/Menu.txt")
                 .map(phi_proto::codec::decode)
                 .unwrap_or_default();
+            let settings = settings_path(app.handle())
+                .map(|p| settings::Settings::load(&p))
+                .unwrap_or_default();
+            let bar = menu::build(app.handle(), &menu_txt, &settings)?;
+            // macOS は窓ごとのメニューを出さないので、アプリのメニューにする(どの窓が前でも出る)
+            #[cfg(target_os = "macos")]
+            app.set_menu(bar)?;
+            #[cfg(not(target_os = "macos"))]
             if let Some(main) = app.get_webview_window("main") {
-                let settings = settings_path(app.handle())
-                    .map(|p| settings::Settings::load(&p))
-                    .unwrap_or_default();
-                main.set_menu(menu::build(app.handle(), &menu_txt, &settings)?)?;
+                main.set_menu(bar)?;
             }
             #[cfg(target_os = "linux")]
             if let Some(window) = app.get_webview_window("main") {
