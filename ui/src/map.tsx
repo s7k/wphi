@@ -89,18 +89,15 @@ function MapWindow() {
       // Tab や Space でマップ窓の中が動かないようにする
       e.preventDefault();
       const { code, shiftKey, ctrlKey, altKey, metaKey, repeat } = e;
-      trace(`map ${e.type} ${code}${repeat ? " repeat" : ""}`);
-      forward({ type: e.type as "keydown" | "keyup", code, shiftKey, ctrlKey, altKey, metaKey, repeat });
+      if (e.type !== "keydown") return;
+      trace(`map keydown ${code}${repeat ? " repeat" : ""}`);
+      forward({ type: "keydown", code, shiftKey, ctrlKey, altKey, metaKey, repeat });
     };
-    const onBlur = () =>
-      forward({ type: "blur", code: "", shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, repeat: false });
     document.addEventListener("keydown", onKey);
     document.addEventListener("keyup", onKey);
-    window.addEventListener("blur", onBlur);
     return () => {
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("keyup", onKey);
-      window.removeEventListener("blur", onBlur);
     };
   }, []);
 

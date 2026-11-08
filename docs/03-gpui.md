@@ -9,7 +9,7 @@ issue #45 の調査の結果。
 Tauri のまま続け、GPUI へは移らない。
 
 issue の前提(ラグの原因は WebView の互換の問題)は確かめていない。
-一方で、押しっぱなし移動の詰まりに関わる処理(JS のタイマーと窓をまたぐ転送)は、Tauri のままでも Rust 側へ移せる。
+押しっぱなし移動の詰まりの原因は、WebView ではなくサーバの地図の送り方だった(下の「押しっぱなし移動の詰まり」)。
 GPUI は、配布の主な対象である Windows で、今の WebView2 より不確かな所が多い。
 
 - crates.io の `gpui` は 0.2.2(2025-10-22)で止まっていて、Zed の main は破壊的な変更を続けている。README も「pre-1.0 で、版の間で破壊的変更がよくある」としている
@@ -72,17 +72,14 @@ Dioxus に移っても、Chrome と WebKit の違いの懸念は残る。
 - WebView2 は裏の窓のタイマーを間引く。Tauri の `backgroundThrottling` は Windows では効かない
 - IME の確定の Enter の扱いが違う(`ui/src/App.tsx` の keyCode 229 の判定)
 
-## 押しっぱなし移動の詰まりの候補
+## 押しっぱなし移動の詰まり
 
-押しっぱなし移動は、map 窓のキーを Tauri のイベントで main 窓へ送り、main 窓の JS の `setInterval(…, 50)` から `send_line` を呼んでいる(`ui/src/moveRepeat.ts`)。v0.1.12 でこのリピートを外し、OS のキーリピートの keydown のたびに送る形にした(#44)。
-map 窓にフォーカスがある間、main 窓は裏の窓になる。
-WebView2 が main 窓のタイマーを間引くと、移動の間隔が延びる(推測。未検証)。
+v0.1.8 で足した時刻の記録(`src-tauri/src/trace.rs`)で、原因を確かめた(#44)。
+v5y の `print_m57` は、7x7 の見え方が前に送った物と同じなら、位置が変わっても地図も `#ex-pos` も送らない。
+WPHI のリピートは地図が届いてから次の1歩を送っていたので、訓練所のような一様な床では、次の1歩を待ったまま止まっていた。
 
-v0.1.6 で、WebView2 の起動オプションに `--disable-background-timer-throttling`、`--disable-renderer-backgrounding`、`--disable-backgrounding-occluded-windows` を足した(`src-tauri/tauri.conf.json` の `additionalBrowserArgs`)。
-これで直らなければ、次を試す。
-
-1. main 窓の tick と `send_line` の時刻をログに出し、map 窓と main 窓のどちらにフォーカスがある時に間隔が延びるかを比べる。v0.1.8 で、ツールのメニューの「時刻の記録を始める・止める」から記録出来るようにした(`src-tauri/src/trace.rs`)
-2. 押しっぱなし移動のリピートを Rust 側(tokio)へ移し、map 窓から keydown・keyup を直接 Rust へ送る
+v0.1.12 で WPHI のリピートを外し、OS のキーリピートの keydown のたびに送る形にした。
+サーバは1人に1ティック(0.1秒)に1行ずつ処理するので、キーリピートが速いと、離した後も少し歩く。
 
 ## 移す場合に作り直す物
 

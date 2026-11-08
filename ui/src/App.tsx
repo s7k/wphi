@@ -259,7 +259,6 @@ export function App() {
     const onKey = (e: ForwardedKey): boolean => {
       const session = activeRef.current;
       if (session === null) return false;
-      if (e.type === "blur") return false;
       const ctx = keyContext(mapStates.current.get(session), settingsRef.current.fullKeyMove);
       // リスト表示中は、番号・取り消し・カーソルのキーを移動より先に見る(Philly の KeyDown は KeyBindListMode が先)。
       // フルキー移動の 7・8・9 やテンキーの 2・4・6・8、上下の矢印は、リスト表示中は番号とカーソルになる
@@ -302,11 +301,7 @@ export function App() {
       return true;
     };
     const onDom = (e: globalThis.KeyboardEvent) => {
-      if (e.isComposing || isTextTarget(e)) {
-        // 入力欄へ移った後に離したキーで、移動キーが押されたままにならないようにする
-        if (e.type === "keyup") onKey({ ...pick(e), type: "keyup" });
-        return;
-      }
+      if (e.isComposing || isTextTarget(e)) return;
       if (onKey({ ...pick(e), type: e.type as "keydown" | "keyup" })) e.preventDefault();
     };
     document.addEventListener("keydown", onDom);
@@ -353,7 +348,11 @@ export function App() {
       const session = activeRef.current;
       if (session === null) return;
       if (m.type === "hit") sendLine(session, "hit");
-      else sendLine(session, moveCommand(m.keys[0], "none", keyContext(mapStates.current.get(session), true).northFix));
+      else {
+        // 斜めは2方向を1歩ずつ送り、斜めに1マス進む(#76)
+        const northFix = keyContext(mapStates.current.get(session), true).northFix;
+        for (const k of m.keys) sendLine(session, moveCommand(k, "none", northFix));
+      }
     });
     // map 窓のリストのクリック(#9)
     const mapList = listen<MapListAction>(MAP_LIST_EVENT, (e) => {

@@ -8,7 +8,7 @@ import type { MapState } from "./protocol";
 /** map 窓から main 窓へ転送するキー入力(main 窓が移動とキー操作をまとめて処理する) */
 export const KEY_EVENT = "phi-key";
 export type ForwardedKey = Pick<KeyboardEvent, "code" | "shiftKey" | "ctrlKey" | "altKey" | "metaKey" | "repeat"> & {
-  type: "keydown" | "keyup" | "blur";
+  type: "keydown" | "keyup";
 };
 
 /** map 窓から main 窓へ転送するマウス操作 */

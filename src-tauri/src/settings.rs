@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn imports_philly_ini() {
         let ini = codec::encode(
-            "[Move]\r\nFullKeyMove=off                         ; フルキー\r\nRepeatModeStartTime=300 ; ms\r\n\
+            "[Move]\r\nFullKeyMove=off                         ; フルキー\r\n\
              [Shortcut]\r\nShortcutF10=\"1\"   ; ショートカット\r\nListModeShortcutF09=\"1 2\" ; リスト\r\n\
              AltGWord=\"おやすみなさいませ\"           ; Alt + G\r\n[Other]\r\nFullKeyMove=on\r\n",
         );
