@@ -263,7 +263,8 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                         match timeout(TRANSFER_TIMEOUT, answer).await.unwrap_or(Some(false)) {
                             None => {
                                 let _ = stream.write_all(&line_bytes("#x")).await;
-                                return;
+                                // UI が切った時も、切れた事を知らせる(知らせないとタブが接続中のまま残る)
+                                return emit(closed());
                             }
                             Some(false) => {
                                 emit(system(false, "世界移動をやめました"));
@@ -282,7 +283,8 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     match moved {
                         None => {
                             let _ = stream.write_all(&line_bytes("#x")).await;
-                            return;
+                            // UI が切った時も、切れた事を知らせる(知らせないとタブが接続中のまま残る)
+                            return emit(closed());
                         }
                         Some(Some(dst)) => {
                             // 移動元で受けていた残りの行は捨てる(Philly も ChSrv の成功で受信の処理を打ち切る)
@@ -314,7 +316,8 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                 }
                 None => {
                     let _ = stream.write_all(&line_bytes("#x")).await;
-                    return;
+                    // UI が切った時も、切れた事を知らせる(知らせないとタブが接続中のまま残る)
+                    return emit(closed());
                 }
             },
             // 警告を出した後は、次に受信するまで待たない(過去の時刻を待つと、待たずに回り続ける。#61)
@@ -340,9 +343,13 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
             }
         }
     }
-    emit(UiEvent::Proto(Event::Connection {
+    emit(closed());
+}
+
+fn closed() -> UiEvent {
+    UiEvent::Proto(Event::Connection {
         state: phi_proto::parser::ConnectionState::Closed,
-    }));
+    })
 }
 
 /// 開発用。環境変数 `WPHI_RECORD` にフォルダを指定すると、受信した生のバイト列を
@@ -790,6 +797,31 @@ mod tests {
         // 答えたら移動先へ #reserve を送る(偽の移動先は #rsv-ok を返さずに閉じるので、移動は失敗する)
         let (_, reserved) = transfer_to_other_host(TRANSFER_YES).await;
         assert_eq!(reserved.as_deref(), Some("#reserve ID\n"));
+    }
+
+    /// UI が切った時(送信キューを閉じた時)も #x を送り、切れた事を UI に知らせる(#77)
+    #[tokio::test]
+    async fn disconnect_sends_x_and_reports_closed() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let src = tokio::spawn(src_server(listener, String::new()));
+        let (tx, rx) = mpsc::channel(8);
+        let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let e = events.clone();
+        let run = tokio::spawn(run(login()(port), rx, move |ev| {
+            e.lock().unwrap().push(serde_json::to_value(ev).unwrap())
+        }));
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        drop(tx);
+        assert_eq!(timeout(Duration::from_secs(5), src).await.unwrap().unwrap(), "#x\n");
+        timeout(Duration::from_secs(5), run).await.unwrap().unwrap();
+        assert!(
+            events
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|e| e["type"] == "connection" && e["state"] == "closed")
+        );
     }
 
     #[tokio::test]

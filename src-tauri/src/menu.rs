@@ -185,6 +185,62 @@ pub struct MasterMenu {
 
 const MASTER_ID: &str = "master-magic";
 
+/// 登録したキャラを並べるメニュー(Philly の MenuCharacter)。項目の id は `char:<表示名>`(#78)
+const CHARACTER_MENU: &str = "キャラクター";
+/// 窓の中のメニュー(macOS)にも、項目が変わった事を知らせる
+pub const MENU_CHANGED_EVENT: &str = "phi-menu-changed";
+
+/// 「キャラクター」の固定の項目の後ろに、登録したキャラを並べ直す
+pub fn set_characters<R: Runtime>(app: &AppHandle<R>, bar: &Menu<R>, labels: &[String]) -> tauri::Result<()> {
+    let Some(sub) = bar
+        .get(&format!("menu:{CHARACTER_MENU}"))
+        .and_then(|i| i.as_submenu().cloned())
+    else {
+        return Ok(());
+    };
+    let fixed = MENUS
+        .iter()
+        .find(|(n, _)| *n == CHARACTER_MENU)
+        .map_or(0, |(_, items)| items.len());
+    while sub.items()?.len() > fixed {
+        sub.remove_at(fixed)?;
+    }
+    if !labels.is_empty() {
+        sub.append(&PredefinedMenuItem::separator(app)?)?;
+    }
+    for label in labels {
+        sub.append(&MenuItem::with_id(
+            app,
+            format!("char:{label}"),
+            label,
+            true,
+            None::<&str>,
+        )?)?;
+    }
+    Ok(())
+}
+
+/// 窓の中のメニューの「キャラクター」に、登録したキャラを足す
+pub fn add_characters(model: &mut [MenuModel], labels: &[String]) {
+    let Some(m) = model.iter_mut().find(|m| m.name == CHARACTER_MENU) else {
+        return;
+    };
+    if !labels.is_empty() {
+        m.items.push(MenuItemModel {
+            id: "-".into(),
+            text: String::new(),
+            check: false,
+        });
+    }
+    for label in labels {
+        m.items.push(MenuItemModel {
+            id: format!("char:{label}"),
+            text: label.clone(),
+            check: false,
+        });
+    }
+}
+
 /// 超魔法メニューを、メニューバーの最後に足し直す。None なら外すだけ
 pub fn set_master_menu<R: Runtime>(
     app: &AppHandle<R>,
@@ -226,8 +282,8 @@ pub struct MenuModel {
 
 #[derive(serde::Serialize)]
 pub struct MenuItemModel {
-    pub id: &'static str,
-    pub text: &'static str,
+    pub id: String,
+    pub text: String,
     pub check: bool,
 }
 
@@ -241,8 +297,8 @@ pub fn model(menu_txt: &str) -> Vec<MenuModel> {
             items: items
                 .iter()
                 .map(|(id, text)| MenuItemModel {
-                    id,
-                    text,
+                    id: id.to_string(),
+                    text: text.to_string(),
                     check: experiment(&mut crate::settings::Settings::default(), id).is_some()
                         || VIEW_CHECKS.contains(id),
                 })
@@ -310,7 +366,7 @@ pub fn build<R: Runtime>(
         if hidden.iter().any(|h| h == name) {
             continue;
         }
-        let sub = Submenu::new(app, *name, true)?;
+        let sub = Submenu::with_id(app, format!("menu:{name}"), *name, true)?;
         for (id, text) in *items {
             if *id == "-" {
                 sub.append(&PredefinedMenuItem::separator(app)?)?;

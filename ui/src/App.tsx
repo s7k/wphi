@@ -452,6 +452,12 @@ export function App() {
       if (id === "settings") return setSettingsOpen(true);
       if (id === "next-tab") return nextTab();
       if (id === "prev-tab") return nextTab(-1);
+      // 登録したキャラ(#78)。タブがあればそのタブへ、無ければ接続する
+      if (id.startsWith("char:")) {
+        const label = id.slice("char:".length);
+        const open = tabsRef.current.find((t) => t.label === label);
+        return open ? setActive(open.session) : void connect(label);
+      }
       // 接続・切断(#77)。全〜はタブ上の全キャラ
       const tabsNow = tabsRef.current;
       if (id === "all-connect") return tabsNow.filter((t) => t.closed).forEach((t) => connect(t.label, t.session));

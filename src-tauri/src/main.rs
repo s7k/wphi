@@ -90,7 +90,9 @@ fn save_character(app: tauri::AppHandle, character: Character, id: String) -> Re
         }
         store.upsert(character);
         Ok(())
-    })
+    })?;
+    refresh_character_menu(&app);
+    Ok(())
 }
 
 #[tauri::command]
@@ -100,7 +102,9 @@ fn delete_character(app: tauri::AppHandle, label: String) -> Result<(), String> 
         store.open_tabs.retain(|l| *l != label);
         characters::delete_id(&config_dir(&app)?, &label);
         Ok(())
-    })
+    })?;
+    refresh_character_menu(&app);
+    Ok(())
 }
 
 #[tauri::command]
@@ -252,6 +256,7 @@ fn import_philly(
     })?;
     *assets.lock().unwrap() = Arc::new(load_assets(&app)?);
     *app.state::<Mutex<Arc<sounds::Sounds>>>().lock().unwrap() = Arc::new(load_sounds(&app));
+    refresh_character_menu(&app);
     Ok(labels)
 }
 
@@ -361,6 +366,7 @@ async fn register_character(
                 store.upsert(ch);
                 Ok(())
             })?;
+            refresh_character_menu(&app);
             Ok(name)
         }
         register::Outcome::Rejected(fields) => {
@@ -751,11 +757,28 @@ fn menu_select(app: tauri::AppHandle, id: String) {
 
 /// macOS の窓の中に出すメニューの項目(OS のメニューと同じ物)
 #[tauri::command]
-fn menu_model() -> Vec<menu::MenuModel> {
+fn menu_model(app: tauri::AppHandle) -> Vec<menu::MenuModel> {
     let menu_txt = assets::bundled("Skins/Mine/Style/Menu.txt")
         .map(phi_proto::codec::decode)
         .unwrap_or_default();
-    menu::model(&menu_txt)
+    let mut model = menu::model(&menu_txt);
+    menu::add_characters(&mut model, &character_labels(&app));
+    model
+}
+
+fn character_labels(app: &tauri::AppHandle) -> Vec<String> {
+    store_path(app)
+        .map(|p| Store::load(&p).characters.into_iter().map(|c| c.label).collect())
+        .unwrap_or_default()
+}
+
+/// 登録したキャラが変わった時に、「キャラクター」のメニューを作り直す(#78)
+fn refresh_character_menu(app: &tauri::AppHandle) {
+    use tauri::Emitter;
+    if let Some(bar) = main_menu(app) {
+        let _ = menu::set_characters(app, &bar, &character_labels(app));
+    }
+    let _ = app.emit(menu::MENU_CHANGED_EVENT, ());
 }
 
 /// メニューバー。macOS はアプリのメニュー、他は main 窓のメニュー
@@ -862,6 +885,7 @@ fn main() {
             if let Some(main) = app.get_webview_window("main") {
                 main.set_menu(bar)?;
             }
+            refresh_character_menu(app.handle());
             #[cfg(target_os = "linux")]
             if let Some(window) = app.get_webview_window("main") {
                 enable_ime_preedit(&window);

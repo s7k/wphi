@@ -1,6 +1,7 @@
 // macOS の窓の中のメニューバー。macOS は窓ごとのメニューを出さず、画面の上端にしか出せないので、
 // 同じ項目(src-tauri/src/menu.rs の MENUS)を窓の中にも描く。選んだ項目は OS のメニューと同じに扱う(menu_select)
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 
 /** id が "-" なら区切り線、空なら押せない見出し(超魔法のサブメニューの名前) */
@@ -16,8 +17,14 @@ export function MenuBar(props: { checked: (id: string) => boolean; extra?: MenuM
   const [model, setModel] = useState<MenuModel[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const bar = useRef<HTMLDivElement>(null);
+  // 登録したキャラが変わったら、「キャラクター」の項目を取り直す
   useEffect(() => {
-    invoke<MenuModel[]>("menu_model").then(setModel).catch(console.error);
+    const load = () => invoke<MenuModel[]>("menu_model").then(setModel).catch(console.error);
+    load();
+    const unlisten = listen("phi-menu-changed", load);
+    return () => {
+      unlisten.then((f) => f());
+    };
   }, []);
   // 開いている間は、外を押すか Esc で閉じる
   useEffect(() => {
