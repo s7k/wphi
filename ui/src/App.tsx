@@ -424,7 +424,7 @@ export function App() {
         trace("main map");
         // 拡張マップ。世界ごとに見えた地形を貯める。盲目中は視界が霧で埋まるので貯めない
         if (s.world && s.world !== "???" && !s.cond?.blind) recordAutomap(s.world, ev);
-        if (session === activeRef.current) mover.current?.onMap();
+        if (session === activeRef.current) mover.current?.onMap(ev.pos && `${ev.pos.x},${ev.pos.y},${ev.dir}`);
         break;
       case "status": {
         // 裏のタブで HP か MP が減ったら、タブに印を付ける

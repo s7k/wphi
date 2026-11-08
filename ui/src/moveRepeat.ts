@@ -10,6 +10,9 @@
 // - マップを左クリックした時は、その向きへすぐ送ってリピートに入る。押している間はマウスの向きへ進む(MouseDown)
 // - 移動を送って SEE_AFTER_MS マップが来なければ see を送る。v5y は 7x7 の見え方が前と同じだと、位置が変わっても
 //   #m57 も #ex-pos も送らない(phi_m57.rs の print_m57)。訓練所のような一様な床では、進んでもマップが来ない(#44)
+// - リピート中に see で1歩が進んだら、次からは go と see を続けて送る(一様な床で 300ms → 200ms。v5y は1ティックに1行)。
+//   位置と向きが前と同じマップ(see の重複)が来たら、go だけで地図が来る床に戻ったとみて、go だけにする
+// - #ex-pos がある時は、位置と向きが前と同じマップでは次の1歩を送らない(see の重複や、他のキャラが動いただけのマップ)
 // - リピート中に NO_RECV_MS マップが来なければ、来たものとして次の1歩を送る(Philly の MoveWhenNoRecv)
 import { moveCommand, type Mods, type MoveKey } from "./keys.ts";
 
@@ -58,6 +61,12 @@ export class MoveRepeat {
   /** マップを待ち始めた時刻(マップが来ないまま送った最初の移動の時)。待っていなければ Infinity */
   private waitSince = Infinity;
   private seeSent = false;
+  /** マップが来ないので see を送ったか(go と続けて送った see は含めない) */
+  private seeForNoMap = false;
+  /** go と see を続けて送るか */
+  private pair = false;
+  /** 最後に受けたマップの位置と向き(#ex-pos が無ければ null) */
+  private lastPos: string | null = null;
 
   private send: (text: string) => void;
   private northFix: () => boolean;
@@ -133,7 +142,7 @@ export class MoveRepeat {
   tick() {
     const now = this.now();
     if (!this.seeSent && now - this.waitSince >= SEE_AFTER_MS) {
-      this.seeSent = true;
+      this.seeSent = this.seeForNoMap = true;
       this.send("see");
     }
     if (this.repeat && now - this.waitSince >= NO_RECV_MS) {
@@ -151,8 +160,17 @@ export class MoveRepeat {
     }
   }
 
-  /** マップを受け取った時(Philly の MapRecv) */
-  onMap() {
+  /** マップを受け取った時(Philly の MapRecv)。pos は #ex-pos の位置と向き(無ければ undefined) */
+  onMap(pos?: string) {
+    if (pos !== undefined) {
+      const same = pos === this.lastPos;
+      this.lastPos = pos;
+      if (same) {
+        this.pair = false;
+        return;
+      }
+    }
+    if (this.repeat && this.seeForNoMap && pos !== undefined) this.pair = true;
     this.waitSince = Infinity;
     if (this.pending > 0) this.pending--;
     if (this.repeat && this.pending === 0) this.step(false);
@@ -173,6 +191,7 @@ export class MoveRepeat {
     else {
       this.startAt = Infinity;
       this.pending = 0;
+      this.pair = false;
     }
   }
 
@@ -210,10 +229,17 @@ export class MoveRepeat {
     if (!always && !cmd.go) return;
     this.send(cmd.text);
     this.pending++;
+    if (this.pair && this.repeat) {
+      this.send("see");
+      this.waitSince = this.now();
+      this.seeSent = true;
+      this.seeForNoMap = false;
+      return;
+    }
     // 連打で待ち始めを延ばさない。延ばすと、200ms より短い間隔で押している間は see を送らない
     if (this.waitSince === Infinity) {
       this.waitSince = this.now();
-      this.seeSent = false;
+      this.seeSent = this.seeForNoMap = false;
     }
   }
 }

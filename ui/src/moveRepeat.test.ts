@@ -130,3 +130,37 @@ test("連打してもマップが来なければ、最初の移動から 200ms �
   }
   assert.deepEqual(sent, ["go N", "go N", "see", "go N", "go N"]);
 });
+
+test("一様な床では go と see を続けて送り、see の重複が来たら go だけに戻す", () => {
+  const { m, sent, advance } = setup();
+  m.keyDown("8", "none", false);
+  m.onMap("0,10,0");
+  advance(250);
+  m.tick();
+  assert.deepEqual(sent, ["go N", "#map-iv 10", "go N"]);
+  // 一様な床で go にマップが来ず、see で進んだ
+  advance(200);
+  m.tick();
+  m.onMap("0,9,0");
+  assert.deepEqual(sent.slice(3), ["see", "go N", "see"]);
+  m.onMap("0,8,0");
+  assert.deepEqual(sent.slice(6), ["go N", "see"]);
+  // go だけでマップが来て、続けて see の重複が来た
+  m.onMap("0,7,0");
+  m.onMap("0,7,0");
+  assert.deepEqual(sent.slice(8), ["go N", "see"]);
+  m.onMap("0,6,0");
+  assert.deepEqual(sent.slice(10), ["go N"]);
+});
+
+test("位置と向きが前と同じマップでは次の1歩を送らない", () => {
+  const { m, sent, advance } = setup();
+  m.keyDown("8", "none", false);
+  m.onMap("0,10,0");
+  advance(250);
+  m.tick();
+  m.onMap("0,10,0");
+  assert.deepEqual(sent, ["go N", "#map-iv 10", "go N"]);
+  m.onMap("0,9,0");
+  assert.deepEqual(sent.slice(3), ["go N"]);
+});
