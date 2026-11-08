@@ -452,6 +452,32 @@ fn disconnect(session: u32, sessions: State<'_, Sessions>) {
     sessions.senders.lock().unwrap().remove(&session);
 }
 
+/// main 窓を最小化したら、見えている map 窓と EagleEye も最小化し、main 窓を戻したら一緒に戻す。
+/// 戻すのは一緒に最小化した窓だけ(先に自分で最小化していた窓や、隠していた窓は戻さない)
+fn follow_minimize(main: &tauri::Window) {
+    static FOLLOWED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    let Ok(minimized) = main.is_minimized() else { return };
+    let mut followed = FOLLOWED.lock().unwrap_or_else(|e| e.into_inner());
+    if minimized && followed.is_empty() {
+        for label in ["map", "eagleeye"] {
+            let Some(w) = main.app_handle().get_webview_window(label) else {
+                continue;
+            };
+            if w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(true) && w.minimize().is_ok() {
+                followed.push(label.to_string());
+            }
+        }
+    } else if !minimized && !followed.is_empty() {
+        for label in followed.drain(..) {
+            if let Some(w) = main.app_handle().get_webview_window(&label) {
+                let _ = w.unminimize();
+            }
+        }
+        // 戻した窓に入力を取られないよう、main 窓を前に戻す
+        let _ = main.set_focus();
+    }
+}
+
 /// ログの保存先のフォルダ(`<アプリのログフォルダ>/<表示名>`)。
 fn log_dir(app: &tauri::AppHandle, label: &str) -> Result<std::path::PathBuf, String> {
     Ok(app
@@ -722,8 +748,14 @@ fn main() {
         // main 窓を閉じたらアプリを終える。map と EagleEye は閉じても隠すだけなので、残ったままだとアプリが終わらず、
         // window-state が窓の位置を書き出す RunEvent::Exit も来ない(窓の位置が保存されなかった)
         .on_window_event(|window, event| {
-            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
-                exit_app(window.app_handle());
+            if window.label() != "main" {
+                return;
+            }
+            match event {
+                tauri::WindowEvent::Destroyed => exit_app(window.app_handle()),
+                // 最小化と元に戻すは Resized で届く
+                tauri::WindowEvent::Resized(_) => follow_minimize(window),
+                _ => {}
             }
         })
         .on_menu_event(|app, event| {
