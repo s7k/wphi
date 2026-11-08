@@ -25,6 +25,14 @@ export function privPartners(from: string, html: string, self: string): string[]
 
 export const partnersKey = (to: string[]) => [...to].sort().join("\n");
 
+/** 相手の組の会話を f で書き換える。無ければ f(undefined) で作って後ろに足す */
+export function upsertConv<T extends { to: string[] }>(convs: T[], to: string[], f: (c: T | undefined) => T): T[] {
+  const key = partnersKey(to);
+  return convs.some((c) => partnersKey(c.to) === key)
+    ? convs.map((c) => (partnersKey(c.to) === key ? f(c) : c))
+    : [...convs, f(undefined)];
+}
+
 /** 会話の数の上限。宛先のタグを変えながら送られても、会話が増え続けないようにする(#53) */
 export const MAX_CONVS = 50;
 

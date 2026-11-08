@@ -40,3 +40,35 @@ export function listNo(l: ListState, n: number): { send: string; close: boolean 
   if (n > l.lines.length) return { send: ".", close: true };
   return { send: String(l.offset + n), close: true };
 }
+
+/** カーソルを動かすか、カーソルの行のチェックを切り替えて次の行へ進む */
+export function moveListCursor(l: ListState, a: { listCursor: -1 | 1 } | { listToggle: true }): ListState {
+  const last = Math.max(l.lines.length - 1, 0);
+  if ("listCursor" in a) return { ...l, cursor: Math.min(Math.max(l.cursor + a.listCursor, 0), last) };
+  const checked = l.checked.map((c, i) => (i === l.cursor ? !c : c));
+  return { ...l, checked, cursor: Math.min(l.cursor + 1, last) };
+}
+
+/** リストの受信の状態。cancel は次に届くリストを出さない数(Philly の NextListCancel) */
+export type ListFlow = { cancel: number; started: boolean };
+
+/**
+ * list イベントを受けた時。#list と #end-list はどちらも active で届くので、交互に来る事で見分ける。
+ * #end-list の時、空のリストと、NextListCancel の印がある分は出さない(Philly の RecvListEnd)。
+ * 出すリストか、閉じる("close")か、何もしない(null)かを返す
+ */
+export function receiveList(flow: ListFlow, active: boolean, lines: string[] | undefined): ListState | "close" | null {
+  if (!active) {
+    flow.started = false;
+    return "close";
+  }
+  if (!flow.started) {
+    flow.started = true;
+    return null;
+  }
+  flow.started = false;
+  const cancel = flow.cancel > 0;
+  if (cancel) flow.cancel--;
+  if (!lines?.length || cancel) return null;
+  return newList(lines);
+}

@@ -17,16 +17,16 @@ import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, EXPERIMENT_EVENT, shortcutText, type Settings } from "./settings.ts";
 import { SettingsPanel } from "./SettingsPanel";
 import { NewCharacter } from "./NewCharacter";
-import { capConvs, partnersKey, privLines, privPartners, usersFromEvent, type User } from "./priv.ts";
+import { capConvs, partnersKey, privLines, privPartners, upsertConv, usersFromEvent, type User } from "./priv.ts";
 import { PrivPanel, type PrivConv } from "./PrivPanel";
 import { ListOverlay } from "./ListOverlay";
-import { listNo, listOk, moreNo, newList, type ListState } from "./list.ts";
+import { listNo, listOk, moreNo, moveListCursor, receiveList, type ListFlow, type ListState } from "./list.ts";
 import { trace } from "./trace.ts";
 import { PREDICT_TICK_MS, Predictor } from "./predict.ts";
 import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, TRANSFER_NO, TRANSFER_YES, type MapListAction, type MapState, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
-import { pushLine, pushLines, type LogLine } from "./logLines.ts";
+import { pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
 
 // src-tauri/src/characters.rs の Store
 type Character = { label: string; host: string; port: number };
@@ -68,8 +68,6 @@ type Tab = {
  * リストの受信の状態。受信の順番に関わるので、再描画を待たない ref で持つ。
  * cancel は次に届くリストを出さない数(Philly の NextListCancelCount)、started は #list を受けて #end-list を待っている事
  */
-type ListFlow = { cancel: number; started: boolean };
-
 /** Philly のログバッファに合わせ、古い行から捨てる */
 
 function timePrefix(): string {
@@ -102,11 +100,6 @@ function saveLog(label: string, line: string, asHtml: boolean): Promise<string |
 
 function systemNg(message: string): string {
   return `<font class="class_system_ng">${escapeHtml(message)}</font>`;
-}
-
-/** Log.css は Philly では IE の別文書に当てていた。body をログ欄に読み替えて使う */
-function scopeLogCss(css: string): string {
-  return css.replace(/(^|[\s,}])body(?=[\s,{])/g, "$1.phi-log");
 }
 
 export function App() {
@@ -377,8 +370,7 @@ export function App() {
     const onSent = ({ session, text }: Sent) => {
       const list = tabsRef.current.find((t) => t.session === session)?.list;
       if (!list || text.trim() === moreNo(list)) return;
-      update(session, (t) => ({ ...t, list: null }));
-      onMapEvent(session, { type: "list", active: false });
+      closeList(session);
     };
     const onSentDom = (e: Event) => onSent((e as CustomEvent<Sent>).detail);
     window.addEventListener(SENT_EVENT, onSentDom);
@@ -584,13 +576,12 @@ export function App() {
       if (to.length === 0) return t;
       const key = partnersKey(to);
       const line = timePrefix() + html;
-      const exists = t.privs.some((c) => partnersKey(c.to) === key);
-      const privs = exists
-        ? t.privs.map((c) =>
-            partnersKey(c.to) === key ? { ...c, lines: pushLine(c.lines, line), unread: t.privActive !== key } : c,
-          )
-        : // 送り主は /*to=*/ で宛先を好きに足せるので、返信が知らない相手にも届く(Philly と同じ)。初めて送る前に確かめる(#53)
-          [...t.privs, { to, lines: pushLine([], line), unread: true, confirm: to.length > 1 }];
+      const privs = upsertConv(t.privs, to, (c) =>
+        c
+          ? { ...c, lines: pushLine(c.lines, line), unread: t.privActive !== key }
+          : // 送り主は /*to=*/ で宛先を好きに足せるので、返信が知らない相手にも届く(Philly と同じ)。初めて送る前に確かめる(#53)
+            { to, lines: pushLine([], line), unread: true, confirm: to.length > 1 },
+      );
       const active = t.privActive ?? key;
       return { ...t, privs: capConvs(privs, active), privOpen: true, privActive: active };
     });
@@ -658,6 +649,11 @@ export function App() {
   /** リストで選んだ時と取り消した時。v5y は #ex-list-mode-end を送らないので、送った時点でリストを閉じる */
   function closeListAndSend(session: number, text: string) {
     sendLine(session, text);
+    closeList(session);
+  }
+
+  /** リストを閉じて map 窓に知らせる */
+  function closeList(session: number) {
     update(session, (t) => ({ ...t, list: null }));
     onMapEvent(session, { type: "list", active: false });
   }
@@ -751,26 +747,12 @@ export function App() {
           else if (ev.mode === "end") update(session, (t) => ({ ...t, board: false }));
           break;
         case "list": {
-          // #list と #end-list はどちらも active で届くので、交互に来る事で見分ける。
-          // #end-list の時、空のリストと、NextListCancel の印がある分は出さない(Philly の RecvListEnd)
-          const flow = listFlow(session);
-          if (!ev.active) {
-            flow.started = false;
-            update(session, (t) => ({ ...t, list: null }));
+          const r = receiveList(listFlow(session), ev.active, ev.lines);
+          if (r === "close") closeList(session);
+          else if (r) {
+            update(session, (t) => ({ ...t, list: r }));
             onMapEvent(session, ev);
-            break;
           }
-          if (!flow.started) {
-            flow.started = true;
-            break;
-          }
-          flow.started = false;
-          const lines = ev.lines ?? [];
-          const cancel = flow.cancel > 0;
-          if (cancel) flow.cancel--;
-          if (lines.length === 0 || cancel) break;
-          update(session, (t) => ({ ...t, list: newList(lines) }));
-          onMapEvent(session, ev);
           break;
         }
         default:
@@ -803,7 +785,14 @@ export function App() {
   function close(session: number) {
     invoke("disconnect", { session }).catch((e) => console.error(e));
     setTabs((ts) => ts.filter((t) => t.session !== session));
+    // セッションごとに覚えた物も消す(#35)
     mapStates.current.delete(session);
+    listFlows.current.delete(session);
+    lastUlist.current.delete(session);
+    pendingLines.current.delete(session);
+    const wait = ulistWaits.current.get(session);
+    if (wait) window.clearTimeout(wait.timer);
+    ulistWaits.current.delete(session);
     // 裏のタブを閉じた時は、表のタブをそのまま出す(#62)
     setActive((a) => (a === session ? null : a));
   }
@@ -876,13 +865,11 @@ export function App() {
                   }))
                 }
                 onOpen={(to) =>
-                  update(p.session, (t) => {
-                    const key = partnersKey(to);
-                    const privs = t.privs.some((c) => partnersKey(c.to) === key)
-                      ? t.privs
-                      : [...t.privs, { to: [...to].sort(), lines: [], unread: false }];
-                    return { ...t, privs, privActive: key };
-                  })
+                  update(p.session, (t) => ({
+                    ...t,
+                    privs: upsertConv(t.privs, to, (c) => c ?? { to: [...to].sort(), lines: [], unread: false }),
+                    privActive: partnersKey(to),
+                  }))
                 }
                 onSend={(to, text) => sendPriv(p.session, to, text)}
                 onClose={() => update(p.session, (t) => ({ ...t, privOpen: false }))}
@@ -930,13 +917,6 @@ export function App() {
       <div className="status-bar">{tab ? (tab.closed ? "切断" : "接続中") : "キャラ選択"}</div>
     </div>
   );
-}
-
-function moveListCursor(l: ListState, a: { listCursor: -1 | 1 } | { listToggle: true }): ListState {
-  const last = Math.max(l.lines.length - 1, 0);
-  if ("listCursor" in a) return { ...l, cursor: Math.min(Math.max(l.cursor + a.listCursor, 0), last) };
-  const checked = l.checked.map((c, i) => (i === l.cursor ? !c : c));
-  return { ...l, checked, cursor: Math.min(l.cursor + 1, last) };
 }
 
 function pick(e: globalThis.KeyboardEvent) {
