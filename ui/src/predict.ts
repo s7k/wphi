@@ -15,6 +15,10 @@ const STEP: Record<string, { dx: number; dy: number }> = {
  * 回線が遅いと地図が待つ時間より後に届き、予想で先へ進んだ分が戻って見える。なので届くまでの時間を測って待つ時間を延ばす */
 export const PREDICT_WAIT_MS = 150;
 const PREDICT_WAIT_MAX_MS = 1000;
+/** サーバは1ティック(0.1 秒)に1行しか処理しないので、進んだとみなすのもこれより詰めない */
+const SERVER_TICK_MS = 100;
+/** tick() を呼ぶ間隔。待ちきった時刻からの遅れはこれ以内 */
+export const PREDICT_TICK_MS = 20;
 
 type Move = { dx: number; dy: number; at: number };
 const sum = (ms: Move[]) => ms.reduce((o, m) => ({ dx: o.dx + m.dx, dy: o.dy + m.dy }), { dx: 0, dy: 0 });
@@ -28,6 +32,7 @@ export class Predictor {
   private base: { x: number; y: number } | null = null;
   /** 移動を送ってから地図か「進めません」が届くまでの時間(ms)の平均 */
   private rtt = 0;
+  private lastGuess = -Infinity;
   private now: () => number;
 
   constructor(now: () => number = () => performance.now()) {
@@ -101,10 +106,12 @@ export class Predictor {
     if (m) this.measure(m);
   }
 
-  /** 定期的に呼ぶ(サーバと同じ 0.1 秒ごと)。返事を待ちきった移動を1つ、進んだとみなす。ずれが変われば true */
+  /** PREDICT_TICK_MS ごとに呼ぶ。返事を待ちきった移動を1つ、進んだとみなす。ずれが変われば true */
   tick(): boolean {
     const head = this.queue[0];
-    if (!head || this.now() - head.at < this.wait) return false;
+    const now = this.now();
+    if (!head || now - head.at < this.wait || now - this.lastGuess < SERVER_TICK_MS) return false;
+    this.lastGuess = now;
     this.guessed.push(this.queue.shift()!);
     return true;
   }
@@ -113,5 +120,6 @@ export class Predictor {
     this.queue = [];
     this.guessed = [];
     this.base = null;
+    this.lastGuess = -Infinity;
   }
 }

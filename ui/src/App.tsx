@@ -22,7 +22,7 @@ import { PrivPanel, type PrivConv } from "./PrivPanel";
 import { ListOverlay } from "./ListOverlay";
 import { listNo, listOk, moreNo, newList, type ListState } from "./list.ts";
 import { trace } from "./trace.ts";
-import { Predictor } from "./predict.ts";
+import { PREDICT_TICK_MS, Predictor } from "./predict.ts";
 import { EAGLE_EYE_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
@@ -184,14 +184,14 @@ export function App() {
   // setTimeout を使わない。map 窓にフォーカスがある間 main 窓は裏の窓になり、WebView2 がタイマーを 1 秒ごとに間引くと地図が止まって見える(#44)
   const mapStatePort = useRef<MessageChannel | null>(null);
   const pendingDiffs = useRef<AutomapDiff[]>([]);
-  // 拡張マップの付属: 表のタブの位置の予想。0.1 秒ごとに、返事を待ちきった移動を進んだとみなす
+  // 拡張マップの付属: 表のタブの位置の予想。返事を待ちきった移動を進んだとみなす
   const predictor = useRef(new Predictor());
   useEffect(() => {
     predictor.current.reset();
     if (!settings.automap || active === null) return;
     const timer = setInterval(() => {
       if (predictor.current.tick()) sendMapState(activeRef.current);
-    }, 100);
+    }, PREDICT_TICK_MS);
     return () => {
       clearInterval(timer);
       predictor.current.reset();

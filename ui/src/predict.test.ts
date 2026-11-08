@@ -18,11 +18,15 @@ test("地図も「進めません」も来なければ、0.1 秒ごとに1歩ず
   assert.equal(p.tick(), false);
   advance(100);
   assert.equal(p.tick(), true);
+  // サーバと同じく、0.1 秒に1歩より詰めない
+  assert.equal(p.tick(), false);
+  advance(100);
   assert.equal(p.tick(), true);
   assert.deepEqual(p.offset, { dx: 0, dy: -2 });
   advance(100);
   assert.equal(p.tick(), true);
   assert.deepEqual(p.offset, { dx: 1, dy: -2 });
+  advance(100);
   assert.equal(p.tick(), false);
 });
 
