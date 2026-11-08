@@ -83,3 +83,39 @@ test("進めませんの時は方向が変わった時だけ送る", () => {
   m.keyDown("6", "none", false);
   assert.deepEqual(sent.slice(3), ["go E"]);
 });
+
+test("移動の後にマップが来なければ see を1回送る(一様な床で v5y がマップを送らない時)", () => {
+  const { m, sent, advance } = setup();
+  m.keyDown("8", "none", false);
+  m.keyUp("8");
+  advance(199);
+  m.tick();
+  assert.deepEqual(sent, ["go N"]);
+  advance(1);
+  m.tick();
+  advance(300);
+  m.tick();
+  assert.deepEqual(sent, ["go N", "see"]);
+  // マップが来ていれば送らない
+  m.keyDown("8", "none", false);
+  m.keyUp("8");
+  m.onMap();
+  advance(300);
+  m.tick();
+  assert.deepEqual(sent.slice(2), ["go N"]);
+});
+
+test("リピート中にマップが来なければ、500ms で次の1歩を送る(Philly の MoveWhenNoRecv)", () => {
+  const { m, sent, advance } = setup();
+  m.keyDown("8", "none", false);
+  m.onMap();
+  advance(250);
+  m.tick();
+  assert.deepEqual(sent, ["go N", "#map-iv 10", "go N"]);
+  advance(200);
+  m.tick();
+  assert.deepEqual(sent.slice(3), ["see"]);
+  advance(300);
+  m.tick();
+  assert.deepEqual(sent.slice(3), ["see", "go N"]);
+});

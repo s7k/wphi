@@ -8,6 +8,9 @@
 // - 2つのキーで斜めに押すと、2方向を交互に送る
 // - 全部のキーを離して REPEAT_END_MS でリピートを終え、#map-iv を元に戻す
 // - マップを左クリックした時は、その向きへすぐ送ってリピートに入る。押している間はマウスの向きへ進む(MouseDown)
+// - 移動を送って SEE_AFTER_MS マップが来なければ see を送る。v5y は 7x7 の見え方が前と同じだと、位置が変わっても
+//   #m57 も #ex-pos も送らない(phi_m57.rs の print_m57)。訓練所のような一様な床では、進んでもマップが来ない(#44)
+// - リピート中に NO_RECV_MS マップが来なければ、来たものとして次の1歩を送る(Philly の MoveWhenNoRecv)
 import { moveCommand, type Mods, type MoveKey } from "./keys.ts";
 
 /** Philly.ini の RepeatModeStartTime / RepeatModeEndTime の既定値。設定で変えられる */
@@ -16,6 +19,10 @@ const REPEAT_END_MS = 100;
 /** リピート中の #map-iv と、普段の値(session.rs のログイン時の送信と同じ) */
 const MAP_IV_REPEAT = 10;
 const MAP_IV_NORMAL = 2;
+/** 移動の後、マップが来ないまま see を送るまで */
+const SEE_AFTER_MS = 200;
+/** リピート中、マップが来ないまま次の1歩を送るまで(Philly の MOVE_CHECK_INTERVAL) */
+const NO_RECV_MS = 500;
 
 const OPPOSITE: [MoveKey, MoveKey][] = [
   ["2", "8"],
@@ -48,6 +55,9 @@ export class MoveRepeat {
   private pending = 0;
   /** 最後に送った方向(Philly の MoveDirectionBak) */
   private last: MoveKey | null = null;
+  /** マップを待ち始めた時刻(最後に移動を送った時)。待っていなければ Infinity */
+  private waitSince = Infinity;
+  private seeSent = false;
 
   private send: (text: string) => void;
   private northFix: () => boolean;
@@ -122,6 +132,15 @@ export class MoveRepeat {
   /** 定期的に呼ぶ。リピートの開始と終了を決める(Philly の RepeatCheckWhenNoRecv) */
   tick() {
     const now = this.now();
+    if (!this.seeSent && now - this.waitSince >= SEE_AFTER_MS) {
+      this.seeSent = true;
+      this.send("see");
+    }
+    if (this.repeat && now - this.waitSince >= NO_RECV_MS) {
+      this.pending = 0;
+      this.waitSince = Infinity;
+      this.step(false);
+    }
     if (this.repeat) {
       if (this.held.size === 0 && this.mouse.length === 0 && this.endAt < now) this.setRepeat(false);
       return;
@@ -134,12 +153,14 @@ export class MoveRepeat {
 
   /** マップを受け取った時(Philly の MapRecv) */
   onMap() {
+    this.waitSince = Infinity;
     if (this.pending > 0) this.pending--;
     if (this.repeat && this.pending === 0) this.step(false);
   }
 
   /** 「進めません.」を受けた時(Philly の CannotGo) */
   onCannotGo() {
+    this.waitSince = Infinity;
     if (this.pending > 0) this.pending--;
     if (this.repeat && this.pending === 0) this.step(true);
   }
@@ -189,5 +210,7 @@ export class MoveRepeat {
     if (!always && !cmd.go) return;
     this.send(cmd.text);
     this.pending++;
+    this.waitSince = this.now();
+    this.seeSent = false;
   }
 }
