@@ -585,7 +585,8 @@ export function App() {
         ? t.privs.map((c) =>
             partnersKey(c.to) === key ? { ...c, lines: pushLine(c.lines, line), unread: t.privActive !== key } : c,
           )
-        : [...t.privs, { to, lines: pushLine([], line), unread: true }];
+        : // 送り主は /*to=*/ で宛先を好きに足せるので、返信が知らない相手にも届く(Philly と同じ)。初めて送る前に確かめる(#53)
+          [...t.privs, { to, lines: pushLine([], line), unread: true, confirm: to.length > 1 }];
       const active = t.privActive ?? key;
       return { ...t, privs: capConvs(privs, active), privOpen: true, privActive: active };
     });
@@ -627,7 +628,19 @@ export function App() {
   }
 
   /** priv を送る。先に #ulist で番号を取り直す(Philly の PrivForm.cpp の SendPrivMessage) */
-  function sendPriv(session: number, to: string[], text: string) {
+  function sendPriv(session: number, to: string[], text: string): boolean {
+    const key = partnersKey(to);
+    const conv = tabsRef.current.find((t) => t.session === session)?.privs.find((c) => partnersKey(c.to) === key);
+    if (conv?.confirm) {
+      const ok = window.confirm(
+        `この会話の宛先は、受けた priv に書かれていた名前から作りました。\n送り先: ${to.join("、")}\nこの全員に送りますか？`,
+      );
+      if (!ok) return false;
+      update(session, (t) => ({
+        ...t,
+        privs: t.privs.map((c) => (partnersKey(c.to) === key ? { ...c, confirm: false } : c)),
+      }));
+    }
     requestUlist(session, () => {
       const t = tabsRef.current.find((t) => t.session === session);
       if (!t) return;
@@ -635,6 +648,7 @@ export function App() {
       lines.forEach((l) => sendLine(session, l));
       for (const name of failed) append(session, systemNg(`「${name}」さんに送信できませんでした。`));
     });
+    return true;
   }
 
   /** リストで選んだ時と取り消した時。v5y は #ex-list-mode-end を送らないので、送った時点でリストを閉じる */

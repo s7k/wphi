@@ -5,7 +5,8 @@ import { partnersKey, type User } from "./priv.ts";
 import { LogLines } from "./LogLineList";
 import type { LogLine } from "./logLines.ts";
 
-export type PrivConv = { to: string[]; lines: LogLine[]; unread: boolean };
+/** confirm: 受けた priv の宛先のタグで作った3人以上の会話。初めて送る前に宛先を確かめる(#53) */
+export type PrivConv = { to: string[]; lines: LogLine[]; unread: boolean; confirm?: boolean };
 
 export function PrivPanel(props: {
   convs: PrivConv[];
@@ -14,7 +15,8 @@ export function PrivPanel(props: {
   self: string;
   onSelect: (key: string) => void;
   onOpen: (to: string[]) => void;
-  onSend: (to: string[], text: string) => void;
+  /** 送らなかった(宛先の確かめで断った)時は false。入力欄の文字を残す */
+  onSend: (to: string[], text: string) => boolean;
   onClose: () => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
@@ -25,8 +27,7 @@ export function PrivPanel(props: {
     e.preventDefault();
     const text = e.currentTarget.value;
     if (text === "") return;
-    props.onSend(conv.to, text);
-    e.currentTarget.value = "";
+    if (props.onSend(conv.to, text)) e.currentTarget.value = "";
   }
 
   const others = props.users.filter((u) => u.name !== props.self);
