@@ -52,7 +52,7 @@ function MapWindow() {
   // マップの欄。外周の幅はこの枠の大きさで決める(canvas の大きさは外周の幅で変わるので測らない)
   const mapArea = useRef<HTMLDivElement>(null);
   // HP・MP の減った分を出す為の、1つ前の #status(Philly の OldStatus)
-  const prevStatus = useRef<{ now?: StatusEvent; old?: StatusEvent }>({});
+  const prevStatus = useRef<{ session?: number; now?: StatusEvent; old?: StatusEvent }>({});
 
   useEffect(() => {
     hideOnClose();
@@ -60,8 +60,11 @@ function MapWindow() {
       const s = e.payload;
       trace("map recv");
       const p = prevStatus.current;
-      // イベントのたびに別のオブジェクトで届くので、中身で比べる。#status が届くたびに1つ前の値になる
-      if (JSON.stringify(s.status) !== JSON.stringify(p.now)) prevStatus.current = { now: s.status, old: p.now ?? s.status };
+      // イベントのたびに別のオブジェクトで届くので、中身で比べる。#status が届くたびに1つ前の値になる。
+      // タブを切り替えた時は、前のタブのキャラとの差を減った分にしない(#67)
+      if (s.session !== p.session) prevStatus.current = { session: s.session, now: s.status, old: s.status };
+      else if (JSON.stringify(s.status) !== JSON.stringify(p.now))
+        prevStatus.current = { session: s.session, now: s.status, old: p.now ?? s.status };
       setState(s);
     });
     // 開いた直後の状態を main 窓に求める
