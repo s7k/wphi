@@ -86,3 +86,30 @@ test("地図が待つ時間より後に届く回線では、待つ時間を延�
   advance(200);
   assert.equal(p.tick(), false);
 });
+
+test("進んだとみなした後に、次の移動で地図が来たら、両方の返事とみなす(1歩が2歩に見えない)", () => {
+  const { p, advance } = setup();
+  p.onMap("5,5,0");
+  p.sent("go N");
+  advance(150);
+  p.tick();
+  assert.deepEqual(p.offset, { dx: 0, dy: -1 });
+  // 一様な所で1歩目は地図が来ず、2歩目で見え方が変わって地図が来た
+  p.sent("go N");
+  advance(50);
+  p.onMap("5,3,0");
+  assert.equal(p.waiting, false);
+  advance(1000);
+  assert.equal(p.tick(), false);
+  assert.deepEqual(p.offset, { dx: 0, dy: 0 });
+});
+
+test("進んだとみなした移動に「進めません」が来たら、その分を戻す", () => {
+  const { p, advance } = setup();
+  p.onMap("5,5,0");
+  p.sent("go N");
+  advance(150);
+  p.tick();
+  p.onCannotGo();
+  assert.deepEqual(p.offset, { dx: 0, dy: 0 });
+});
