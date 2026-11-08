@@ -81,6 +81,7 @@ test("メニューの項目", () => {
   assert.deepEqual(menuAction("get"), { send: "get" });
   assert.deepEqual(menuAction("wizard-eye"), { send: "cast\nwizard eye", cancelList: 1, systemMagic: "reequip" });
   assert.deepEqual(menuAction("map"), { toggleMap: true });
+  for (const id of ["search", "charge-spell", "appear", "disappear"]) assert.notEqual(menuAction(id), null, id);
   assert.deepEqual(menuAction("map-turn"), { send: "#ex-map style=turn" });
   assert.deepEqual(menuAction("map-solid"), { send: "#ex-map style=solid" });
   assert.ok((menuAction("return") as { confirm?: string }).confirm);
