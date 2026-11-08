@@ -161,16 +161,11 @@ export function compose(
 }
 
 /**
- * 実験的: 予想した位置の地図(ui/src/predict.ts)。7x7 は記録地図から作り、記録が無ければ '?'。
- * 自キャラ(中央のマスのキャラ)だけを残す。他のキャラの位置は分からないので出さない
+ * 拡張マップの付属: 予想した位置の地図(ui/src/predict.ts)。位置だけをずらし、7x7 は最後に届いた地図のまま。
+ * サーバは 7x7 の見え方が変わらない時だけ地図を送らないので、進んでも 7x7 は同じ。
+ * 7x7 を記録地図から作ると、まだ記録していない所(細い通路を初めて通る時など)が真っ暗になる
  */
-export function predictedMap(map: MapEvent, tiles: Tiles, dx: number, dy: number): MapEvent {
+export function predictedMap(map: MapEvent, dx: number, dy: number): MapEvent {
   if (!recordable(map) || (dx === 0 && dy === 0)) return map;
-  const x = map.pos!.x + dx;
-  const y = map.pos!.y + dy;
-  const cells = Array.from(
-    { length: 49 },
-    (_, i) => tiles[`${x + (i % 7) - 3},${y + Math.floor(i / 7) - 3}`] ?? { chip: UNKNOWN, attr: 0 },
-  );
-  return { ...map, pos: { x, y }, cells, chars: map.chars.filter((c) => c.x === 3 && c.y === 3) };
+  return { ...map, pos: { x: map.pos!.x + dx, y: map.pos!.y + dy } };
 }

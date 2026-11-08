@@ -129,7 +129,7 @@ function MapWindow() {
   // 拡張マップの付属: main 窓が位置を予想していれば(ui/src/predict.ts)、予想した位置の地図を記録地図から作って描く
   const raw = state?.map;
   const pred = state?.predict;
-  const map = raw && pred && (pred.dx || pred.dy) ? predictedMap(raw, tiles, pred.dx, pred.dy) : raw;
+  const map = raw && pred && (pred.dx || pred.dy) ? predictedMap(raw, pred.dx, pred.dy) : raw;
   const [area, setArea] = useState({ w: 0, h: 0 });
   useEffect(() => {
     const el = mapArea.current;
