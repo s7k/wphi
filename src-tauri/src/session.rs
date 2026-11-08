@@ -92,6 +92,15 @@ fn line_bytes(text: &str) -> Vec<u8> {
 }
 
 /// 接続し、切れるまで送受信を続ける。`outgoing` が閉じたら `#x` を送って切る。
+/// 無応答の時に次に起きる時刻。2分で #code-sjis を送り、3分で警告する。警告の後は None(待たない)
+fn next_wake(last_recv: Instant, keepalive_sent: bool, warned: bool) -> Option<Instant> {
+    match (keepalive_sent, warned) {
+        (_, true) => None,
+        (true, false) => Some(last_recv + WARN_AFTER),
+        (false, false) => Some(last_recv + KEEPALIVE_AFTER),
+    }
+}
+
 pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: impl FnMut(UiEvent)) {
     let addr = (login.host.as_str(), login.port);
     let mut stream = match timeout(CONNECT_TIMEOUT, TcpStream::connect(addr)).await {
@@ -117,11 +126,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
     let mut warned = false;
 
     loop {
-        let wake = if keepalive_sent {
-            last_recv + WARN_AFTER
-        } else {
-            last_recv + KEEPALIVE_AFTER
-        };
+        let wake = next_wake(last_recv, keepalive_sent, warned);
         let mut reply: Vec<String> = Vec::new();
         tokio::select! {
             r = stream.read(&mut buf) => {
@@ -187,7 +192,8 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     return;
                 }
             },
-            _ = tokio::time::sleep_until(wake) => {
+            // 警告を出した後は、次に受信するまで待たない(過去の時刻を待つと、待たずに回り続ける。#61)
+            _ = tokio::time::sleep_until(wake.unwrap_or(last_recv)), if wake.is_some() => {
                 if !keepalive_sent {
                     reply.push("#code-sjis".into());
                     keepalive_sent = true;
@@ -366,6 +372,14 @@ mod tests {
     };
 
     /// 偽サーバに繋ぎ、ログインの送信、#lag への応答、送信の cp932 化、ログの HTML 化、切断を確かめる。
+    #[test]
+    fn no_wake_after_warning() {
+        let t = Instant::now();
+        assert_eq!(next_wake(t, false, false), Some(t + KEEPALIVE_AFTER));
+        assert_eq!(next_wake(t, true, false), Some(t + WARN_AFTER));
+        assert_eq!(next_wake(t, true, true), None);
+    }
+
     #[tokio::test]
     async fn talks_to_server() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
