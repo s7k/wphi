@@ -475,7 +475,9 @@ async fn append_log(
             .append(true)
             .open(&path)
             .map_err(|e| format!("{}: {e}", path.display()))?;
-        writeln!(f, "{}", html_to_text(&html)).map_err(|e| e.to_string())?;
+        // 1行を1回の write で書く(writeln! は部品ごとに write を出す)
+        f.write_all(format!("{}\n", html_to_text(&html)).as_bytes())
+            .map_err(|e| e.to_string())?;
         return Ok(path.display().to_string());
     }
     let path = dir.join(format!("{date}.html"));
@@ -485,16 +487,16 @@ async fn append_log(
         .append(true)
         .open(&path)
         .map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut out = String::new();
     if new {
         let css = log_css().unwrap_or_default();
         let title = phi_proto::tag_to_html::escape_html(&label);
-        write!(
-            f,
+        out = format!(
             "<!doctype html>\n<meta charset=\"utf-8\">\n<title>{title} {date}</title>\n<style>\n{css}\n</style>\n"
-        )
-        .map_err(|e| e.to_string())?;
+        );
     }
-    writeln!(f, "<div>{html}</div>").map_err(|e| e.to_string())?;
+    out += &format!("<div>{html}</div>\n");
+    f.write_all(out.as_bytes()).map_err(|e| e.to_string())?;
     Ok(path.display().to_string())
 }
 

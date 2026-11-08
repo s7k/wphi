@@ -86,11 +86,17 @@ function systemOk(message: string): string {
   return `<font class="class_system_ok">${escapeHtml(message)}</font>`;
 }
 
-/** ログを利用者の地域の日付のファイルに足す。保存先のパスを返す */
+/** ログを利用者の地域の日付のファイルに足す。保存先のパスを返す。
+ * 1つ前の書き込みが終わってから書く。並行に書くと、行の順序が入れ替わり、ヘッダが二重になる(#65) */
+let logQueue: Promise<unknown> = Promise.resolve();
 function saveLog(label: string, line: string, asHtml: boolean): Promise<string | void> {
   const d = new Date();
   const date = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-  return invoke<string>("append_log", { label, date, html: line, asHtml }).catch((e) => console.error(e));
+  const p = logQueue.then(() =>
+    invoke<string>("append_log", { label, date, html: line, asHtml }).catch((e) => console.error(e)),
+  );
+  logQueue = p;
+  return p;
 }
 
 function systemNg(message: string): string {
