@@ -654,7 +654,8 @@ export function App() {
     invoke("disconnect", { session }).catch((e) => console.error(e));
     setTabs((ts) => ts.filter((t) => t.session !== session));
     mapStates.current.delete(session);
-    setActive(null);
+    // 裏のタブを閉じた時は、表のタブをそのまま出す(#62)
+    setActive((a) => (a === session ? null : a));
   }
 
   const tab = tabs.find((t) => t.session === active);
