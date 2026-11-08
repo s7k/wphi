@@ -7,6 +7,8 @@ import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { getVersion } from "@tauri-apps/api/app";
 import { latestRelease } from "./update.ts";
 import { isMac, MenuBar } from "./MenuBar";
+import { LogMenu, type LogMenuAt } from "./LogMenu";
+import { selectedLines } from "./logCopy.ts";
 import { MASTER_EXP, parseMasterMagic, runMasterItem, type MasterMenu } from "./masterMagic.ts";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { SENT_EVENT, type Sent } from "./keyInput";
@@ -104,6 +106,34 @@ function saveLog(label: string, line: string, asHtml: boolean): Promise<string |
   return p;
 }
 
+/** 右クリックした時の、選んだ行(選んでいなければ押した行)。選んだ範囲がログ欄の外なら押した行 */
+function linesAt(lines: LogLine[], target: Element): LogLine[] {
+  const idOf = (n: Node | null) => {
+    const el = n instanceof Element ? n : n?.parentElement;
+    const id = el?.closest("[data-line]")?.getAttribute("data-line");
+    return id === null || id === undefined ? null : Number(id);
+  };
+  const sel = window.getSelection();
+  const picked =
+    sel && !sel.isCollapsed ? [idOf(sel.anchorNode), idOf(sel.focusNode)].filter((n): n is number => n !== null) : [];
+  const ids = picked.length > 0 ? picked : [idOf(target)].filter((n): n is number => n !== null);
+  return selectedLines(lines, ids);
+}
+
+/** クリップボードへ書く。navigator.clipboard が使えない WebView では execCommand に戻る */
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.append(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+  }
+}
+
 function systemNg(message: string): string {
   return `<font class="class_system_ng">${escapeHtml(message)}</font>`;
 }
@@ -154,6 +184,8 @@ export function App() {
     };
   }, []);
   const [error, setError] = useState("");
+  // ログ欄の右クリックメニュー(#81)
+  const [logMenu, setLogMenu] = useState<LogMenuAt | null>(null);
 
   const reload = () =>
     invoke<Store>("list_characters")
@@ -775,13 +807,13 @@ export function App() {
   }
 
   // 続けて届いた行は次のタスクでまとめて足す。1行ごとに足すと、行の数だけ描き直しとレイアウトが走る(#73)
-  const pendingLines = useRef(new Map<number, string[]>());
+  const pendingLines = useRef(new Map<number, { html: string; raw?: string }[]>());
   const linesPort = useRef<MessageChannel | null>(null);
   /** 画面に出す時刻。時刻を出さない設定なら空(LogDispTime) */
   const shownTime = (time: string) => (settingsRef.current.logDispTime ? time : "");
-  const append = (session: number, html: string) => {
+  const append = (session: number, html: string, raw?: string) => {
     const time = timePrefix();
-    const line = shownTime(time) + html;
+    const line = { html: shownTime(time) + html, raw };
     const tab = tabsRef.current.find((t) => t.session === session);
     // 保存するログには、時刻を出さない設定でも時刻を入れる(Philly の LogSaveTextWithTime=on)
     if (tab?.logSave) saveLog(tab.label, time + html, settingsRef.current.logSaveHtml);
@@ -822,7 +854,7 @@ export function App() {
     handle = (ev) => {
       switch (ev.type) {
         case "log":
-          append(session, ev.html);
+          append(session, ev.html, ev.raw);
           notifyTalk(session, ev.channel, ev.html, !!ev.noFlash);
           if (ev.channel === "priv" && ev.from) addPriv(session, ev.from, ev.html);
           if (session === activeRef.current && /DM<\/font> &gt; (進めません\.|Can not go\.)/.test(ev.html))
@@ -1008,7 +1040,36 @@ export function App() {
       {tab ? (
         <div className="main-body">
         <div className="log-area">
-          <LogView key={tab.session} lines={tab.lines} follow={logFollow} />
+          <div
+            className="log-menu-area"
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setLogMenu({ x: e.clientX, y: e.clientY, lines: linesAt(tab.lines, e.target as Element) });
+            }}
+          >
+            <LogView key={tab.session} lines={tab.lines} follow={logFollow} />
+          </div>
+          {logMenu && (
+            <LogMenu
+              at={logMenu}
+              settings={settings}
+              onCopy={(text) => copyToClipboard(text).catch((e) => setError(String(e)))}
+              onToInput={(text) => {
+                const ta = document.querySelector<HTMLTextAreaElement>(".input-line");
+                if (!ta) return;
+                ta.setRangeText(text + "\n", ta.selectionStart, ta.selectionEnd, "end");
+                ta.focus();
+              }}
+              onSend={(text) => sendLines(tab.session, text)}
+              onShow={(text) => alertBox(text)}
+              onToggle={(key) => {
+                const next = { ...settings, [key]: !settings[key] };
+                setSettings(next);
+                invoke("save_settings", { settings: next }).catch((e) => setError(String(e)));
+              }}
+              onClose={() => setLogMenu(null)}
+            />
+          )}
           {/* 看板と priv の画面はタブごとに作り、裏のタブの分は隠して書きかけを残す(#63) */}
           {tabs
             .filter((t) => t.board)

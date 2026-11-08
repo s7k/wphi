@@ -18,7 +18,7 @@ import { CHIP_SIZE, MAP_TOP, SLIDE_MS, gridDim, slideStep } from "./mapRender";
 import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
 import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
-import { hideOnClose, useImages } from "./windowUtil";
+import { hideOnClose, useImages, preventBrowserDefaults } from "./windowUtil";
 import "./style.css";
 
 /** Philly のキャラのアニメ周期(PersonalThread.h の ANIMATION_INTERVAL = 500ms) */
@@ -347,6 +347,7 @@ function MapWindow() {
   );
 }
 
+preventBrowserDefaults();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <MapWindow />

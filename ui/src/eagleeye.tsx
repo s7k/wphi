@@ -8,7 +8,7 @@ import { drawMap } from "./drawMap";
 import { CHIP_SIZE } from "./mapRender";
 import { eagleBoard } from "./eagleBoard.ts";
 import { EAGLE_EYE_EVENT, type EagleEyeEvent } from "./protocol";
-import { hideOnClose, useImages } from "./windowUtil";
+import { hideOnClose, useImages, preventBrowserDefaults } from "./windowUtil";
 import "./style.css";
 
 function EagleEyeWindow() {
@@ -46,6 +46,7 @@ function EagleEyeWindow() {
   );
 }
 
+preventBrowserDefaults();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <EagleEyeWindow />

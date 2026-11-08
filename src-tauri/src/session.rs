@@ -53,6 +53,9 @@ pub enum UiOnly {
         /// 元の受信テキスト。効果音の照合に使い、UI には送らない。照合しない行は空
         #[serde(skip)]
         text: String,
+        /// 元の行(PHI のタグ付き)。ログ欄の「タグ付きでコピー」などに使う(#81)
+        #[serde(skip_serializing_if = "String::is_empty")]
+        raw: String,
         /// タスクバーを点滅させない行(Philly の NotFlashRegexp)。main.rs が決める
         #[serde(skip_serializing_if = "std::ops::Not::not")]
         no_flash: bool,
@@ -494,6 +497,7 @@ fn system(ok: bool, text: &str) -> UiEvent {
         html: format!(r#"<font class="{class}">{text}</font>"#),
         from: None,
         text: String::new(),
+        raw: String::new(),
         no_flash: false,
     })
 }
@@ -505,6 +509,7 @@ fn log_event(m: Message, opts: &LogOptions, in_more: bool) -> UiEvent {
         channel: m.channel,
         html: to_html(&m.text, opts),
         from: m.from,
+        raw: m.text.clone(),
         text: if in_more { String::new() } else { m.text },
         no_flash: false,
     })
@@ -603,7 +608,8 @@ mod tests {
             events,
             vec![
                 json!({"type": "log", "channel": "log",
-                       "html": "<font class=\"class_name\">勇者</font> &gt; <font class=\"cl_red\" style=\"color:red;\">こんにちは</font>"}),
+                       "html": "<font class=\"class_name\">勇者</font> &gt; <font class=\"cl_red\" style=\"color:red;\">こんにちは</font>",
+                       "raw": "勇者 > /*cl=red*/こんにちは/*.*/"}),
                 json!({"type": "connection", "state": "closed"}),
                 json!({"type": "connection", "state": "closed"}),
             ]

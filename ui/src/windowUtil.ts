@@ -29,3 +29,25 @@ export function useImages(onLoad: () => void) {
     return undefined;
   };
 }
+
+/**
+ * WebView の標準の動きを止める。どの窓でも最初に呼ぶ。
+ * - 右クリックの標準のメニュー(macOS の Look Up・Translate、Reload など)。Reload でページを読み込み直すと、
+ *   main 窓は接続し直して二重に接続する(既にアクセスされています)。入力欄だけは、コピーと貼り付けの為に残す
+ * - F5・Ctrl+R・Cmd+R の読み込み直し。Shift+F5(マップ)などの操作には回す
+ */
+export function preventBrowserDefaults() {
+  document.addEventListener("contextmenu", (e) => {
+    const t = e.target as HTMLElement | null;
+    if (t?.closest("input, textarea, [contenteditable]")) return;
+    e.preventDefault();
+  });
+  window.addEventListener(
+    "keydown",
+    (e) => {
+      const reload = (e.code === "F5" && !e.shiftKey && !e.altKey) || (e.code === "KeyR" && (e.ctrlKey || e.metaKey));
+      if (reload) e.preventDefault();
+    },
+    true,
+  );
+}

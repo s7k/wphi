@@ -19,6 +19,12 @@ export type Settings = {
   logFontName: string;
   /** ログ欄の文字の大きさ(px)。0 ならスキンの Log.css に任せる(LogFontSize) */
   logFontSize: number;
+  /** ログ欄からのコピーの仕方(Philly の [LogEdit]。#81) */
+  logTagDeleteCopy: boolean;
+  logTagDeleteAlways: boolean;
+  logTimeDelete: boolean;
+  logNameDelete: boolean;
+  logTagCancel: boolean;
   /** 系統魔法の前に武器を外す(AutoUnequipSystemMagic) */
   autoUnequipSystemMagic: boolean;
   /** 系統魔法の後に外した武器を装備し直す(AutoEquipSystemMagic) */

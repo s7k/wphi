@@ -823,3 +823,24 @@ body {
   white-space: pre-wrap;
   margin: 0 0 12px;
 }
+
+/* ログ欄の右クリックメニュー(LogMenu.tsx)。.tag-menu を使う */
+.tag-menu li.separator {
+  height: 0;
+  margin: 3px 0;
+  padding: 0;
+  border-top: 1px solid #ddd;
+}
+
+.tag-menu li.disabled {
+  color: #aaa;
+}
+
+.tag-menu li.disabled:hover {
+  background: none;
+}
+
+/* ログ欄の右クリックを受ける為だけの枠。並びには関わらない */
+.log-menu-area {
+  display: contents;
+}

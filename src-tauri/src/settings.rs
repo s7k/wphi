@@ -29,6 +29,16 @@ pub struct Settings {
     pub log_font_name: String,
     /// ログ欄の文字の大きさ(px)。0 ならスキンの Log.css に任せる([Font] LogFontSize)
     pub log_font_size: u32,
+    /// ログ欄からのコピーの仕方([LogEdit]。#81)。コピーでタグを除く(LogTagDeleteCutCopy)
+    pub log_tag_delete_copy: bool,
+    /// 発言欄にコピー・発言する時もタグを除く(LogTagDeleteAlways)
+    pub log_tag_delete_always: bool,
+    /// 時刻を除いてコピーする(LogTimeDelete)
+    pub log_time_delete: bool,
+    /// 名前を除いてコピーする(LogNameDelete)
+    pub log_name_delete: bool,
+    /// タグを無効にしてコピーする。/* を /＊ にする(LogTagCancel)
+    pub log_tag_cancel: bool,
     /// 系統魔法の前に武器を外す([Automation] AutoUnequipSystemMagic)
     pub auto_unequip_system_magic: bool,
     /// 系統魔法の後に外した武器を装備し直す([Automation] AutoEquipSystemMagic)
@@ -58,6 +68,11 @@ impl Default for Settings {
             task_bar_flash: true,
             log_font_name: String::new(),
             log_font_size: 0,
+            log_tag_delete_copy: false,
+            log_tag_delete_always: false,
+            log_time_delete: true,
+            log_name_delete: false,
+            log_tag_cancel: false,
             auto_unequip_system_magic: true,
             auto_equip_system_magic: false,
             master_magic_menu: false,
@@ -110,6 +125,17 @@ impl Settings {
         }
         if let Some(v) = get("Font", "LogFontSize").and_then(|v| v.parse().ok()) {
             self.log_font_size = v;
+        }
+        for (key, field) in [
+            ("LogTagDeleteCutCopy", &mut self.log_tag_delete_copy),
+            ("LogTagDeleteAlways", &mut self.log_tag_delete_always),
+            ("LogTimeDelete", &mut self.log_time_delete),
+            ("LogNameDelete", &mut self.log_name_delete),
+            ("LogTagCancel", &mut self.log_tag_cancel),
+        ] {
+            if let Some(v) = get("LogEdit", key) {
+                *field = on(v);
+            }
         }
         if let Some(v) = get("Automation", "AutoUnequipSystemMagic") {
             self.auto_unequip_system_magic = on(v);

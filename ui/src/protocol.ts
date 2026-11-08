@@ -71,7 +71,7 @@ export type NoticeEvent = {
 export type ModeEvent = { type: "mode"; attack: boolean; magic: boolean; list: boolean; more: boolean };
 
 export type UiEvent =
-  | { type: "log"; channel: string; html: string; from?: string; noFlash?: boolean }
+  | { type: "log"; channel: string; html: string; from?: string; noFlash?: boolean; raw?: string }
   | { type: "error"; message: string }
   | { type: "connection"; state: "closed" }
   /** 効果音。file が false ならタスクバーの点滅 */
