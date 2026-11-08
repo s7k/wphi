@@ -207,7 +207,21 @@ pub fn build<R: Runtime>(
             "WPHI",
             true,
             &[
-                &PredefinedMenuItem::about(app, None, None)?,
+                // 中身を渡さないと、macOS は空の「このアプリについて」を出す
+                &PredefinedMenuItem::about(
+                    app,
+                    Some("WPHI について"),
+                    Some(tauri::menu::AboutMetadata {
+                        name: Some("WPHI".into()),
+                        version: Some(app.package_info().version.to_string()),
+                        comments: Some("PHI のクライアント(Philly の後継)".into()),
+                        website: Some("https://github.com/s7k/wphi".into()),
+                        website_label: Some("github.com/s7k/wphi".into()),
+                        license: Some("MIT".into()),
+                        icon: app.default_window_icon().cloned(),
+                        ..Default::default()
+                    }),
+                )?,
                 &PredefinedMenuItem::separator(app)?,
                 &PredefinedMenuItem::hide(app, None)?,
                 &PredefinedMenuItem::hide_others(app, None)?,
