@@ -184,6 +184,19 @@ export function App() {
     };
   }, []);
   const [error, setError] = useState("");
+  // 画像の保存(#82)。map 窓と EagleEye が保存して、場所を知らせてくる
+  useEffect(() => {
+    const unlisten = listen<{ kind: string; path?: string; error?: string }>("phi-ss-saved", (e) => {
+      const s = activeRef.current;
+      if (s === null) return;
+      const what = e.payload.kind === "map" ? "マップ" : "イーグルアイ";
+      append(s, e.payload.path ? systemOk(`${what}の画像を保存しました(${e.payload.path})`) : systemNg(`${what}の画像を保存出来ません: ${e.payload.error}`));
+    });
+    return () => {
+      unlisten.then((f) => f());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // ログ欄の右クリックメニュー(#81)
   const [logMenu, setLogMenu] = useState<LogMenuAt | null>(null);
 
@@ -505,10 +518,28 @@ export function App() {
           .then((path) => alertBox(path ? `時刻の記録を始めました。\n${path}` : "時刻の記録を止めました。"))
           .catch((e) => setError(String(e)));
       if (id === "version") return void getVersion().then((v) => alertBox(`WPHI ${v}`));
+      // ツール(#82)
+      if (id === "reload-gra") return void invoke("reload_assets").catch((e) => setError(String(e)));
+      if (id === "safety")
+        return void confirmBox("窓の位置と大きさを初期化します。\nよろしいですか？").then(
+          (ok) => ok && invoke("reset_windows").catch(console.error),
+        );
+      if (id === "update-check")
+        return void getVersion()
+          .then(async (v) => {
+            const r = await latestRelease(v);
+            if (!r) return alertBox(`WPHI ${v} は最新です。`);
+            if (await confirmBox(`新しい版 ${r.version} があります。\nダウンロードのページを開きますか？`)) await openUrl(r.url);
+          })
+          .catch((e) => setError(`更新を確かめられません: ${e}`));
       if (session === null) return;
       // 入力欄のツールバーと同じ切り替え。状態は InputEditor が持つ
       if (INPUT_MENU.includes(id)) return void window.dispatchEvent(new CustomEvent(INPUT_MENU_EVENT, { detail: id }));
       if (id === "priv") return togglePriv(session);
+      const label = tabsRef.current.find((t) => t.session === session)?.label ?? "";
+      if (id === "open-char-dir") return void invoke("open_character_dir", { label }).catch((e) => setError(String(e)));
+      if (id === "ss-map" || id === "ss-eagleeye")
+        return void emitTo(id === "ss-map" ? "map" : "eagleeye", "phi-ss", { kind: id.slice(3), label }).catch(console.error);
       if (id === "talk-add") {
         const t = tabsRef.current.find((t) => t.session === session);
         return void ask({ title: "追加発言", label: "発言の前に追加する言葉を入力してください", initial: t?.talkAdd ?? "" }).then((v) => {

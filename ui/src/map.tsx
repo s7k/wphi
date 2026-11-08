@@ -18,7 +18,7 @@ import { CHIP_SIZE, MAP_TOP, SLIDE_MS, gridDim, slideStep } from "./mapRender";
 import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
 import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
-import { hideOnClose, useImages, preventBrowserDefaults } from "./windowUtil";
+import { hideOnClose, useImages, preventBrowserDefaults, useScreenshot } from "./windowUtil";
 import "./style.css";
 
 /** Philly のキャラのアニメ周期(PersonalThread.h の ANIMATION_INTERVAL = 500ms) */
@@ -51,6 +51,7 @@ function MapWindow() {
   const [loaded, setLoaded] = useState(0);
   const image = useImages(() => setLoaded((n) => n + 1));
   const mapCanvas = useRef<HTMLCanvasElement>(null);
+  useScreenshot("map", mapCanvas);
   // マップの欄。外周の幅はこの枠の大きさで決める(canvas の大きさは外周の幅で変わるので測らない)
   const mapArea = useRef<HTMLDivElement>(null);
   // HP・MP の減った分を出す為の、1つ前の #status(Philly の OldStatus)

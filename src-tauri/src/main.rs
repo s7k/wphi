@@ -818,6 +818,61 @@ async fn open_log_dir(app: tauri::AppHandle, label: String) -> Result<(), String
         .map_err(|e| e.to_string())
 }
 
+/// キャラのフォルダ(設定フォルダの `<表示名>.chara`。.phirc の置き場)を開く(Philly の OpenFolder。#82)
+#[tauri::command]
+async fn open_character_dir(app: tauri::AppHandle, label: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let dir = config_dir(&app)?.join(format!("{}.chara", dir_name(&label)));
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    app.opener()
+        .open_path(dir.display().to_string(), None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+/// グラキャッシュ初期化(Philly の InitializeGraCache。#82)。画像を探し直し、map 窓と EagleEye に読み直させる。
+/// 置いた画像は、起動し直さなくてもこれで使われる
+#[tauri::command]
+fn reload_assets(app: tauri::AppHandle, assets: State<'_, Mutex<Arc<Assets>>>) -> Result<(), String> {
+    use tauri::Emitter;
+    *assets.lock().unwrap() = Arc::new(load_assets(&app)?);
+    let _ = app.emit("phi-assets-reload", ());
+    Ok(())
+}
+
+/// マップとイーグルアイの画像の保存(Philly の SSMap・SSEagleEye。#82)。ログのフォルダの SS に PNG で書く
+#[tauri::command]
+fn save_screenshot(app: tauri::AppHandle, label: String, kind: String, png: Vec<u8>) -> Result<String, String> {
+    if !matches!(kind.as_str(), "map" | "eagleeye") || !png.starts_with(b"\x89PNG") {
+        return Err("保存出来ない画像です".into());
+    }
+    let dir = log_dir(&app, &label)?.join("SS");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_millis();
+    let path = dir.join(format!("{kind}-{ms}.png"));
+    std::fs::write(&path, png).map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(path.display().to_string())
+}
+
+/// 安心ボタン(Philly の SafetyButton の表示位置の初期化。#82)。窓を既定の大きさに戻して画面の中央に置く。
+/// 画面の外に出てしまった窓を戻す為
+#[tauri::command]
+fn reset_windows(app: tauri::AppHandle) {
+    for (label, w, h) in [
+        ("main", 800.0, 600.0),
+        ("map", 437.0, 481.0),
+        ("eagleeye", 496.0, 520.0),
+    ] {
+        if let Some(win) = app.get_webview_window(label) {
+            let _ = win.unmaximize();
+            let _ = win.set_size(tauri::LogicalSize::new(w, h));
+            let _ = win.center();
+        }
+    }
+}
+
 /// ログと同じ HTML にする(看板エディタのプレビュー。Philly の MEditForm も TagToHtml を使う)。
 #[tauri::command]
 fn log_html(text: String) -> String {
@@ -976,6 +1031,10 @@ fn main() {
             menu_model,
             master_magic_xml,
             save_log_buffer,
+            open_character_dir,
+            reload_assets,
+            save_screenshot,
+            reset_windows,
             set_master_menu,
             disconnect,
             force_disconnect,

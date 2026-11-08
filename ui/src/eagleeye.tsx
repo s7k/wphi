@@ -8,7 +8,7 @@ import { drawMap } from "./drawMap";
 import { CHIP_SIZE } from "./mapRender";
 import { eagleBoard } from "./eagleBoard.ts";
 import { EAGLE_EYE_EVENT, type EagleEyeEvent } from "./protocol";
-import { hideOnClose, useImages, preventBrowserDefaults } from "./windowUtil";
+import { hideOnClose, useImages, preventBrowserDefaults, useScreenshot } from "./windowUtil";
 import "./style.css";
 
 function EagleEyeWindow() {
@@ -16,6 +16,7 @@ function EagleEyeWindow() {
   const [, setLoaded] = useState(0);
   const image = useImages(() => setLoaded((n) => n + 1));
   const canvas = useRef<HTMLCanvasElement>(null);
+  useScreenshot("eagleeye", canvas);
 
   useEffect(() => {
     hideOnClose();
