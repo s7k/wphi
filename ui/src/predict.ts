@@ -17,6 +17,8 @@ export const PREDICT_WAIT_MS = 150;
 const PREDICT_WAIT_MAX_MS = 1000;
 /** サーバは1ティック(0.1 秒)に1行しか処理しないので、進んだとみなすのもこれより詰めない */
 const SERVER_TICK_MS = 100;
+/** 進んだとみなした移動に、これより後に来た地図は、その移動への返事の時間として測らない */
+const LATE_MAP_MS = 400;
 /** tick() を呼ぶ間隔。待ちきった時刻からの遅れはこれ以内 */
 export const PREDICT_TICK_MS = 20;
 
@@ -94,15 +96,19 @@ export class Predictor {
       this.queue.shift();
       return;
     }
-    this.measure(all[k - 1]);
     const fromGuessed = Math.min(k, this.guessed.length);
+    // 進んだとみなした移動にだけ地図が来た時は、回線が遅いのか、後で見え方が変わったのか分からない。
+    // 後者を測ると何秒にもなり、待つ時間が上限まで延びて長押しが1歩 1 秒になるので、回線の遅れらしい時だけ測る
+    const last = all[k - 1];
+    if (k > fromGuessed || this.now() - last.at <= LATE_MAP_MS) this.measure(last);
     this.guessed.splice(0, fromGuessed);
     this.queue.splice(0, k - fromGuessed);
   }
 
   /** 「進めません」を受けた時。サーバは順に処理するので、一番古い返事の来ていない移動への返事 */
   onCannotGo() {
-    const m = this.guessed.shift() ?? this.queue.shift();
+    if (this.guessed.shift()) return;
+    const m = this.queue.shift();
     if (m) this.measure(m);
   }
 

@@ -117,3 +117,17 @@ test("進んだとみなした移動に「進めません」が来たら、そ�
   p.onCannotGo();
   assert.deepEqual(p.offset, { dx: 0, dy: 0 });
 });
+
+test("進んだとみなした移動に後から地図が来ても、待つ時間を延ばさない", () => {
+  const { p, advance } = setup();
+  p.onMap("5,5,0");
+  for (let i = 0; i < 5; i++) {
+    p.sent("go N");
+    advance(150);
+    p.tick();
+  }
+  // 一様な所を歩き終えて、何秒か後に見え方が変わった
+  advance(3000);
+  p.onMap("5,0,0");
+  assert.equal(p.wait, 150);
+});
