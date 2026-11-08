@@ -73,6 +73,11 @@ impl AutoUnequip {
             if text == "#end-list" {
                 self.list_on = false;
                 self.skip_prompt = true;
+                // 1番を読めなかった時も、選ぶのを取り消して唱える。待ったままだと、5秒の間に届く次のリスト
+                // (アイテムを拾う時など)まで横取りしてしまう
+                if self.enabled(now) {
+                    self.cast_now(Some("."), reply);
+                }
             } else if self.enabled(now)
                 && let Some((name, kind)) = first_equipment(text)
             {
@@ -103,18 +108,17 @@ impl AutoUnequip {
     }
 }
 
-/// 装備のリストの1番(`[ 1] 名前 Wp... [Wpn]`)。名前と、Wpn・Arm・Acr のどれか
+/// 装備のリストの1番。名前と、Wpn・Arm・Acr のどれか(Philly の `\[ 1\] (.{0,32})Wp.*?\[(Wpn|Arm|Acr)\]`)。
+/// v5y の行は `     [/*color=cyan*/ 1/*.*/] 名前<空白> Wp  :  5 [/*color=red*/Wpn/*.*/] ` で、行頭に空白が付く
+/// (phi_dm/input.rs の itemlist)。タグを除いた行の途中から探す
 fn first_equipment(text: &str) -> Option<(&str, &str)> {
-    let rest = text.strip_prefix("[ 1] ")?;
-    let wp = rest.find("Wp")?;
-    let name = &rest[..wp];
-    if name.chars().count() > 32 {
-        return None;
-    }
+    let rest = &text[text.find("[ 1] ")? + 5..];
+    // v5y は「Wp  : 5」と書く。名前に Wp を含んでも、この欄を使う。無ければ Philly と同じく最初の Wp
+    let wp = rest.rfind("Wp  :").or_else(|| rest.find("Wp"))?;
     let kind = ["Wpn", "Arm", "Acr"]
         .into_iter()
         .find(|k| rest[wp..].contains(&format!("[{k}]")))?;
-    Some((name.trim_end(), kind))
+    Some((rest[..wp].trim(), kind))
 }
 
 /// `/*...*/` のタグを除く(Philly の TagDeletedText)
@@ -158,8 +162,9 @@ mod tests {
             &mut a,
             &[
                 "#list",
-                "[ 1] /*cl=red*/ロングソード Wp5 [Wpn]",
-                "[ 2] 革の鎧 Wp2 [Arm]",
+                // v5y の itemlist の行
+                "     [/*color=cyan*/ 1/*.*/] ロングソード                    Wp  :  5 [/*color=red*/Wpn/*.*/] ",
+                "     [/*color=cyan*/ 2/*.*/] 革の鎧                          Wp  :  2 [/*color=+hp*/Arm/*.*/] ",
                 "#end-list",
                 "外す装備を選択して下さい",
                 "ロングソードを装備した",
@@ -176,7 +181,15 @@ mod tests {
         let now = Instant::now();
         let mut a = AutoUnequip::default();
         a.start("#wphi-cast 0 cast\tdetect", now);
-        let (reply, _) = run(&mut a, &["#list", "[ 1] 革の鎧 Wp2 [Arm]", "#end-list"], now);
+        let (reply, _) = run(
+            &mut a,
+            &[
+                "#list",
+                "     [/*color=cyan*/ 1/*.*/] 革の鎧   Wp  :  2 [/*color=+hp*/Arm/*.*/] ",
+                "#end-list",
+            ],
+            now,
+        );
         assert_eq!(reply, [".", "cast", "detect"]);
 
         a.start("#wphi-cast 1 cast\tcall", now);
@@ -184,6 +197,28 @@ mod tests {
         assert_eq!(reply, ["cast", "call"]);
         // 唱えた後に届くリスト(魔法の対象など)は横取りしない
         assert_eq!(shown, ["#list", "[ 1] 何か"]);
+    }
+
+    #[test]
+    fn unknown_list_still_casts_and_frees_next_list() {
+        let now = Instant::now();
+        let mut a = AutoUnequip::default();
+        a.start("#wphi-cast 1 cast\twizard eye", now);
+        let (reply, shown) = run(
+            &mut a,
+            &[
+                "#list",
+                "読めない行",
+                "#end-list",
+                "外す装備を選択して下さい",
+                "#list",
+                "[ 1] Nuts",
+                "#end-list",
+            ],
+            now,
+        );
+        assert_eq!(reply, [".", "cast", "wizard eye"]);
+        assert_eq!(shown, ["#list", "[ 1] Nuts", "#end-list"]);
     }
 
     #[test]
