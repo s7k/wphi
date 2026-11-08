@@ -112,8 +112,18 @@ export function App() {
   settingsRef.current = settings;
   const [settingsOpen, setSettingsOpen] = useState(false);
   // 語や数を聞いている間のダイアログ(AskDialog)。答えは resolve で返す
-  const [asking, setAsking] = useState<{ opts: AskOptions; resolve: (text: string | null) => void } | null>(null);
-  const ask = (opts: AskOptions) => new Promise<string | null>((resolve) => setAsking({ opts, resolve }));
+  const [asking, setAsking] = useState<{ id: number; opts: AskOptions; resolve: (text: string | null) => void } | null>(
+    null,
+  );
+  // 開いている問いがあれば取り消してから出す。id を key にして、前の問いに打った文字を残さない(#63)
+  const askId = useRef(0);
+  const ask = (opts: AskOptions) =>
+    new Promise<string | null>((resolve) =>
+      setAsking((prev) => {
+        prev?.resolve(null);
+        return { id: ++askId.current, opts, resolve };
+      }),
+    );
   // ログを最下行に固定する(既定 on。off は Philly の「ログスクロール停止」)
   const [logFollow, setLogFollow] = useState(true);
   useEffect(() => {
@@ -664,6 +674,7 @@ export function App() {
     <div className="main">
       {asking && (
         <AskDialog
+          key={asking.id}
           opts={asking.opts}
           onAnswer={(text) => {
             asking.resolve(text);
@@ -680,20 +691,25 @@ export function App() {
         <div className="main-body">
         <div className="log-area">
           <LogView key={tab.session} lines={tab.lines} follow={logFollow} />
-          {tab.board && (
-            <BoardEditor
-              name={tab.label}
-              onSend={(text) => {
-                sendLines(tab.session, text);
-                update(tab.session, (t) => ({ ...t, board: false }));
-              }}
-              onCancel={() => {
-                // 閉じる時は .! を送って書くのをやめる(MEditForm.cpp の FormClose)
-                sendLine(tab.session, ".!");
-                update(tab.session, (t) => ({ ...t, board: false }));
-              }}
-            />
-          )}
+          {/* 看板と priv の画面はタブごとに作り、裏のタブの分は隠して書きかけを残す(#63) */}
+          {tabs
+            .filter((t) => t.board)
+            .map((t) => (
+              <div key={t.session} style={{ display: t.session === tab.session ? "contents" : "none" }}>
+                <BoardEditor
+                  name={t.label}
+                  onSend={(text) => {
+                    sendLines(t.session, text);
+                    update(t.session, (x) => ({ ...x, board: false }));
+                  }}
+                  onCancel={() => {
+                    // 閉じる時は .! を送って書くのをやめる(MEditForm.cpp の FormClose)
+                    sendLine(t.session, ".!");
+                    update(t.session, (x) => ({ ...x, board: false }));
+                  }}
+                />
+              </div>
+            ))}
           {tab.list && (
             <ListOverlay
               list={tab.list}
@@ -703,32 +719,36 @@ export function App() {
             />
           )}
         </div>
-        {tab.privOpen && (
-          <PrivPanel
-            convs={tab.privs}
-            active={tab.privActive}
-            users={tab.users}
-            self={tab.self}
-            onSelect={(key) =>
-              update(tab.session, (t) => ({
-                ...t,
-                privActive: key,
-                privs: t.privs.map((c) => (partnersKey(c.to) === key ? { ...c, unread: false } : c)),
-              }))
-            }
-            onOpen={(to) =>
-              update(tab.session, (t) => {
-                const key = partnersKey(to);
-                const privs = t.privs.some((c) => partnersKey(c.to) === key)
-                  ? t.privs
-                  : [...t.privs, { to: [...to].sort(), lines: [], unread: false }];
-                return { ...t, privs, privActive: key };
-              })
-            }
-            onSend={(to, text) => sendPriv(tab.session, to, text)}
-            onClose={() => update(tab.session, (t) => ({ ...t, privOpen: false }))}
-          />
-        )}
+        {tabs
+          .filter((p) => p.privOpen)
+          .map((p) => (
+            <div key={p.session} style={{ display: p.session === tab.session ? "contents" : "none" }}>
+              <PrivPanel
+                convs={p.privs}
+                active={p.privActive}
+                users={p.users}
+                self={p.self}
+                onSelect={(key) =>
+                  update(p.session, (t) => ({
+                    ...t,
+                    privActive: key,
+                    privs: t.privs.map((c) => (partnersKey(c.to) === key ? { ...c, unread: false } : c)),
+                  }))
+                }
+                onOpen={(to) =>
+                  update(p.session, (t) => {
+                    const key = partnersKey(to);
+                    const privs = t.privs.some((c) => partnersKey(c.to) === key)
+                      ? t.privs
+                      : [...t.privs, { to: [...to].sort(), lines: [], unread: false }];
+                    return { ...t, privs, privActive: key };
+                  })
+                }
+                onSend={(to, text) => sendPriv(p.session, to, text)}
+                onClose={() => update(p.session, (t) => ({ ...t, privOpen: false }))}
+              />
+            </div>
+          ))}
         </div>
       ) : (
         <CharacterList
