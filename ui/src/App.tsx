@@ -321,10 +321,14 @@ export function App() {
       }
       const move = moveInput(e, ctx);
       // 押し続けた時は OS のキーリピートに任せ、keydown のたびに1歩送る(Philly より前のクライアントと同じ)。
-      // サーバは1ティックに1行ずつ処理するので、リピートが速いと離した後も少し歩く
+      // サーバは1ティックに1行ずつ処理するので、リピートが速いと離した後も少し歩く。
+      // 位置を予想している時だけは Philly と同じく、リピートは前の移動の返事(地図・「進めません」・予想)を待つ。
+      // 待たないと予想がサーバより何歩も先へ進み、まだ記録していない所(真っ暗)を描く
       if (move) {
         trace(`main ${e.type} ${e.code}${e.repeat ? " repeat" : ""}`);
-        if (e.type === "keydown") sendMove(session, moveCommand(move.key, move.mods, ctx.northFix));
+        const blocked =
+          e.repeat && settingsRef.current.predictMove && session === activeRef.current && predictor.current.waiting;
+        if (e.type === "keydown" && !blocked) sendMove(session, moveCommand(move.key, move.mods, ctx.northFix));
         return true;
       }
       if (e.type !== "keydown") return false;

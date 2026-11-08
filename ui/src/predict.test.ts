@@ -55,3 +55,17 @@ test("「進めません」の移動と、北固定でない移動は進んだ�
   assert.equal(p.tick(), false);
   assert.deepEqual(p.offset, { dx: 0, dy: 0 });
 });
+
+test("返事を待っている移動があれば waiting", () => {
+  const { p, advance } = setup();
+  p.onMap("5,5,0");
+  assert.equal(p.waiting, false);
+  p.sent("go N");
+  assert.equal(p.waiting, true);
+  advance(150);
+  p.tick();
+  assert.equal(p.waiting, false);
+  p.sent("go N");
+  p.onMap("5,4,0");
+  assert.equal(p.waiting, false);
+});

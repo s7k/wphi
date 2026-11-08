@@ -32,6 +32,11 @@ export class Predictor {
     if (m) this.queue.push({ ...STEP[m[1].toLowerCase()], at: this.now() });
   }
 
+  /** 返事を待っている移動があるか */
+  get waiting(): boolean {
+    return this.queue.length > 0;
+  }
+
   /** 地図を受けた時。pos はその地図の位置。位置が変わっていれば、待っている移動の1つの返事とみなす */
   onMap(pos: string) {
     if (pos !== this.lastPos) this.queue.shift();
