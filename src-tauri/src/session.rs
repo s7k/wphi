@@ -28,6 +28,9 @@ const KEEPALIVE_AFTER: Duration = Duration::from_secs(2 * 60);
 const WARN_AFTER: Duration = Duration::from_secs(3 * 60);
 /// 世界移動の各段階で返事を待つ時間(Philly の classTransportCharacter::TimeoutMs)。
 const TRANSFER_TIMEOUT: Duration = Duration::from_secs(300);
+/// 世界移動の確かめへの UI の答え。送信キューで届き、サーバへは送らない(#51)
+pub const TRANSFER_YES: &str = "#wphi-transfer yes";
+pub const TRANSFER_NO: &str = "#wphi-transfer no";
 
 /// UI へ送るイベント。ログの行は `Event::Message` の代わりに HTML にした `log` を送る。
 #[derive(Debug, Clone, Serialize)]
@@ -58,6 +61,8 @@ pub enum UiOnly {
     Error { message: String },
     /// 世界移動が済み、接続先が変わった。登録したキャラの接続先もこれで書き換える。
     WorldMoved { host: String, port: u16 },
+    /// 今と違うホストへの世界移動を確かめる。UI は TRANSFER_YES か TRANSFER_NO を送る(#51)
+    ConfirmTransfer { host: String, port: u16 },
 }
 
 pub struct Login {
@@ -176,6 +181,8 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
     let mut last_recv = Instant::now();
     let mut keepalive_sent = false;
     let mut warned = false;
+    // 今繋いでいるホスト。世界移動で変わる
+    let mut host = login.host.clone();
 
     loop {
         let wake = next_wake(last_recv, keepalive_sent, warned);
@@ -228,6 +235,34 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     }
                     // 移動の間に UI が送った行は捨てる(Philly の RejectMainThreadSend)。
                     // 送信キューが閉じたら(タブを閉じた)移動をやめる。待たないと、閉じたタブのキャラが移動先へログインする(#71)
+                    // 今と違うホストへ移る時は、キャラ ID を送る前に確かめる(#51)。
+                    // 悪意のあるサーバか乗っ取られたサーバが、任意のホストへ #reserve <ID> を送らせられる為
+                    if let Some((h, p)) = transfer_target(&server).filter(|(h, _)| !h.eq_ignore_ascii_case(&host)) {
+                        emit(UiEvent::Ui(UiOnly::ConfirmTransfer { host: h.into(), port: p }));
+                        let answer = async {
+                            loop {
+                                match outgoing.recv().await {
+                                    Some(l) if l == TRANSFER_YES => break Some(true),
+                                    Some(l) if l == TRANSFER_NO => break Some(false),
+                                    Some(_) => {}
+                                    None => break None,
+                                }
+                            }
+                        };
+                        match timeout(TRANSFER_TIMEOUT, answer).await.unwrap_or(Some(false)) {
+                            None => {
+                                let _ = stream.write_all(&line_bytes("#x")).await;
+                                return;
+                            }
+                            Some(false) => {
+                                emit(system(false, "世界移動をやめました"));
+                                let _ = stream.write_all(&line_bytes("#no-srv")).await;
+                                last_recv = Instant::now();
+                                continue;
+                            }
+                            Some(true) => {}
+                        }
+                    }
                     let mut skipped = Vec::new();
                     let moved = tokio::select! {
                         r = transfer(&mut stream, &mut lines, &mut skipped, &server, &login.id, &mut emit) => Some(r),
@@ -241,6 +276,9 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                         Some(Some(dst)) => {
                             // 移動元で受けていた残りの行は捨てる(Philly も ChSrv の成功で受信の処理を打ち切る)
                             stream = dst;
+                            if let Some((h, _)) = transfer_target(&server) {
+                                host = h.to_string();
+                            }
                             lines = LineBuffer::new();
                             parser = Parser::new();
                             while outgoing.try_recv().is_ok() {}
@@ -321,10 +359,7 @@ async fn transfer(
     emit: &mut impl FnMut(UiEvent),
 ) -> Option<TcpStream> {
     let deadline = || Instant::now() + TRANSFER_TIMEOUT;
-    // ポートが u16 に収まらない時も、繋がらない時と同じく移動元へ #no-srv を返す(#71)
-    let target = server
-        .rsplit_once(':')
-        .and_then(|(h, p)| Some((h, p.parse::<u16>().ok()?)));
+    let target = transfer_target(server);
 
     emit(system(true, "転送先世界へゲート接続開始..."));
     let connected = match target {
@@ -390,6 +425,13 @@ async fn transfer(
         port,
     }));
     Some(dst)
+}
+
+/// `#ch-srv` の移動先(`ホスト:ポート`)。ポートが u16 に収まらない時も、繋がらない時と同じく移動元へ #no-srv を返す(#71)
+fn transfer_target(server: &str) -> Option<(&str, u16)> {
+    server
+        .rsplit_once(':')
+        .and_then(|(h, p)| Some((h, p.parse::<u16>().ok()?)))
 }
 
 /// `ok` の行が来たら true、`ng` の行が来るか、切れるか、`deadline` を過ぎたら false。
@@ -687,6 +729,53 @@ mod tests {
         assert_eq!(src.await.unwrap(), "#no-srv\n");
         drop(tx);
         run.await.unwrap();
+    }
+
+    /// 今と違うホスト(localhost)へ移る #ch-srv を受け、UI が `answer` を答える。移動元が次に受けた行と、移動先が受けた行
+    async fn transfer_to_other_host(answer: &'static str) -> (String, Option<String>) {
+        let dst_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let dst_port = dst_listener.local_addr().unwrap().port();
+        let dst = tokio::spawn(async move {
+            let (sock, _) = dst_listener.accept().await.unwrap();
+            let mut r = BufReader::new(sock);
+            let mut l = String::new();
+            r.read_line(&mut l).await.unwrap();
+            l
+        });
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let src = tokio::spawn(src_server(listener, format!("#ch-srv localhost {dst_port}\n")));
+        let (tx, rx) = mpsc::channel(8);
+        let confirmed = std::sync::Arc::new(std::sync::Mutex::new(false));
+        let c = confirmed.clone();
+        let run = tokio::spawn(run(login()(port), rx, move |ev| {
+            if serde_json::to_value(ev).unwrap()["type"] == "confirmTransfer" {
+                *c.lock().unwrap() = true;
+            }
+        }));
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(*confirmed.lock().unwrap());
+        // 答えを待つ間に送った行はサーバへ送らない
+        tx.send("say while-asking".into()).await.unwrap();
+        tx.send(answer.into()).await.unwrap();
+        let got = timeout(Duration::from_secs(5), src).await.unwrap().unwrap();
+        let reserved = if answer == TRANSFER_YES {
+            Some(timeout(Duration::from_secs(5), dst).await.unwrap().unwrap())
+        } else {
+            dst.abort();
+            None
+        };
+        drop(tx);
+        let _ = timeout(Duration::from_secs(5), run).await;
+        (got, reserved)
+    }
+
+    #[tokio::test]
+    async fn transfer_to_other_host_asks_first() {
+        assert_eq!(transfer_to_other_host(TRANSFER_NO).await, ("#no-srv\n".into(), None));
+        // 答えたら移動先へ #reserve を送る(偽の移動先は #rsv-ok を返さずに閉じるので、移動は失敗する)
+        let (_, reserved) = transfer_to_other_host(TRANSFER_YES).await;
+        assert_eq!(reserved.as_deref(), Some("#reserve ID\n"));
     }
 
     #[tokio::test]

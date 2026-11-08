@@ -78,6 +78,8 @@ export type UiEvent =
   | { type: "sound"; no: number; file: boolean }
   /** 世界移動が済んだ */
   | { type: "worldMoved"; host: string; port: number }
+  /** 今と違うホストへの世界移動を確かめる。TRANSFER_YES か TRANSFER_NO を送る(#51) */
+  | { type: "confirmTransfer"; host: string; port: number }
   | MapEvent
   | StatusEvent
   | CondEvent
@@ -130,6 +132,10 @@ export type MapState = {
  */
 export const MAP_LIST_EVENT = "phi-map-list";
 export type MapListAction = { type: "pick"; index: number } | { type: "toggle"; index: number } | { type: "send" };
+
+/** 世界移動の確かめへの答え(src-tauri/src/session.rs)。サーバへは送らない */
+export const TRANSFER_YES = "#wphi-transfer yes";
+export const TRANSFER_NO = "#wphi-transfer no";
 
 /** Tauri のイベント名(main → map) */
 export const MAP_STATE_EVENT = "phi-map-state";

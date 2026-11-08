@@ -23,7 +23,7 @@ import { ListOverlay } from "./ListOverlay";
 import { listNo, listOk, moreNo, newList, type ListState } from "./list.ts";
 import { trace } from "./trace.ts";
 import { PREDICT_TICK_MS, Predictor } from "./predict.ts";
-import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type UiEvent } from "./protocol";
+import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, TRANSFER_NO, TRANSFER_YES, type MapListAction, type MapState, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
 import { pushLine, pushLines, type LogLine } from "./logLines.ts";
@@ -691,6 +691,14 @@ export function App() {
         case "error":
           append(session, systemNg(ev.message));
           break;
+        case "confirmTransfer": {
+          // 悪意のあるサーバが、任意のホストへキャラ ID を送らせない為(#51)
+          const ok = window.confirm(
+            `別のサーバ(${ev.host}:${ev.port})の世界へ移動します。\n移動先へキャラの ID を送ります。よろしいですか？`,
+          );
+          invoke("send_line", { session, text: ok ? TRANSFER_YES : TRANSFER_NO }).catch(console.error);
+          break;
+        }
         case "sound":
           // Philly の SoundPlay。ファイルの無い規則はタスクバーの点滅
           if (!settingsRef.current.soundPlay) break;
