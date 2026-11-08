@@ -568,7 +568,10 @@ export function App() {
   };
 
   async function connect(label: string) {
-    const channel = new Channel<UiEvent>();
+    // connect が返る前に届いた分は貯めておき、タブを作ってから流す。Channel は onmessage の無い間に届いた分を捨てる(#70)
+    const early: UiEvent[] = [];
+    let handle: ((ev: UiEvent) => void) | null = null;
+    const channel = new Channel<UiEvent>((ev) => (handle ? handle(ev) : early.push(ev)));
     let session: number;
     try {
       session = await invoke<number>("connect", { label, onEvent: channel });
@@ -576,7 +579,7 @@ export function App() {
       setError(`${label}: ${e}`);
       return;
     }
-    channel.onmessage = (ev) => {
+    handle = (ev) => {
       switch (ev.type) {
         case "log":
           append(session, ev.html);
@@ -666,6 +669,7 @@ export function App() {
       },
     ]);
     setActive(session);
+    early.splice(0).forEach(handle);
   }
 
   function close(session: number) {
