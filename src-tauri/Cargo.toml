@@ -30,5 +30,7 @@ serde_json = "1"
 windows-sys = { version = "0.61", features = ["Win32_Networking_WinSock"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
+# 接続の遅延 ACK を切る為だけに使う(session.rs の quickack)
+libc = "0.2"
 # wry が切った IME の preedit を戻す為だけに使う。wry と同じ版にする
 webkit2gtk = "2.0"

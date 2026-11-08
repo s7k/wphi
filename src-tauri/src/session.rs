@@ -105,10 +105,12 @@ fn next_wake(last_recv: Instant, keepalive_sent: bool, warned: bool) -> Option<I
 
 /// 1行ずつの小さな送受信を待たせない。
 /// サーバ(v5y)は Nagle を切っていないので、前に送った分の ACK が来るまで次の地図を送らない。
-/// Windows は遅延 ACK を最大 200ms 待つ(Linux は 40ms ほど)ので、Windows だけ地図が遅れる。
-/// 遅延 ACK は Windows の SIO_TCP_SET_ACK_FREQUENCY で、この接続だけ切る
+/// 受ける側が遅延 ACK で待つと、地図の続きの行が遅れる。Windows は最大 200ms、Linux も
+/// やり取りが続くと 200ms 近くまで延びる(トレースでは #m57 の1行目と残りの間が 125〜164ms 空いた)。
+/// 遅延 ACK は、Windows は SIO_TCP_SET_ACK_FREQUENCY で、Linux は TCP_QUICKACK(受けるたびに戻るので quickack)で切る
 fn tune(stream: &TcpStream) {
     let _ = stream.set_nodelay(true);
+    quickack(stream);
     #[cfg(windows)]
     unsafe {
         use std::os::windows::io::AsRawSocket;
@@ -127,6 +129,24 @@ fn tune(stream: &TcpStream) {
             None,
         );
     }
+}
+
+/// Linux の TCP_QUICKACK。カーネルが勝手に戻すので、受けるたびに付け直す
+fn quickack(stream: &TcpStream) {
+    #[cfg(target_os = "linux")]
+    unsafe {
+        use std::os::fd::AsRawFd;
+        let on: libc::c_int = 1;
+        libc::setsockopt(
+            stream.as_raw_fd(),
+            libc::IPPROTO_TCP,
+            libc::TCP_QUICKACK,
+            &on as *const libc::c_int as _,
+            std::mem::size_of::<libc::c_int>() as _,
+        );
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = stream;
 }
 
 pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: impl FnMut(UiEvent)) {
@@ -161,6 +181,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
         let mut reply: Vec<String> = Vec::new();
         tokio::select! {
             r = stream.read(&mut buf) => {
+                quickack(&stream);
                 let n = match r {
                     Ok(0) => break,
                     Ok(n) => n,

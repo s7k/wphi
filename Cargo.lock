@@ -4988,6 +4988,7 @@ dependencies = [
  "image",
  "include_dir",
  "keyring",
+ "libc",
  "phi-proto",
  "serde",
  "serde_json",
