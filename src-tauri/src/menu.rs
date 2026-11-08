@@ -65,6 +65,8 @@ const MENUS: Table = &[
             ("all-tab", "全タブ発言"),
             ("-", ""),
             ("log-save", "ログ保存"),
+            ("log-buffer-save", "ログバッファー保存"),
+            ("talk-add", "追加発言..."),
             ("log-follow", "ログを固定"),
             ("open-log-dir", "ログの保存先を開く"),
         ],

@@ -36,12 +36,13 @@ export function caretLine(value: string, pos: number): { text: string; index: nu
  * 送った後の入力欄(Philly は送った行を残し、最後の行なら新しい行を足す。途中の行なら次の行へ移る)。
  * 行数が上限を超えたら古い行から消す。
  */
-export function afterSend(value: string, pos: number): { value: string; caret: number } {
+export function afterSend(value: string, pos: number, talkAdd = ""): { value: string; caret: number } {
   const line = caretLine(value, pos);
   if (line.index + 1 < line.count) {
     return { value, caret: line.start + line.text.length + 1 };
   }
-  let lines = [...value.split("\n"), ""];
+  // 新しい行は追加発言で始める(Philly の TalkAdd。MainForm.cpp の InputEditSend)
+  let lines = [...value.split("\n"), talkAdd];
   if (lines.length > EDIT_MAX_LINE) lines = lines.slice(lines.length - EDIT_MAX_LINE);
   const next = lines.join("\n");
   return { value: next, caret: next.length };

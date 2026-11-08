@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { AskOptions } from "./keys.ts";
 
 export function AskDialog(props: { opts: AskOptions; onAnswer: (text: string | null) => void }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(props.opts.initial ?? "");
   const ok = !props.opts.numeric || /^\d+$/.test(text.trim());
   return (
     <div className="ask-backdrop">

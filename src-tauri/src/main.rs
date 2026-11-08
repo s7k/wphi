@@ -824,6 +824,26 @@ fn log_html(text: String) -> String {
     phi_proto::tag_to_html::to_html(&text, &phi_proto::tag_to_html::LogOptions::default())
 }
 
+/// ログバッファー保存(Philly の LogBufferSave。#80)。ログ欄にある分を、ログのフォルダに
+/// `LogBuffer-<日時>.html` で書く。Philly は保存先を選ばせるが、WPHI はファイルを選ぶ窓を持たない
+#[tauri::command]
+fn save_log_buffer(app: tauri::AppHandle, label: String, lines: Vec<String>) -> Result<String, String> {
+    let dir = log_dir(&app, &label)?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_secs();
+    let path = dir.join(format!("LogBuffer-{secs}.html"));
+    let title = phi_proto::tag_to_html::escape_html(&label);
+    let css = log_css().unwrap_or_default();
+    let body: String = lines.iter().map(|l| format!("<div>{l}</div>\n")).collect();
+    let html =
+        format!("<!doctype html>\n<meta charset=\"utf-8\">\n<title>{title}</title>\n<style>\n{css}\n</style>\n{body}");
+    std::fs::write(&path, html).map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(path.display().to_string())
+}
+
 /// スキンのログ用スタイルシート(Philly の `Skins/<スキン>/Style/Log.css`)。
 #[tauri::command]
 fn log_css() -> Result<String, String> {
@@ -955,6 +975,7 @@ fn main() {
             menu_select,
             menu_model,
             master_magic_xml,
+            save_log_buffer,
             set_master_menu,
             disconnect,
             force_disconnect,

@@ -31,7 +31,8 @@ export type KeyAction =
   /** メニューの項目と同じ事をする(接続・切断など。App のメニューの処理に任せる) */
   | { menu: string };
 
-export type AskOptions = { title: string; label: string; numeric?: boolean };
+/** initial は欄に初めから入れておく文字 */
+export type AskOptions = { title: string; label: string; numeric?: boolean; initial?: string };
 
 /** キーを押した時の状態。 */
 export type KeyContext = {

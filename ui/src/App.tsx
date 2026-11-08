@@ -66,6 +66,8 @@ type Tab = {
   unread: boolean;
   /** 裏にいる間に HP か MP が減った */
   hurt: boolean;
+  /** 追加発言(Philly の TalkAdd。キャラごと。#80) */
+  talkAdd?: string;
 };
 
 /**
@@ -475,6 +477,23 @@ export function App() {
       // 入力欄のツールバーと同じ切り替え。状態は InputEditor が持つ
       if (INPUT_MENU.includes(id)) return void window.dispatchEvent(new CustomEvent(INPUT_MENU_EVENT, { detail: id }));
       if (id === "priv") return togglePriv(session);
+      if (id === "talk-add") {
+        const t = tabsRef.current.find((t) => t.session === session);
+        return void ask({ title: "追加発言", label: "発言の前に追加する言葉を入力してください", initial: t?.talkAdd ?? "" }).then((v) => {
+          if (v === null) return;
+          update(session, (t) => ({ ...t, talkAdd: v }));
+          // 入力欄の今の行が空なら、そこにも入れる(Philly の EditTalkAdd)
+          const ta = document.querySelector<HTMLTextAreaElement>(".input-line");
+          if (ta && caretLine(ta.value, ta.selectionStart).text === "") ta.setRangeText(v, ta.selectionStart, ta.selectionStart, "end");
+        });
+      }
+      if (id === "log-buffer-save") {
+        const t = tabsRef.current.find((t) => t.session === session);
+        if (!t) return;
+        return void invoke<string>("save_log_buffer", { label: t.label, lines: t.lines.map((l) => l.html) })
+          .then((path) => alertBox(`ログ欄の内容を保存しました。\n${path}`))
+          .catch((e) => append(session, systemNg(String(e))));
+      }
       const cur = tabsNow.find((t) => t.session === session);
       if (id === "connect") return cur?.closed ? void connect(cur.label, session) : undefined;
       if (id === "disconnect") return cur?.closed ? undefined : disconnect(session);
@@ -1064,6 +1083,7 @@ export function App() {
       )}
       {tab && (
         <InputEditor
+          talkAdd={tab.talkAdd ?? ""}
           logFollow={logFollow}
           onLogFollow={setLogFollow}
           logSave={tab.logSave}
@@ -1171,6 +1191,8 @@ const LogView = memo(function LogView(props: { lines: LogLine[]; follow: boolean
  */
 function InputEditor(props: {
   session: number;
+  /** 追加発言(Philly の TalkAdd)。新しい行と、最後の行で ↓ を押した時の行をこれで始める */
+  talkAdd: string;
   sessions: number[];
   disabled: boolean;
   onPriv: () => void;
@@ -1201,7 +1223,7 @@ function InputEditor(props: {
     const deliver = () => {
       if (allTab) props.sessions.forEach((s) => sendLine(s, text));
       else sendLine(props.session, text);
-      const next = afterSend(ta.value, ta.selectionStart);
+      const next = afterSend(ta.value, ta.selectionStart, props.talkAdd);
       ta.value = next.value;
       ta.setSelectionRange(next.caret, next.caret);
       // 送った行が見えるよう、カーソルの位置までスクロールする
@@ -1256,6 +1278,16 @@ function InputEditor(props: {
     if (e.key === "Escape" && !e.nativeEvent.isComposing) {
       document.querySelector<HTMLElement>(".phi-log")?.focus();
       return;
+    }
+    // 最後の行で ↓ を押したら、その行を追加発言にする(Philly の InputEditKeyDown)
+    const ta = e.currentTarget;
+    if (e.key === "ArrowDown" && !e.shiftKey && !e.ctrlKey && !e.altKey && props.talkAdd) {
+      const line = caretLine(ta.value, ta.selectionStart);
+      if (line.index + 1 >= line.count) {
+        e.preventDefault();
+        ta.setRangeText(props.talkAdd, line.start, line.start + line.text.length, "end");
+        return;
+      }
     }
     // IME の変換確定の Enter では送らない。WebKit は確定の keydown で isComposing を false にし、keyCode 229 を返す
     if (e.key !== "Enter" || e.nativeEvent.isComposing || e.keyCode === 229 || e.shiftKey || e.altKey) return;

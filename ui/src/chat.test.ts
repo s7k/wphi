@@ -23,6 +23,8 @@ test("カーソルの行と送った後", () => {
   assert.deepEqual(afterSend(v, 3), { value: v, caret: 5 });
   // 最後の行で送ったら空の行を足す
   assert.deepEqual(afterSend(v, v.length), { value: "a\nbb\nccc\n", caret: 9 });
+  // 追加発言があれば、新しい行をそれで始める(#80)
+  assert.deepEqual(afterSend(v, v.length, "@"), { value: "a\nbb\nccc\n@", caret: 10 });
   // 行数の上限を超えたら古い行から消す
   const full = Array.from({ length: EDIT_MAX_LINE }, (_, i) => String(i)).join("\n");
   const after = afterSend(full, full.length);
