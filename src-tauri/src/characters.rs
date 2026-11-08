@@ -104,11 +104,14 @@ pub fn get_id(dir: &Path, ch: &Character) -> Result<String, String> {
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .map(String::from)
-            .ok_or_else(|| format!("{} に ID がありません", path.display()));
+            .ok_or_else(|| format!("キャラ ID がありません({})", path.display()));
     }
-    let id = entry(&ch.label)?
-        .get_password()
-        .map_err(|_| format!("{} がありません", path.display()))?;
+    let id = entry(&ch.label)?.get_password().map_err(|_| {
+        format!(
+            "キャラ ID が見つかりません。キャラを登録し直してください({})",
+            path.display()
+        )
+    })?;
     set_id(dir, ch, &id)?;
     if let Ok(e) = entry(&ch.label) {
         let _ = e.delete_credential();

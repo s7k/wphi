@@ -32,15 +32,15 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
         </label>
         <label>
           <input type="checkbox" checked={s.soundPlay} onChange={(e) => set("soundPlay", e.target.checked)} />
-          ログに出てきた文字列で効果音を鳴らす(Philly の Config/SoundRegexp.ini と SoundFile.ini)
+          決まった言葉がログに出たら効果音を鳴らす(Philly の SoundRegexp.ini と SoundFile.ini を使う)
         </label>
         <label>
           <input type="checkbox" checked={s.logSaveHtml} onChange={(e) => set("logSaveHtml", e.target.checked)} />
-          ログを HTML で保存する(off ならテキスト)
+          ログを HTML で保存する(オフならテキスト)
         </label>
         <label>
           <input type="checkbox" checked={s.logDispTime} onChange={(e) => set("logDispTime", e.target.checked)} />
-          ログの行頭に時刻を出す(保存するログには off でも入れる)
+          ログの行頭に時刻を出す(保存するログには、オフでも時刻を入れる)
         </label>
         <label>
           <input type="checkbox" checked={s.taskBarFlash} onChange={(e) => set("taskBarFlash", e.target.checked)} />
@@ -63,7 +63,7 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
             value={s.logFontSize}
             onChange={(e) => set("logFontSize", Math.max(0, Math.min(64, Math.round(Number(e.target.value) || 0))))}
           />{" "}
-          px(0 ならスキンの Log.css に任せる)
+          px(0 ならスキンの大きさ)
         </label>
         <label>
           <input
@@ -80,7 +80,7 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
             disabled={!s.autoUnequipSystemMagic}
             onChange={(e) => set("autoEquipSystemMagic", e.target.checked)}
           />
-          系統魔法の後に外した武器を装備し直す(チャット場では off を勧める)
+          系統魔法の後に、外した武器を装備し直す(チャット場ではオフを勧める)
         </label>
         <label>
           <input type="checkbox" checked={s.masterMagicMenu} onChange={(e) => set("masterMagicMenu", e.target.checked)} />
@@ -121,7 +121,7 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
             value={s.mapZoom}
             onChange={(e) => set("mapZoom", Number(e.target.value))}
           />{" "}
-          %(拡張マップの外周は、拡大した大きさでマップの欄に収まる分だけ)
+          %(拡大すると、拡張マップの外周は狭くなる)
         </label>
         {message && <p>{message}</p>}
       </div>

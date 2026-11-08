@@ -37,7 +37,7 @@ export function BoardEditor(props: { name: string; onSend: (text: string) => voi
 
   return (
     <div className="board-editor">
-      <div className="board-title">看板エディッタ({props.name})</div>
+      <div className="board-title">看板を書く({props.name})</div>
       <div className="board-body">
         <textarea
           ref={ref}

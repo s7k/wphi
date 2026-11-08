@@ -533,7 +533,7 @@ export function App() {
             if (!r) return alertBox(`WPHI ${v} は最新です。`);
             if (await confirmBox(`新しい版 ${r.version} があります。\nダウンロードのページを開きますか？`)) await openUrl(r.url);
           })
-          .catch((e) => setError(`更新を確かめられません: ${e}`));
+          .catch((e) => setError(`新しい版を確かめる事が出来ません: ${e}`));
       if (session === null) return;
       // 入力欄のツールバーと同じ切り替え。状態は InputEditor が持つ
       if (INPUT_MENU.includes(id)) return void window.dispatchEvent(new CustomEvent(INPUT_MENU_EVENT, { detail: id }));
@@ -544,7 +544,7 @@ export function App() {
         return void emitTo(id === "ss-map" ? "map" : "eagleeye", "phi-ss", { kind: id.slice(3), label }).catch(console.error);
       if (id === "talk-add") {
         const t = tabsRef.current.find((t) => t.session === session);
-        return void ask({ title: "追加発言", label: "発言の前に追加する言葉を入力してください", initial: t?.talkAdd ?? "" }).then((v) => {
+        return void ask({ title: "発言の前に付ける言葉", label: "発言の前に付ける言葉を入力してください(空欄なら付けない)", initial: t?.talkAdd ?? "" }).then((v) => {
           if (v === null) return;
           update(session, (t) => ({ ...t, talkAdd: v }));
           // 入力欄の今の行が空なら、そこにも入れる(Philly の EditTalkAdd)
@@ -1534,7 +1534,7 @@ function CharacterList(props: {
           ポート <input value={port} onChange={(e) => setPort(e.target.value)} inputMode="numeric" required />
         </label>
         <label>
-          キャラ ID(登録済みの表示名なら空欄で接続先だけ変える)
+          キャラ ID(登録済みのキャラの接続先だけを変える時は空欄)
           <input type="password" value={id} onChange={(e) => setId(e.target.value)} />
         </label>
         <button type="submit">登録</button>
@@ -1545,7 +1545,7 @@ function CharacterList(props: {
           e.preventDefault();
           invoke<string[]>("import_philly", { folder })
             .then((labels) => {
-              setImported(labels.length ? `${labels.join("、")} を取り込みました` : "キャラが見つかりません");
+              setImported(labels.length ? `${labels.join("、")} を取り込みました` : "キャラが見つかりませんでした");
               props.onChanged();
             })
             .catch((err) => props.onError(String(err)));

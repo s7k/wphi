@@ -59,7 +59,7 @@ export function PrivPanel(props: {
       </div>
       <input
         className="priv-input"
-        placeholder={conv ? `${conv.to.join("・")} へ` : "下の一覧から相手を選ぶ"}
+        placeholder={conv ? `${conv.to.join("・")} へ` : "下の一覧で相手を選んでください"}
         disabled={!conv}
         onKeyDown={onKeyDown}
       />

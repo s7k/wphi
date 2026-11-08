@@ -338,7 +338,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
         if !bytes.is_empty() {
             let sent = match timeout(WRITE_TIMEOUT, stream.write_all(&bytes)).await {
                 Ok(r) => r.map_err(|e| e.to_string()),
-                Err(_) => Err("30秒経っても送れません".into()),
+                Err(_) => Err("30秒待っても送れません".into()),
             };
             if let Err(e) = sent {
                 emit(error(format!("送信に失敗しました: {e}")));

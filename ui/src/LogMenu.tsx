@@ -9,11 +9,11 @@ export type LogMenuAt = { x: number; y: number; lines: LogLine[] };
 
 /** チェックで切り替えるコピーの設定 */
 const TOGGLES: [keyof Settings, string][] = [
-  ["logTagDeleteAlways", "常にタグ削除"],
-  ["logTagDeleteCopy", "コピー時タグ削除"],
-  ["logTimeDelete", "時刻削除"],
-  ["logNameDelete", "キャラ名削除"],
-  ["logTagCancel", "タグを無効化(/* → /＊)"],
+  ["logTagDeleteCopy", "コピーでタグを除く"],
+  ["logTagDeleteAlways", "発言欄にコピー・発言する時もタグを除く"],
+  ["logTimeDelete", "時刻を除く"],
+  ["logNameDelete", "名前を除く"],
+  ["logTagCancel", "タグを無効にする(/* → /＊)"],
 ];
 
 export function LogMenu(props: {

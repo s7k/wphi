@@ -109,10 +109,10 @@ export function NewCharacter(props: { onCreated: () => void; onError: (message: 
             ))}
           </div>
           <label>
-            名前(2字以上) <input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} />
+            名前(2文字以上) <input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} />
           </label>
           <label>
-            パスワード(6字。空なら自動で決める)
+            パスワード(6文字。空欄なら自動で決める)
             <input value={pass} onChange={(e) => setPass(e.target.value)} maxLength={6} />
           </label>
           <label>
