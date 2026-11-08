@@ -576,6 +576,14 @@ fn set_trace(app: tauri::AppHandle, on: bool) -> Result<Option<String>, String> 
     Ok(path)
 }
 
+/// main 窓のメニューの、表示のモードのチェックを付け直す(UI が地図を受けた時とメニューを選んだ時に呼ぶ)
+#[tauri::command]
+fn set_view_checks(app: tauri::AppHandle, turn: bool, size57: bool) {
+    if let Some(menu) = app.get_webview_window("main").and_then(|w| w.menu()) {
+        menu::set_view_checks(&menu, turn, size57);
+    }
+}
+
 #[tauri::command]
 fn trace_on() -> bool {
     trace::on()
@@ -654,7 +662,10 @@ fn main() {
                 .map(phi_proto::codec::decode)
                 .unwrap_or_default();
             if let Some(main) = app.get_webview_window("main") {
-                main.set_menu(menu::build(app.handle(), &menu_txt)?)?;
+                let smooth = settings_path(app.handle())
+                    .map(|p| settings::Settings::load(&p).smooth_move)
+                    .unwrap_or(false);
+                main.set_menu(menu::build(app.handle(), &menu_txt, smooth)?)?;
             }
             #[cfg(target_os = "linux")]
             if let Some(window) = app.get_webview_window("main") {
@@ -673,6 +684,21 @@ fn main() {
             use tauri::Emitter;
             if event.id().0 == "exit" {
                 exit_app(app);
+                return;
+            }
+            if event.id().0 == menu::SMOOTH_MOVE {
+                let on = settings_path(app).and_then(|p| {
+                    jsonfile::update(&p, |s: &mut settings::Settings| {
+                        s.smooth_move = !s.smooth_move;
+                        Ok(s.smooth_move)
+                    })
+                });
+                match on {
+                    Ok(on) => {
+                        let _ = app.emit(menu::SMOOTH_EVENT, on);
+                    }
+                    Err(e) => eprintln!("設定を保存出来ません: {e}"),
+                }
                 return;
             }
             let _ = app.emit_to("main", menu::MENU_EVENT, event.id().0.clone());
@@ -728,6 +754,7 @@ fn main() {
             log_html,
             append_log,
             set_trace,
+            set_view_checks,
             trace_on,
             trace
         ])

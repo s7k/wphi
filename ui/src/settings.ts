@@ -9,7 +9,12 @@ export type Settings = {
   soundPlay: boolean;
   /** ログを HTML で保存する。off ならテキスト */
   logSaveHtml: boolean;
+  /** 実験的: 自分が進んだ時に地図を滑らかにずらす(表示のメニューで切り替える) */
+  smoothMove: boolean;
 };
+
+/** 表示のメニューで「滑らかに動かす」を切り替えた時に、Rust が全部の窓へ送る(src-tauri/src/menu.rs) */
+export const SMOOTH_EVENT = "phi-smooth";
 
 export const DEFAULT_SETTINGS: Settings = {
   fullKeyMove: true,
@@ -18,6 +23,7 @@ export const DEFAULT_SETTINGS: Settings = {
   altGWord: "",
   soundPlay: true,
   logSaveHtml: true,
+  smoothMove: false,
 };
 
 /** Philly.ini の文字列の \n を改行にする */

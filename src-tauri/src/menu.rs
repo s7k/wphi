@@ -7,10 +7,15 @@
 
 use tauri::{
     AppHandle, Runtime,
-    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
 };
 
 pub const MENU_EVENT: &str = "phi-menu";
+/// チェックの付く項目。切り替えは main.rs が設定に書き、SMOOTH_EVENT で全部の窓へ知らせる
+pub const SMOOTH_MOVE: &str = "smooth-move";
+pub const SMOOTH_EVENT: &str = "phi-smooth";
+/// 今の表示のモードにチェックを付ける項目。モードはサーバが決めるので、UI が地図を受けるたびに set_view_checks で付け直す
+const VIEW_CHECKS: [&str; 4] = ["map-turn", "map-solid", "map-57", "map-40"];
 
 /// (メニュー名, 項目)。項目の id が "-" なら区切り線。
 type Table = &'static [(&'static str, &'static [(&'static str, &'static str)])];
@@ -98,6 +103,8 @@ const MENUS: Table = &[
             ("map-40", "5x5 マップ (Shift+5)"),
             ("-", ""),
             ("automap-clear", "この世界の拡張マップを消す"),
+            ("-", ""),
+            (SMOOTH_MOVE, "滑らかに動かす(実験的)"),
         ],
     ),
     (
@@ -111,6 +118,24 @@ const MENUS: Table = &[
     ),
 ];
 
+/// 表示のモードのチェックを付け直す。turn は回転マップ、size57 は 7x7
+pub fn set_view_checks<R: Runtime>(menu: &Menu<R>, turn: bool, size57: bool) {
+    let want = [
+        ("map-turn", turn),
+        ("map-solid", !turn),
+        ("map-57", size57),
+        ("map-40", !size57),
+    ];
+    for item in menu.items().unwrap_or_default() {
+        let Some(sub) = item.as_submenu() else { continue };
+        for (id, on) in want {
+            if let Some(c) = sub.get(id).as_ref().and_then(|i| i.as_check_menuitem()) {
+                let _ = c.set_checked(on);
+            }
+        }
+    }
+}
+
 /// `Menu.txt` の `off,<メニュー名>` の行。
 fn hidden_menus(menu_txt: &str) -> Vec<String> {
     menu_txt
@@ -120,7 +145,7 @@ fn hidden_menus(menu_txt: &str) -> Vec<String> {
         .collect()
 }
 
-pub fn build<R: Runtime>(app: &AppHandle<R>, menu_txt: &str) -> tauri::Result<Menu<R>> {
+pub fn build<R: Runtime>(app: &AppHandle<R>, menu_txt: &str, smooth_move: bool) -> tauri::Result<Menu<R>> {
     let hidden = hidden_menus(menu_txt);
     let menu = Menu::new(app)?;
     for (name, items) in MENUS {
@@ -131,6 +156,9 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, menu_txt: &str) -> tauri::Result<Me
         for (id, text) in *items {
             if *id == "-" {
                 sub.append(&PredefinedMenuItem::separator(app)?)?;
+            } else if *id == SMOOTH_MOVE || VIEW_CHECKS.contains(id) {
+                let checked = *id == SMOOTH_MOVE && smooth_move;
+                sub.append(&CheckMenuItem::with_id(app, *id, *text, true, checked, None::<&str>)?)?;
             } else {
                 sub.append(&MenuItem::with_id(app, *id, *text, true, None::<&str>)?)?;
             }

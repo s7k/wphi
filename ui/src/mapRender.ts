@@ -499,3 +499,21 @@ export function gridDim(size: number): number {
 export function cellIndex(x: number, y: number, size: number): number {
   return y * size + x;
 }
+
+/** 実験的: 地図を滑らかにずらす時間(ms)。サーバは0.1秒に1歩なので、それより短くする */
+export const SLIDE_MS = 90;
+
+/**
+ * 実験的: 自分の位置が前の地図から何マス動いたか。ずらして見せる時だけ返す。
+ * 世界が違う時、動いていない時、3マス以上飛んだ時(テレポートや一様な床の後)は null
+ */
+export function slideStep(
+  last: { world?: string; x: number; y: number } | null,
+  now: { world?: string; x: number; y: number },
+): { dx: number; dy: number } | null {
+  if (!last || last.world !== now.world) return null;
+  const dx = now.x - last.x;
+  const dy = now.y - last.y;
+  const n = Math.max(Math.abs(dx), Math.abs(dy));
+  return n === 0 || n > 2 ? null : { dx, dy };
+}

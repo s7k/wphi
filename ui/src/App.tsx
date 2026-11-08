@@ -14,7 +14,7 @@ import { TagMenu, type TagMenuAt } from "./TagMenuPopup";
 import { assetUrl } from "./asset";
 import { absorb, AUTOMAP_EVENT, blockOf, loadTiles, removeTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { BoardEditor } from "./BoardEditor";
-import { DEFAULT_SETTINGS, shortcutText, type Settings } from "./settings.ts";
+import { DEFAULT_SETTINGS, SMOOTH_EVENT, shortcutText, type Settings } from "./settings.ts";
 import { SettingsPanel } from "./SettingsPanel";
 import { NewCharacter } from "./NewCharacter";
 import { capConvs, partnersKey, privLines, privPartners, usersFromEvent, type User } from "./priv.ts";
@@ -134,6 +134,11 @@ export function App() {
   const [logFollow, setLogFollow] = useState(true);
   useEffect(() => {
     invoke<Settings>("get_settings").then(setSettings).catch(console.error);
+    // 表示のメニューで切り替えた分を覚える。覚えないと、設定の画面で保存した時に元に戻す
+    const smooth = listen<boolean>(SMOOTH_EVENT, (e) => setSettings((s) => ({ ...s, smoothMove: e.payload })));
+    return () => {
+      smooth.then((f) => f());
+    };
   }, []);
   const [error, setError] = useState("");
 
@@ -198,6 +203,20 @@ export function App() {
     mapStatePort.current.port2.postMessage(null);
   };
   useEffect(() => sendMapState(active), [active]);
+  // メニューの表示のモード(回転か北固定か、7x7 か 5x5 か)に、今のタブのモードのチェックを付ける。
+  // モードはサーバが決めるので、地図を受けるたびに見る。変わった時だけ Rust へ送る
+  const viewChecks = useRef("");
+  const syncViewChecks = (force = false) => {
+    const s = activeRef.current === null ? undefined : mapStates.current.get(activeRef.current);
+    if (!s?.map) return;
+    const turn = !keyContext(s, true).northFix;
+    const size57 = s.map.size === 7;
+    const key = `${turn},${size57}`;
+    if (!force && key === viewChecks.current) return;
+    viewChecks.current = key;
+    invoke("set_view_checks", { turn, size57 }).catch(console.error);
+  };
+  useEffect(() => syncViewChecks(true), [active]);
   // 前に出したタブの未読の印を消す
   useEffect(() => {
     if (active !== null) update(active, (t) => (t.unread || t.hurt ? { ...t, unread: false, hurt: false } : t));
@@ -337,6 +356,8 @@ export function App() {
       if (INPUT_MENU.includes(id)) return void window.dispatchEvent(new CustomEvent(INPUT_MENU_EVENT, { detail: id }));
       if (id === "priv") return update(session, (t) => ({ ...t, privOpen: !t.privOpen }));
       if (id === "automap-clear") return clearAutomap(mapStates.current.get(session)?.world);
+      // 選んだ項目はチェックが勝手に切り替わるので、今のモードに付け直す。サーバが切り替えたら地図を受けた時にまた付け直す
+      if (["map-turn", "map-solid", "map-57", "map-40"].includes(id)) syncViewChecks(true);
       const action = menuAction(id);
       const openBoard = () => update(session, (t) => ({ ...t, board: true }));
       const cancelList = (n: number) => (listFlow(session).cancel += n);
@@ -456,7 +477,10 @@ export function App() {
         return;
     }
     mapStates.current.set(session, s);
-    if (session === activeRef.current) sendMapState(session);
+    if (session === activeRef.current) {
+      sendMapState(session);
+      if (ev.type === "map") syncViewChecks();
+    }
   }
 
   const listFlows = useRef(new Map<number, ListFlow>());

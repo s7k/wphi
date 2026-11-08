@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { arrangeRow, itemDrawRect } from "./mapRender.ts";
+import { arrangeRow, itemDrawRect, slideStep } from "./mapRender.ts";
 
 test("アイテムは Philly と同じく床の上端の8px上に描く(#41)", () => {
   const r = itemDrawRect(1, " ".charCodeAt(0), 32, 64);
@@ -22,4 +22,13 @@ test("同じマスのキャラの並べ方(#42)", () => {
   // 32x32 が2人、別のマス、3人はずらさない
   assert.deepEqual(view(arrangeRow([c(0, 1, "*", "p"), c(0, 2, "*", "q"), c(3, 1, "#", "r")])), ["p0", "q0", "r0"]);
   assert.deepEqual(view(arrangeRow([c(0, 1, "#", "a"), c(0, 2, "#", "b"), c(0, 3, "#", "c")])), ["a0", "b0", "c0"]);
+});
+
+test("滑らかにずらすのは、同じ世界で1〜2マス動いた時だけ", () => {
+  assert.deepEqual(slideStep({ world: "A", x: 5, y: 5 }, { world: "A", x: 6, y: 5 }), { dx: 1, dy: 0 });
+  assert.deepEqual(slideStep({ world: "A", x: 5, y: 5 }, { world: "A", x: 4, y: 3 }), { dx: -1, dy: -2 });
+  assert.equal(slideStep(null, { world: "A", x: 6, y: 5 }), null);
+  assert.equal(slideStep({ world: "A", x: 5, y: 5 }, { world: "B", x: 6, y: 5 }), null);
+  assert.equal(slideStep({ world: "A", x: 5, y: 5 }, { world: "A", x: 5, y: 5 }), null);
+  assert.equal(slideStep({ world: "A", x: 5, y: 5 }, { world: "A", x: 8, y: 5 }), null);
 });

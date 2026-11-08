@@ -3,6 +3,7 @@
 //
 // 配置は MapForm.dfm に合わせた。マップ(等倍で中央)、右に方角とキャラ名の一覧(ImageMapSide)、
 // 下にステータス(ImageStatus)、一番下に状態異常のステータスバー。
+import { invoke } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
@@ -13,7 +14,8 @@ import { drawMap, type ImageRefs } from "./drawMap";
 import { trace } from "./trace.ts";
 import { KEY_EVENT, MOUSE_EVENT, sendLine, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
-import { CHIP_SIZE, MAP_TOP, gridDim } from "./mapRender";
+import { CHIP_SIZE, MAP_TOP, SLIDE_MS, gridDim, slideStep } from "./mapRender";
+import { SMOOTH_EVENT, type Settings } from "./settings";
 import { MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
 import { hideOnClose, useImages } from "./windowUtil";
@@ -197,6 +199,42 @@ function MapWindow() {
     getCurrentWindow().setTitle(title).catch(console.error);
   }, [title]);
 
+  // 実験的: 自分が進んだ時に、地図を前の位置から滑らかにずらす(表示のメニューで切り替える)。
+  // 北固定で、#ex-pos の届く世界だけ。ずらす間は最大 SLIDE_MS、画面の位置がサーバの位置より遅れる
+  const [smooth, setSmooth] = useState(false);
+  useEffect(() => {
+    invoke<Settings>("get_settings")
+      .then((s) => setSmooth(s.smoothMove))
+      .catch(console.error);
+    const unlisten = listen<boolean>(SMOOTH_EVENT, (e) => setSmooth(e.payload));
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, []);
+  const [slide, setSlide] = useState<{ x: number; y: number } | null>(null);
+  const lastPos = useRef<{ world?: string; x: number; y: number } | null>(null);
+  useEffect(() => {
+    const p = map?.pos;
+    if (!p) return;
+    const now = { world, x: p.x, y: p.y };
+    const step = smooth && northFix ? slideStep(lastPos.current, now) : null;
+    lastPos.current = now;
+    if (!step) return;
+    const start = performance.now();
+    let raf = 0;
+    const tick = () => {
+      const t = Math.min(1, (performance.now() - start) / SLIDE_MS);
+      const k = (1 - t) * CHIP_SIZE;
+      setSlide(t >= 1 ? null : { x: step.dx * k, y: step.dy * k });
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => {
+      cancelAnimationFrame(raf);
+      setSlide(null);
+    };
+  }, [map?.pos?.x, map?.pos?.y, world]);
+
   useEffect(() => {
     const ctx = mapCanvas.current?.getContext("2d");
     if (!ctx || !map || !state) return;
@@ -214,22 +252,23 @@ function MapWindow() {
       chara: image,
     };
     if (!automap) {
-      drawMap(ctx, { size: map.size, mapset: state.mapset, cells: map.cells, chars: map.chars }, imgs, frame);
+      drawMap(ctx, { size: map.size, mapset: state.mapset, cells: map.cells, chars: map.chars, slide: slide ?? undefined }, imgs, frame);
       return;
     }
     drawMap(
       ctx,
-      { size: map.size, dim: automap.dim, mapset: state.mapset, cells: automap.cells, chars: automap.chars },
+      { size: map.size, dim: automap.dim, mapset: state.mapset, cells: automap.cells, chars: automap.chars, slide: slide ?? undefined },
       imgs,
       frame,
     );
     // 記録地図から描いたマスを暗くし、今見えているマスと見分ける
     ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+    if (slide) ctx.translate(slide.x, slide.y);
     automap.recalled.forEach((on, i) => {
       if (on) ctx.fillRect((i % automap.dim) * CHIP_SIZE, Math.floor(i / automap.dim) * CHIP_SIZE, CHIP_SIZE, CHIP_SIZE);
     });
-    // 描き直すのはマップ・地形・アニメ・画像の読み込み・大きさが変わった時だけ。#status だけの変化では描かない
-  }, [mapKey, automap, frame, loaded, state?.mapset, state?.defines?.join(), dim]);
+    // 描き直すのはマップ・地形・アニメ・画像の読み込み・大きさ・ずらす量が変わった時だけ。#status だけの変化では描かない
+  }, [mapKey, automap, frame, loaded, state?.mapset, state?.defines?.join(), dim, slide]);
 
   // 名前の一覧は上の行から順に並べる(CharacterNameList.cpp の SetNameList)
   const names = (map?.chars ?? [])

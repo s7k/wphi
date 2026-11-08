@@ -60,6 +60,11 @@ export interface DrawMapInput {
    * 人はマスの床の上端に描く(Philly は YPos+16。通常のマップのキャラのように上げない)
    */
   eagleEye?: boolean;
+  /**
+   * 実験的: 中心のマス以外をずらして描く量(px)。自分が進んだ時に、前の位置から滑らかに動いて見せる。
+   * 中心のマスのキャラ(自キャラ)と中心の印はずらさない
+   */
+  slide?: { x: number; y: number };
 }
 
 /** EagleEye でアイテムのマスに描くマップチップ(Philly の MapChipCache->Draw(..., 19, ...)) */
@@ -103,6 +108,13 @@ export function drawMap(
   const half = cs / 2; // 16(等倍) / 32(拡大)
   // 水有無グリッド(水縁エフェクト用)。チップ画像があれば1回構築。
   const water = chipImg ? buildWaterGrid(input.cells, dim) : null;
+
+  const cx = Math.floor(dim / 2);
+  const cy = Math.floor(dim / 2);
+  const slide = input.slide && (input.slide.x || input.slide.y) ? input.slide : null;
+  const atCenter = (c: MapChar) => c.x === cx && c.y === cy;
+  ctx.save();
+  if (slide) ctx.translate(slide.x, slide.y);
 
   // 行ごとに チップ → 水縁 → 看板 → アイテム → キャラ の順で重ね描画。
   for (let row = 0; row < dim; row++) {
@@ -171,7 +183,7 @@ export function drawMap(
     }
 
     // 4. キャラ(この行)。同じマスに2人いれば横にずらす(arrangeRow)
-    const rowChars = input.chars.filter((c) => c.y === row && c.x >= 0 && c.x < dim);
+    const rowChars = input.chars.filter((c) => c.y === row && c.x >= 0 && c.x < dim && !(slide && atCenter(c)));
     for (const { ch, dx } of arrangeRow(rowChars)) {
       drawChara(ctx, ch, cs, scale, imgs, animFrame, dx * scale, input.eagleEye ? 0 : CHARA_Y_ABOVE_FLOOR * scale);
     }
@@ -179,10 +191,16 @@ export function drawMap(
 
   // 5. キャラ名ラベル(中心=自キャラは除外)。
   drawCharaNames(ctx, input.chars, cs, scale, dim);
+  ctx.restore();
+
+  // ずらしている間は、中心のマスのキャラを最後にずらさずに描く
+  if (slide) {
+    for (const { ch, dx } of arrangeRow(input.chars.filter(atCenter))) {
+      drawChara(ctx, ch, cs, scale, imgs, animFrame, dx * scale, input.eagleEye ? 0 : CHARA_Y_ABOVE_FLOOR * scale);
+    }
+  }
 
   // 6. 中心セル(自キャラ位置)ハイライト(移植元: QColor(255,255,255,40))。
-  const cx = Math.floor(dim / 2);
-  const cy = Math.floor(dim / 2);
   ctx.save();
   ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
   ctx.fillRect(cx * cs + 1, cy * cs + 1, cs - 2, cs - 2);

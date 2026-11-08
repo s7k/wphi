@@ -21,6 +21,8 @@ pub struct Settings {
     pub sound_play: bool,
     /// ログを HTML で保存する。off ならテキスト([Log] LogSaveHtml)
     pub log_save_html: bool,
+    /// 実験的: 自分が1マス進んだ時に、地図を滑らかにずらして描く。表示のメニューで切り替える(Philly に無い)
+    pub smooth_move: bool,
 }
 
 impl Default for Settings {
@@ -32,6 +34,7 @@ impl Default for Settings {
             alt_g_word: String::new(),
             sound_play: true,
             log_save_html: true,
+            smooth_move: false,
         }
     }
 }
