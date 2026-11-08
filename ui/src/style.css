@@ -74,7 +74,13 @@ body {
 .main .phi-log,
 .main .phi-log .class_name,
 .main .phi-log .class_time {
-  font-family: var(--ui-font);
+  font-family: var(--log-font, var(--ui-font));
+}
+
+/* 設定でログの文字の大きさを決めた時だけ、スキンの Log.css より優先する。
+   決めていない時に var() だけを書くと、値が無いので inherit になり、Log.css の大きさを消す */
+.main.log-sized .phi-log {
+  font-size: var(--log-size);
 }
 
 .input-area {

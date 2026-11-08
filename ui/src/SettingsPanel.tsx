@@ -39,6 +39,33 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
           ログを HTML で保存する(off ならテキスト)
         </label>
         <label>
+          <input type="checkbox" checked={s.logDispTime} onChange={(e) => set("logDispTime", e.target.checked)} />
+          ログの行頭に時刻を出す(保存するログには off でも入れる)
+        </label>
+        <label>
+          <input type="checkbox" checked={s.taskBarFlash} onChange={(e) => set("taskBarFlash", e.target.checked)} />
+          発言と priv が届いた時に、タスクバーを点滅させる
+        </label>
+        <label>
+          ログのフォント{" "}
+          <input
+            value={s.logFontName}
+            placeholder="空なら既定のフォント"
+            onChange={(e) => set("logFontName", e.target.value)}
+          />
+        </label>
+        <label>
+          ログの文字の大きさ{" "}
+          <input
+            type="number"
+            min={0}
+            max={64}
+            value={s.logFontSize}
+            onChange={(e) => set("logFontSize", Math.max(0, Math.min(64, Math.round(Number(e.target.value) || 0))))}
+          />{" "}
+          px(0 ならスキンの Log.css に任せる)
+        </label>
+        <label>
           <input
             type="checkbox"
             checked={s.autoUnequipSystemMagic}

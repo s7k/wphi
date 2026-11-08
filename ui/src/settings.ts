@@ -11,6 +11,14 @@ export type Settings = {
   soundPlay: boolean;
   /** ログを HTML で保存する。off ならテキスト */
   logSaveHtml: boolean;
+  /** ログの行頭に時刻を出す(LogDispTime)。保存するログには off でも入れる */
+  logDispTime: boolean;
+  /** 発言と priv でタスクバーを点滅させる([TaskBarFlash] Enabled) */
+  taskBarFlash: boolean;
+  /** ログ欄のフォント。空なら既定のフォント */
+  logFontName: string;
+  /** ログ欄の文字の大きさ(px)。0 ならスキンの Log.css に任せる(LogFontSize) */
+  logFontSize: number;
   /** 系統魔法の前に武器を外す(AutoUnequipSystemMagic) */
   autoUnequipSystemMagic: boolean;
   /** 系統魔法の後に外した武器を装備し直す(AutoEquipSystemMagic) */

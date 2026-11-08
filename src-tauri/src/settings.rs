@@ -21,6 +21,14 @@ pub struct Settings {
     pub sound_play: bool,
     /// ログを HTML で保存する。off ならテキスト([Log] LogSaveHtml)
     pub log_save_html: bool,
+    /// ログの行頭に時刻を出す([Log] LogDispTime)。保存するログには、off でも時刻を入れる
+    pub log_disp_time: bool,
+    /// 発言と priv でタスクバーを点滅させる([TaskBarFlash] Enabled)
+    pub task_bar_flash: bool,
+    /// ログ欄のフォント。空なら WPHI の既定のフォント(Philly に無い)
+    pub log_font_name: String,
+    /// ログ欄の文字の大きさ(px)。0 ならスキンの Log.css に任せる([Font] LogFontSize)
+    pub log_font_size: u32,
     /// 系統魔法の前に武器を外す([Automation] AutoUnequipSystemMagic)
     pub auto_unequip_system_magic: bool,
     /// 系統魔法の後に外した武器を装備し直す([Automation] AutoEquipSystemMagic)
@@ -43,6 +51,10 @@ impl Default for Settings {
             alt_g_word: String::new(),
             sound_play: true,
             log_save_html: true,
+            log_disp_time: true,
+            task_bar_flash: true,
+            log_font_name: String::new(),
+            log_font_size: 0,
             auto_unequip_system_magic: true,
             auto_equip_system_magic: false,
             map_zoom: 100,
@@ -85,6 +97,15 @@ impl Settings {
         }
         if let Some(v) = get("Sound", "SoundPlay") {
             self.sound_play = on(v);
+        }
+        if let Some(v) = get("Log", "LogDispTime") {
+            self.log_disp_time = on(v);
+        }
+        if let Some(v) = get("TaskBarFlash", "Enabled") {
+            self.task_bar_flash = on(v);
+        }
+        if let Some(v) = get("Font", "LogFontSize").and_then(|v| v.parse().ok()) {
+            self.log_font_size = v;
         }
         if let Some(v) = get("Automation", "AutoUnequipSystemMagic") {
             self.auto_unequip_system_magic = on(v);

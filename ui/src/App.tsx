@@ -565,7 +565,7 @@ export function App() {
     const loud = /^(?:<[^>]*>)*\(/.test(html);
     if (session !== activeRef.current) update(session, (t) => (t.unread ? t : { ...t, unread: true }));
     // DM の発言などは点滅させない(Philly の NotFlashRegexp.ini。Rust 側で照合する)
-    if (!loud && !noFlash && !document.hasFocus())
+    if (settingsRef.current.taskBarFlash && !loud && !noFlash && !document.hasFocus())
       getCurrentWindow().requestUserAttention(UserAttentionType.Informational).catch(console.error);
   }
 
@@ -575,7 +575,7 @@ export function App() {
       const to = privPartners(from, html, t.self);
       if (to.length === 0) return t;
       const key = partnersKey(to);
-      const line = timePrefix() + html;
+      const line = shownTime(timePrefix()) + html;
       const privs = upsertConv(t.privs, to, (c) =>
         c
           ? { ...c, lines: pushLine(c.lines, line), unread: t.privActive !== key }
@@ -661,10 +661,14 @@ export function App() {
   // 続けて届いた行は次のタスクでまとめて足す。1行ごとに足すと、行の数だけ描き直しとレイアウトが走る(#73)
   const pendingLines = useRef(new Map<number, string[]>());
   const linesPort = useRef<MessageChannel | null>(null);
+  /** 画面に出す時刻。時刻を出さない設定なら空(LogDispTime) */
+  const shownTime = (time: string) => (settingsRef.current.logDispTime ? time : "");
   const append = (session: number, html: string) => {
-    const line = timePrefix() + html;
+    const time = timePrefix();
+    const line = shownTime(time) + html;
     const tab = tabsRef.current.find((t) => t.session === session);
-    if (tab?.logSave) saveLog(tab.label, line, settingsRef.current.logSaveHtml);
+    // 保存するログには、時刻を出さない設定でも時刻を入れる(Philly の LogSaveTextWithTime=on)
+    if (tab?.logSave) saveLog(tab.label, time + html, settingsRef.current.logSaveHtml);
     const queued = pendingLines.current.size > 0;
     const q = pendingLines.current.get(session);
     if (q) q.push(line);
@@ -800,7 +804,16 @@ export function App() {
   const tab = tabs.find((t) => t.session === active);
 
   return (
-    <div className="main">
+    <div
+      className={settings.logFontSize ? "main log-sized" : "main"}
+      // ログ欄のフォントと大きさ(設定)。空と 0 はスキンと既定に任せる
+      style={
+        {
+          "--log-font": settings.logFontName ? `"${settings.logFontName.replace(/["\\]/g, "")}", var(--ui-font)` : undefined,
+          "--log-size": settings.logFontSize ? `${settings.logFontSize}px` : undefined,
+        } as React.CSSProperties
+      }
+    >
       {asking && (
         <AskDialog
           key={asking.id}
