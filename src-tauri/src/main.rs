@@ -662,10 +662,10 @@ fn main() {
                 .map(phi_proto::codec::decode)
                 .unwrap_or_default();
             if let Some(main) = app.get_webview_window("main") {
-                let smooth = settings_path(app.handle())
-                    .map(|p| settings::Settings::load(&p).smooth_move)
-                    .unwrap_or(false);
-                main.set_menu(menu::build(app.handle(), &menu_txt, smooth)?)?;
+                let settings = settings_path(app.handle())
+                    .map(|p| settings::Settings::load(&p))
+                    .unwrap_or_default();
+                main.set_menu(menu::build(app.handle(), &menu_txt, &settings)?)?;
             }
             #[cfg(target_os = "linux")]
             if let Some(window) = app.get_webview_window("main") {
@@ -686,16 +686,19 @@ fn main() {
                 exit_app(app);
                 return;
             }
-            if event.id().0 == menu::SMOOTH_MOVE {
-                let on = settings_path(app).and_then(|p| {
+            let id = event.id().0.as_str();
+            if menu::experiment(&mut settings::Settings::default(), id).is_some() {
+                let saved = settings_path(app).and_then(|p| {
                     jsonfile::update(&p, |s: &mut settings::Settings| {
-                        s.smooth_move = !s.smooth_move;
-                        Ok(s.smooth_move)
+                        if let Some(v) = menu::experiment(s, id) {
+                            *v = !*v;
+                        }
+                        Ok(s.clone())
                     })
                 });
-                match on {
-                    Ok(on) => {
-                        let _ = app.emit(menu::SMOOTH_EVENT, on);
+                match saved {
+                    Ok(s) => {
+                        let _ = app.emit(menu::EXPERIMENT_EVENT, s);
                     }
                     Err(e) => eprintln!("設定を保存出来ません: {e}"),
                 }

@@ -23,6 +23,8 @@ pub struct Settings {
     pub log_save_html: bool,
     /// 実験的: 自分が1マス進んだ時に、地図を滑らかにずらして描く。表示のメニューで切り替える(Philly に無い)
     pub smooth_move: bool,
+    /// 実験的: 送った go に地図も「進めません」も来なければ、進んだとみなして拡張マップをずらす(Philly に無い)
+    pub predict_move: bool,
 }
 
 impl Default for Settings {
@@ -35,6 +37,7 @@ impl Default for Settings {
             sound_play: true,
             log_save_html: true,
             smooth_move: false,
+            predict_move: false,
         }
     }
 }

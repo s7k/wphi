@@ -11,9 +11,19 @@ use tauri::{
 };
 
 pub const MENU_EVENT: &str = "phi-menu";
-/// チェックの付く項目。切り替えは main.rs が設定に書き、SMOOTH_EVENT で全部の窓へ知らせる
+/// 実験的な機能の切り替え(チェックの付く項目)。main.rs が設定に書き、EXPERIMENT_EVENT で設定の全体を全部の窓へ知らせる
 pub const SMOOTH_MOVE: &str = "smooth-move";
-pub const SMOOTH_EVENT: &str = "phi-smooth";
+pub const PREDICT_MOVE: &str = "predict-move";
+pub const EXPERIMENT_EVENT: &str = "phi-experiment";
+
+/// 実験的な機能の項目の、設定の値
+pub fn experiment<'a>(s: &'a mut crate::settings::Settings, id: &str) -> Option<&'a mut bool> {
+    match id {
+        SMOOTH_MOVE => Some(&mut s.smooth_move),
+        PREDICT_MOVE => Some(&mut s.predict_move),
+        _ => None,
+    }
+}
 /// 今の表示のモードにチェックを付ける項目。モードはサーバが決めるので、UI が地図を受けるたびに set_view_checks で付け直す
 const VIEW_CHECKS: [&str; 4] = ["map-turn", "map-solid", "map-57", "map-40"];
 
@@ -105,6 +115,7 @@ const MENUS: Table = &[
             ("automap-clear", "この世界の拡張マップを消す"),
             ("-", ""),
             (SMOOTH_MOVE, "滑らかに動かす(実験的)"),
+            (PREDICT_MOVE, "地図が来ない時に位置を予想する(実験的)"),
         ],
     ),
     (
@@ -145,7 +156,12 @@ fn hidden_menus(menu_txt: &str) -> Vec<String> {
         .collect()
 }
 
-pub fn build<R: Runtime>(app: &AppHandle<R>, menu_txt: &str, smooth_move: bool) -> tauri::Result<Menu<R>> {
+pub fn build<R: Runtime>(
+    app: &AppHandle<R>,
+    menu_txt: &str,
+    settings: &crate::settings::Settings,
+) -> tauri::Result<Menu<R>> {
+    let mut settings = settings.clone();
     let hidden = hidden_menus(menu_txt);
     let menu = Menu::new(app)?;
     for (name, items) in MENUS {
@@ -156,8 +172,8 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, menu_txt: &str, smooth_move: bool) 
         for (id, text) in *items {
             if *id == "-" {
                 sub.append(&PredefinedMenuItem::separator(app)?)?;
-            } else if *id == SMOOTH_MOVE || VIEW_CHECKS.contains(id) {
-                let checked = *id == SMOOTH_MOVE && smooth_move;
+            } else if experiment(&mut settings, id).is_some() || VIEW_CHECKS.contains(id) {
+                let checked = experiment(&mut settings, id).is_some_and(|v| *v);
                 sub.append(&CheckMenuItem::with_id(app, *id, *text, true, checked, None::<&str>)?)?;
             } else {
                 sub.append(&MenuItem::with_id(app, *id, *text, true, None::<&str>)?)?;

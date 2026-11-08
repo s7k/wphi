@@ -9,13 +9,13 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { assetUrl } from "./asset";
-import { AUTOMAP_EVENT, compose, ringFor, loadTiles, type AutomapDiff, type Tiles } from "./automap.ts";
+import { AUTOMAP_EVENT, compose, predictedMap, ringFor, loadTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { drawMap, type ImageRefs } from "./drawMap";
 import { trace } from "./trace.ts";
 import { KEY_EVENT, MOUSE_EVENT, sendLine, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
 import { CHIP_SIZE, MAP_TOP, SLIDE_MS, gridDim, slideStep } from "./mapRender";
-import { SMOOTH_EVENT, type Settings } from "./settings";
+import { EXPERIMENT_EVENT, type Settings } from "./settings";
 import { MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
 import { hideOnClose, useImages } from "./windowUtil";
@@ -103,8 +103,6 @@ function MapWindow() {
     };
   }, []);
 
-  const map = state?.map;
-
   // 拡張マップ。main 窓が localStorage に貯めた地形を、通常マップの外周に暗くして敷く。
   // 拡大縮小はしないので、外周の幅はマップの欄に等倍で収まる分だけ(最大 AUTOMAP_RING)
   const world = state?.world;
@@ -128,6 +126,10 @@ function MapWindow() {
     };
   }, []);
   const tiles = world ? automapOf(world) : {};
+  // 実験的: main 窓が位置を予想していれば(ui/src/predict.ts)、予想した位置の地図を記録地図から作って描く
+  const raw = state?.map;
+  const pred = state?.predict;
+  const map = raw && pred && (pred.dx || pred.dy) ? predictedMap(raw, tiles, pred.dx, pred.dy) : raw;
   const [area, setArea] = useState({ w: 0, h: 0 });
   useEffect(() => {
     const el = mapArea.current;
@@ -206,7 +208,7 @@ function MapWindow() {
     invoke<Settings>("get_settings")
       .then((s) => setSmooth(s.smoothMove))
       .catch(console.error);
-    const unlisten = listen<boolean>(SMOOTH_EVENT, (e) => setSmooth(e.payload));
+    const unlisten = listen<Settings>(EXPERIMENT_EVENT, (e) => setSmooth(e.payload.smoothMove));
     return () => {
       unlisten.then((f) => f());
     };

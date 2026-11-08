@@ -159,3 +159,18 @@ export function compose(
   }
   return { dim, cells, recalled, chars: map.chars.map((ch) => ({ ...ch, x: ch.x + R, y: ch.y + R })) };
 }
+
+/**
+ * 実験的: 予想した位置の地図(ui/src/predict.ts)。7x7 は記録地図から作り、記録が無ければ '?'。
+ * 自キャラ(中央のマスのキャラ)だけを残す。他のキャラの位置は分からないので出さない
+ */
+export function predictedMap(map: MapEvent, tiles: Tiles, dx: number, dy: number): MapEvent {
+  if (!recordable(map) || (dx === 0 && dy === 0)) return map;
+  const x = map.pos!.x + dx;
+  const y = map.pos!.y + dy;
+  const cells = Array.from(
+    { length: 49 },
+    (_, i) => tiles[`${x + (i % 7) - 3},${y + Math.floor(i / 7) - 3}`] ?? { chip: UNKNOWN, attr: 0 },
+  );
+  return { ...map, pos: { x, y }, cells, chars: map.chars.filter((c) => c.x === 3 && c.y === 3) };
+}

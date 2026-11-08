@@ -14,7 +14,7 @@ import { TagMenu, type TagMenuAt } from "./TagMenuPopup";
 import { assetUrl } from "./asset";
 import { absorb, AUTOMAP_EVENT, blockOf, loadTiles, removeTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { BoardEditor } from "./BoardEditor";
-import { DEFAULT_SETTINGS, SMOOTH_EVENT, shortcutText, type Settings } from "./settings.ts";
+import { DEFAULT_SETTINGS, EXPERIMENT_EVENT, shortcutText, type Settings } from "./settings.ts";
 import { SettingsPanel } from "./SettingsPanel";
 import { NewCharacter } from "./NewCharacter";
 import { capConvs, partnersKey, privLines, privPartners, usersFromEvent, type User } from "./priv.ts";
@@ -22,6 +22,7 @@ import { PrivPanel, type PrivConv } from "./PrivPanel";
 import { ListOverlay } from "./ListOverlay";
 import { listNo, listOk, moreNo, newList, type ListState } from "./list.ts";
 import { trace } from "./trace.ts";
+import { Predictor } from "./predict.ts";
 import { EAGLE_EYE_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
@@ -135,7 +136,9 @@ export function App() {
   useEffect(() => {
     invoke<Settings>("get_settings").then(setSettings).catch(console.error);
     // 表示のメニューで切り替えた分を覚える。覚えないと、設定の画面で保存した時に元に戻す
-    const smooth = listen<boolean>(SMOOTH_EVENT, (e) => setSettings((s) => ({ ...s, smoothMove: e.payload })));
+    const smooth = listen<Settings>(EXPERIMENT_EVENT, (e) =>
+      setSettings((s) => ({ ...s, smoothMove: e.payload.smoothMove, predictMove: e.payload.predictMove })),
+    );
     return () => {
       smooth.then((f) => f());
     };
@@ -181,6 +184,25 @@ export function App() {
   // setTimeout を使わない。map 窓にフォーカスがある間 main 窓は裏の窓になり、WebView2 がタイマーを 1 秒ごとに間引くと地図が止まって見える(#44)
   const mapStatePort = useRef<MessageChannel | null>(null);
   const pendingDiffs = useRef<AutomapDiff[]>([]);
+  // 実験的: 表のタブの位置の予想(表示のメニューで切り替える)。0.1 秒ごとに、返事を待ちきった移動を進んだとみなす
+  const predictor = useRef(new Predictor());
+  useEffect(() => {
+    predictor.current.reset();
+    if (!settings.predictMove || active === null) return;
+    const timer = setInterval(() => {
+      if (predictor.current.tick()) sendMapState(activeRef.current);
+    }, 100);
+    return () => {
+      clearInterval(timer);
+      predictor.current.reset();
+      sendMapState(activeRef.current);
+    };
+  }, [active, settings.predictMove]);
+  /** 移動を送る。位置を予想している時は数える */
+  const sendMove = (session: number, text: string) => {
+    if (settingsRef.current.predictMove && session === activeRef.current) predictor.current.sent(text);
+    sendLine(session, text);
+  };
   const mapStateQueued = useRef(false);
   const mapStateSession = useRef<number | null>(null);
   const sendMapState = (session: number | null) => {
@@ -194,8 +216,9 @@ export function App() {
         const s = mapStateSession.current;
         const state = s === null ? undefined : mapStates.current.get(s);
         const diffs = pendingDiffs.current.splice(0);
+        const predict = predictor.current.offset;
         trace("main emit");
-        emitTo("map", MAP_STATE_EVENT, { ...(state ?? { session: -1, mapset: "" }), diffs }).catch((e) =>
+        emitTo("map", MAP_STATE_EVENT, { ...(state ?? { session: -1, mapset: "" }), diffs, predict }).catch((e) =>
           console.error(e),
         );
       };
@@ -301,7 +324,7 @@ export function App() {
       // サーバは1ティックに1行ずつ処理するので、リピートが速いと離した後も少し歩く
       if (move) {
         trace(`main ${e.type} ${e.code}${e.repeat ? " repeat" : ""}`);
-        if (e.type === "keydown") sendLine(session, moveCommand(move.key, move.mods, ctx.northFix));
+        if (e.type === "keydown") sendMove(session, moveCommand(move.key, move.mods, ctx.northFix));
         return true;
       }
       if (e.type !== "keydown") return false;
@@ -372,7 +395,7 @@ export function App() {
       else {
         // 斜めは2方向を1歩ずつ送り、斜めに1マス進む(#76)
         const northFix = keyContext(mapStates.current.get(session), true).northFix;
-        for (const k of m.keys) sendLine(session, moveCommand(k, "none", northFix));
+        for (const k of m.keys) sendMove(session, moveCommand(k, "none", northFix));
       }
     });
     // map 窓のリストのクリック(#9)
@@ -439,6 +462,7 @@ export function App() {
         trace("main map");
         // 拡張マップ。世界ごとに見えた地形を貯める。盲目中は視界が霧で埋まるので貯めない
         if (s.world && s.world !== "???" && !s.cond?.blind) recordAutomap(s.world, ev);
+        if (session === activeRef.current && ev.pos) predictor.current.onMap(`${ev.pos.x},${ev.pos.y}`);
         break;
       case "status": {
         // 裏のタブで HP か MP が減ったら、タブに印を付ける
@@ -642,6 +666,8 @@ export function App() {
           append(session, ev.html);
           notifyTalk(session, ev.channel, ev.html, !!ev.noFlash);
           if (ev.channel === "priv" && ev.from) addPriv(session, ev.from, ev.html);
+          if (session === activeRef.current && /DM<\/font> &gt; (進めません\.|Can not go\.)/.test(ev.html))
+            predictor.current.onCannotGo();
           break;
         case "error":
           append(session, systemNg(ev.message));

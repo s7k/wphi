@@ -120,6 +120,8 @@ export type MapState = {
   listChecked?: boolean[];
   /** 前に送った後に変わった拡張マップのマス。MapState と同じ送信で送り、map 窓が1回で描く(#75) */
   diffs?: { world: string; diff: Record<string, MapCell> }[];
+  /** 実験的: 最後に届いた地図の位置から、main 窓が予想したずれ(ui/src/predict.ts) */
+  predict?: { dx: number; dy: number };
 };
 
 /**

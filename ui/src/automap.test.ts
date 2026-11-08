@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { absorb, blockOf, compose, groupByBlock, ringFor } from "./automap.ts";
+import { absorb, blockOf, compose, groupByBlock, predictedMap, ringFor } from "./automap.ts";
 import type { MapEvent } from "./protocol";
 
 const Q = "?".charCodeAt(0);
@@ -72,4 +72,31 @@ test("拡張マップを 32x32 の区画に分ける(負の座標も含む)", ()
   assert.deepEqual(Object.keys(g.get("-1,0")!), ["-5,0"]);
   assert.deepEqual(g.get("9,9"), {});
   assert.equal(g.has("1,0"), false);
+});
+
+test("予想した位置の地図は、記録地図から 7x7 を作り、自キャラだけを残す", () => {
+  const cell = (chip: number) => ({ chip, attr: 0 });
+  const tiles = { "5,4": cell(1), "8,4": cell(2) };
+  const map = {
+    type: "map",
+    size: 7,
+    dir: 0,
+    style: "solid",
+    pos: { x: 5, y: 5 },
+    cells: Array.from({ length: 49 }, () => cell(9)),
+    chars: [
+      { x: 3, y: 3, name: "me" },
+      { x: 0, y: 0, name: "npc" },
+    ],
+  } as unknown as MapEvent;
+  const p = predictedMap(map, tiles, 0, -1);
+  assert.deepEqual(p.pos, { x: 5, y: 4 });
+  assert.equal(p.cells[24].chip, 1);
+  assert.equal(p.cells[27].chip, 2);
+  assert.equal(p.cells[0].chip, Q);
+  assert.deepEqual(
+    p.chars.map((c) => c.name),
+    ["me"],
+  );
+  assert.equal(predictedMap(map, tiles, 0, 0), map);
 });
