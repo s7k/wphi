@@ -156,6 +156,40 @@ fn hidden_menus(menu_txt: &str) -> Vec<String> {
         .collect()
 }
 
+/// 窓の中に描くメニューの項目。id が "-" なら区切り線。check はチェックの付く項目
+#[derive(serde::Serialize)]
+pub struct MenuModel {
+    pub name: &'static str,
+    pub items: Vec<MenuItemModel>,
+}
+
+#[derive(serde::Serialize)]
+pub struct MenuItemModel {
+    pub id: &'static str,
+    pub text: &'static str,
+    pub check: bool,
+}
+
+pub fn model(menu_txt: &str) -> Vec<MenuModel> {
+    let hidden = hidden_menus(menu_txt);
+    MENUS
+        .iter()
+        .filter(|(name, _)| !hidden.iter().any(|h| h == name))
+        .map(|(name, items)| MenuModel {
+            name,
+            items: items
+                .iter()
+                .map(|(id, text)| MenuItemModel {
+                    id,
+                    text,
+                    check: experiment(&mut crate::settings::Settings::default(), id).is_some()
+                        || VIEW_CHECKS.contains(id),
+                })
+                .collect(),
+        })
+        .collect()
+}
+
 pub fn build<R: Runtime>(
     app: &AppHandle<R>,
     menu_txt: &str,
@@ -220,6 +254,16 @@ pub fn build<R: Runtime>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn model_hides_menus_and_marks_checks() {
+        let m = model("off,魔法\r\n");
+        assert!(!m.iter().any(|s| s.name == "魔法"));
+        let view = m.iter().find(|s| s.name == "表示").unwrap();
+        let check = |id: &str| view.items.iter().find(|i| i.id == id).unwrap().check;
+        assert!(check("map-turn") && check(AUTOMAP) && check(SMOOTH_MOVE));
+        assert!(!check("map"));
+    }
 
     #[test]
     fn reads_menu_txt() {

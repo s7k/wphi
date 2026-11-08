@@ -6,6 +6,7 @@ import { memo, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { getVersion } from "@tauri-apps/api/app";
 import { latestRelease } from "./update.ts";
+import { isMac, MenuBar } from "./MenuBar";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { SENT_EVENT, type Sent } from "./keyInput";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
@@ -245,6 +246,17 @@ export function App() {
   // メニューの表示のモード(回転か北固定か、7x7 か 5x5 か)に、今のタブのモードのチェックを付ける。
   // モードはサーバが決めるので、地図を受けるたびに見る。変わった時だけ Rust へ送る
   const viewChecks = useRef("");
+  // macOS の窓の中のメニューのチェック(MenuBar)。OS のメニューは set_view_checks で付ける
+  const [viewMode, setViewMode] = useState<{ turn: boolean; size57: boolean } | null>(null);
+  const menuChecked = (id: string): boolean =>
+    ({
+      "map-turn": viewMode?.turn,
+      "map-solid": viewMode && !viewMode.turn,
+      "map-57": viewMode?.size57,
+      "map-40": viewMode && !viewMode.size57,
+      "smooth-move": settings.smoothMove,
+      automap: settings.automap,
+    })[id] ?? false;
   const syncViewChecks = (force = false) => {
     const s = activeRef.current === null ? undefined : mapStates.current.get(activeRef.current);
     if (!s?.map) return;
@@ -253,6 +265,7 @@ export function App() {
     const key = `${turn},${size57}`;
     if (!force && key === viewChecks.current) return;
     viewChecks.current = key;
+    setViewMode({ turn, size57 });
     invoke("set_view_checks", { turn, size57 }).catch(console.error);
   };
   useEffect(() => syncViewChecks(true), [active]);
@@ -838,6 +851,7 @@ export function App() {
         <SettingsPanel settings={settings} onSaved={setSettings} onClose={() => setSettingsOpen(false)} />
       )}
       <style>{logCss}</style>
+      {isMac() && <MenuBar checked={menuChecked} />}
       <TabBar tabs={tabs} active={active} onSelect={setActive} onClose={close} onSettings={() => setSettingsOpen(true)} />
       {tab ? (
         <div className="main-body">

@@ -679,6 +679,48 @@ fn set_trace(app: tauri::AppHandle, on: bool) -> Result<Option<String>, String> 
 }
 
 /// main 窓のメニューの、表示のモードのチェックを付け直す(UI が地図を受けた時とメニューを選んだ時に呼ぶ)
+/// メニューの項目を選んだ時(OS のメニューと、macOS の窓の中のメニュー)
+fn select_menu(app: &tauri::AppHandle, id: &str) {
+    use tauri::Emitter;
+    if id == "exit" {
+        exit_app(app);
+        return;
+    }
+    if menu::experiment(&mut settings::Settings::default(), id).is_some() {
+        let saved = settings_path(app).and_then(|p| {
+            jsonfile::update(&p, |s: &mut settings::Settings| {
+                if let Some(v) = menu::experiment(s, id) {
+                    *v = !*v;
+                }
+                Ok(s.clone())
+            })
+        });
+        match saved {
+            Ok(s) => {
+                let _ = app.emit(menu::EXPERIMENT_EVENT, s);
+            }
+            Err(e) => eprintln!("設定を保存出来ません: {e}"),
+        }
+        return;
+    }
+    let _ = app.emit_to("main", menu::MENU_EVENT, id.to_string());
+}
+
+/// macOS の窓の中のメニューで選んだ時。OS のメニューと同じに扱う
+#[tauri::command]
+fn menu_select(app: tauri::AppHandle, id: String) {
+    select_menu(&app, &id);
+}
+
+/// macOS の窓の中に出すメニューの項目(OS のメニューと同じ物)
+#[tauri::command]
+fn menu_model() -> Vec<menu::MenuModel> {
+    let menu_txt = assets::bundled("Skins/Mine/Style/Menu.txt")
+        .map(phi_proto::codec::decode)
+        .unwrap_or_default();
+    menu::model(&menu_txt)
+}
+
 /// メニューバー。macOS はアプリのメニュー、他は main 窓のメニュー
 fn main_menu(app: &tauri::AppHandle) -> Option<tauri::menu::Menu<tauri::Wry>> {
     #[cfg(target_os = "macos")]
@@ -802,32 +844,7 @@ fn main() {
                 _ => {}
             }
         })
-        .on_menu_event(|app, event| {
-            use tauri::Emitter;
-            if event.id().0 == "exit" {
-                exit_app(app);
-                return;
-            }
-            let id = event.id().0.as_str();
-            if menu::experiment(&mut settings::Settings::default(), id).is_some() {
-                let saved = settings_path(app).and_then(|p| {
-                    jsonfile::update(&p, |s: &mut settings::Settings| {
-                        if let Some(v) = menu::experiment(s, id) {
-                            *v = !*v;
-                        }
-                        Ok(s.clone())
-                    })
-                });
-                match saved {
-                    Ok(s) => {
-                        let _ = app.emit(menu::EXPERIMENT_EVENT, s);
-                    }
-                    Err(e) => eprintln!("設定を保存出来ません: {e}"),
-                }
-                return;
-            }
-            let _ = app.emit_to("main", menu::MENU_EVENT, event.id().0.clone());
-        })
+        .on_menu_event(|app, event| select_menu(app, event.id().0.as_str()))
         // 画像の変換は UI のイベントループの外で行う。Windows(WebView2)は要求を UI スレッドで受けるので、
         // 同期で変換すると、変換が終わるまで全部の窓が止まる
         .register_asynchronous_uri_scheme_protocol("phi-asset", |ctx, req, responder| {
@@ -874,6 +891,8 @@ fn main() {
             send_lines,
             open_log_dir,
             open_config_dir,
+            menu_select,
+            menu_model,
             disconnect,
             log_css,
             log_html,
