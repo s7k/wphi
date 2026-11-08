@@ -1,4 +1,6 @@
 // src-tauri/src/settings.rs の Settings。
+import defaults from "./settings.default.json" with { type: "json" };
+
 export type Settings = {
   fullKeyMove: boolean;
   /** F8〜F12。\n は改行 */
@@ -24,19 +26,12 @@ export type Settings = {
 /** 表示のメニューでチェックの付く項目を切り替えた時と、設定を保存した時に、Rust が設定の全体を全部の窓へ送る */
 export const EXPERIMENT_EVENT = "phi-experiment";
 
-export const DEFAULT_SETTINGS: Settings = {
-  fullKeyMove: true,
-  shortcuts: ["", "", "", "", ""],
-  listShortcuts: ["", "", "", "", ""],
-  altGWord: "",
-  soundPlay: true,
-  logSaveHtml: true,
-  autoUnequipSystemMagic: true,
-  autoEquipSystemMagic: false,
-  mapZoom: 100,
-  smoothMove: false,
-  automap: true,
-};
+/** 既定値は Rust の Settings::default() を書き出した物(settings.rs のテストが書き直す。#38) */
+export const DEFAULT_SETTINGS: Settings = defaults;
+// Rust の Settings と項目の名前が揃っているか。どちらかにしか無い項目があると、型検査で落ちる
+type SameKeys<A, B> = [keyof A] extends [keyof B] ? ([keyof B] extends [keyof A] ? true : false) : false;
+const sameKeys: SameKeys<typeof defaults, Settings> = true;
+void sameKeys;
 
 export const MAP_ZOOM_MIN = 50;
 export const MAP_ZOOM_MAX = 400;

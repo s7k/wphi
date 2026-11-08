@@ -1,0 +1,25 @@
+{
+  "fullKeyMove": true,
+  "shortcuts": [
+    "",
+    "",
+    "",
+    "",
+    ""
+  ],
+  "listShortcuts": [
+    "",
+    "",
+    "",
+    "",
+    ""
+  ],
+  "altGWord": "",
+  "soundPlay": true,
+  "logSaveHtml": true,
+  "autoUnequipSystemMagic": true,
+  "autoEquipSystemMagic": false,
+  "mapZoom": 100,
+  "smoothMove": false,
+  "automap": true
+}

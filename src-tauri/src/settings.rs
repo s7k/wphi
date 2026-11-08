@@ -122,6 +122,18 @@ fn parse_ini(text: &str) -> Vec<(String, String, String)> {
 mod tests {
     use super::*;
 
+    /// 既定値は ui/src/settings.default.json に書き出し、UI はそれを読む(#38)。
+    /// 既定値を変えたらこのテストが書き直して失敗するので、書き直した物をコミットする
+    #[test]
+    fn default_json_is_current() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../ui/src/settings.default.json");
+        let json = serde_json::to_string_pretty(&Settings::default()).unwrap() + "\n";
+        if std::fs::read_to_string(path).ok().as_deref() != Some(json.as_str()) {
+            std::fs::write(path, &json).unwrap();
+            panic!("{path} を書き直した。コミットする");
+        }
+    }
+
     #[test]
     fn parse_ini_edge_cases() {
         let ini = parse_ini("a=0\n[S]\nk = \"x;y\" ; c\nnoequal\nq=\"open\nv = 1 ; c\n");
