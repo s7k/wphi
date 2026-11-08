@@ -169,13 +169,25 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                         let bytes: Vec<u8> = reply.drain(..).flat_map(|l| line_bytes(&l)).collect();
                         let _ = stream.write_all(&bytes).await;
                     }
-                    if let Some(dst) = transfer(&mut stream, &mut lines, &server, &login.id, &mut emit).await {
-                        // 移動元で受けていた残りの行は捨てる(Philly も ChSrv の成功で受信の処理を打ち切る)
-                        stream = dst;
-                        lines = LineBuffer::new();
-                        parser = Parser::new();
-                        // 移動中に UI から送られた行は捨てる(Philly の RejectMainThreadSend)
-                        while outgoing.try_recv().is_ok() {}
+                    // 移動の間に UI が送った行は捨てる(Philly の RejectMainThreadSend)。
+                    // 送信キューが閉じたら(タブを閉じた)移動をやめる。待たないと、閉じたタブのキャラが移動先へログインする(#71)
+                    let moved = tokio::select! {
+                        r = transfer(&mut stream, &mut lines, &server, &login.id, &mut emit) => Some(r),
+                        _ = async { while outgoing.recv().await.is_some() {} } => None,
+                    };
+                    match moved {
+                        None => {
+                            let _ = stream.write_all(&line_bytes("#x")).await;
+                            return;
+                        }
+                        Some(Some(dst)) => {
+                            // 移動元で受けていた残りの行は捨てる(Philly も ChSrv の成功で受信の処理を打ち切る)
+                            stream = dst;
+                            lines = LineBuffer::new();
+                            parser = Parser::new();
+                            while outgoing.try_recv().is_ok() {}
+                        }
+                        Some(None) => {}
                     }
                     last_recv = Instant::now();
                 }
@@ -242,14 +254,24 @@ async fn transfer(
     id: &str,
     emit: &mut impl FnMut(UiEvent),
 ) -> Option<TcpStream> {
-    let (host, port) = server.rsplit_once(':')?;
-    let port: u16 = port.parse().ok()?;
     let deadline = || Instant::now() + TRANSFER_TIMEOUT;
+    // ポートが u16 に収まらない時も、繋がらない時と同じく移動元へ #no-srv を返す(#71)
+    let target = server
+        .rsplit_once(':')
+        .and_then(|(h, p)| Some((h, p.parse::<u16>().ok()?)));
 
     emit(system(true, "転送先世界へゲート接続開始..."));
-    let mut dst = match timeout(CONNECT_TIMEOUT, TcpStream::connect((host, port))).await {
-        Ok(Ok(s)) => s,
-        _ => {
+    let connected = match target {
+        Some((host, port)) => timeout(CONNECT_TIMEOUT, TcpStream::connect((host, port)))
+            .await
+            .ok()
+            .and_then(|r| r.ok())
+            .map(|s| (s, host, port)),
+        None => None,
+    };
+    let (mut dst, host, port) = match connected {
+        Some(c) => c,
+        None => {
             emit(system(false, "転送先の世界が見つかりません"));
             let _ = src.write_all(&line_bytes("#no-srv")).await;
             return None;
@@ -529,6 +551,62 @@ mod tests {
         let (src, _dst, events) = world_transfer("#rsv-no").await;
         assert_eq!(src[0], "#no-srv\n");
         assert!(!events.iter().any(|e| e["type"] == "worldMoved"));
+    }
+
+    /// 移動元の偽サーバ。ログインの行を読み、`ch_srv` を送り、次に受けた行を返す
+    async fn src_server(listener: TcpListener, ch_srv: String) -> String {
+        let (sock, _) = listener.accept().await.unwrap();
+        let (r, mut w) = sock.into_split();
+        let mut r = BufReader::new(r);
+        for _ in 0..login_lines(Some("ID")).len() {
+            read_line(&mut r).await;
+        }
+        w.write_all(ch_srv.as_bytes()).await.unwrap();
+        let got = read_line(&mut r).await;
+        drop(w);
+        got
+    }
+
+    fn login() -> impl FnOnce(u16) -> Login {
+        |port| Login {
+            host: "127.0.0.1".into(),
+            port,
+            id: "ID".into(),
+        }
+    }
+
+    #[tokio::test]
+    async fn world_transfer_bad_port_sends_no_srv() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let src = tokio::spawn(src_server(listener, "#ch-srv 127.0.0.1 70000\n".into()));
+        let (tx, rx) = mpsc::channel(8);
+        let run = tokio::spawn(run(login()(port), rx, |_| {}));
+        assert_eq!(src.await.unwrap(), "#no-srv\n");
+        drop(tx);
+        run.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn closing_during_transfer_stops_it() {
+        // 移動先は #reserve に答えない
+        let dst_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let dst_port = dst_listener.local_addr().unwrap().port();
+        let dst = tokio::spawn(async move {
+            let (sock, _) = dst_listener.accept().await.unwrap();
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            drop(sock);
+        });
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let src = tokio::spawn(src_server(listener, format!("#ch-srv 127.0.0.1 {dst_port}\n")));
+        let (tx, rx) = mpsc::channel(8);
+        let run = tokio::spawn(run(login()(port), rx, |_| {}));
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        drop(tx);
+        timeout(Duration::from_secs(5), run).await.unwrap().unwrap();
+        assert_eq!(src.await.unwrap(), "#x\n");
+        dst.abort();
     }
 
     fn dst_port_of(events: &[Value]) -> u64 {
