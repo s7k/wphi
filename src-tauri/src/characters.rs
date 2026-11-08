@@ -94,7 +94,13 @@ pub fn read_philly(root: &Path) -> Result<Vec<PhillyCharacter>, String> {
     let mut found: Vec<PhillyCharacter> = dirs
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter_map(|dir| {
-            let label = dir.file_name()?.to_str()?.strip_suffix(".chara")?.to_string();
+            // Windows の Philly では大文字小文字を区別しないので、`.Chara` のフォルダもある
+            let name = dir.file_name()?.to_str()?;
+            let cut = name.len().checked_sub(".chara".len())?;
+            let label = name
+                .get(cut..)?
+                .eq_ignore_ascii_case(".chara")
+                .then(|| name[..cut].to_string())?;
             let text = codec::decode(&std::fs::read(phirc(&dir)).ok()?);
             let mut lines = text.lines().map(str::trim);
             let id = lines.next().filter(|s| !s.is_empty())?.to_string();
@@ -128,7 +134,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         for (dir, body) in [
             ("勇者.chara", codec::encode("ABC123\r\n192.0.2.1:9000\r\n")),
-            ("b.chara", b"XYZ\n192.0.2.2 9001\n".to_vec()),
+            ("b.Chara", b"XYZ\n192.0.2.2 9001\n".to_vec()),
             ("broken.chara", b"ONLY_ID\n".to_vec()),
             ("notchara", b"X\n1.1.1.1:1\n".to_vec()),
         ] {
