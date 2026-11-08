@@ -114,6 +114,27 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     #[test]
+    fn log_writes_head_once_and_closes_old_day() {
+        let dir = std::env::temp_dir().join(format!("wphi-log-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut open = Vec::new();
+        let day1 = dir.join("a").join("20261108.html");
+        let day2 = dir.join("a").join("20261109.html");
+        let head = || Some("H\n".to_string());
+        super::write_log(&mut open, &day1, "1\n", head).unwrap();
+        super::write_log(&mut open, &day1, "2\n", head).unwrap();
+        assert_eq!(std::fs::read_to_string(&day1).unwrap(), "H\n1\n2\n");
+        // 日付が変わったら前の日のファイルを閉じる
+        super::write_log(&mut open, &day2, "3\n", head).unwrap();
+        assert_eq!(open.len(), 1);
+        assert_eq!(std::fs::read_to_string(&day2).unwrap(), "H\n3\n");
+        // 一度閉じた既存のファイルには、見出しを書き直さない
+        super::write_log(&mut open, &day1, "4\n", head).unwrap();
+        assert_eq!(std::fs::read_to_string(&day1).unwrap(), "H\n1\n2\n4\n");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn stays_in_app() {
         let ok = |s: &str| super::is_app_url(&tauri::Url::parse(s).unwrap());
         assert!(ok("tauri://localhost/map.html"));
@@ -487,43 +508,64 @@ async fn append_log(
     html: String,
     as_html: bool,
 ) -> Result<String, String> {
-    use std::io::Write;
     if date.len() != 8 || !date.bytes().all(|b| b.is_ascii_digit()) {
         return Err(format!("日付が不正: {date}"));
     }
     let dir = log_dir(&app, &label)?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     // テキストで保存する時(Philly の LogSaveHtml=off)は、タグを除いた文字だけを <日付>.txt に書く
-    if !as_html {
-        let path = dir.join(format!("{date}.txt"));
+    let (path, line) = if as_html {
+        (dir.join(format!("{date}.html")), format!("<div>{html}</div>\n"))
+    } else {
+        (dir.join(format!("{date}.txt")), format!("{}\n", html_to_text(&html)))
+    };
+    // 開いたファイルは覚えておき、1行ごとに開き直さない(#65)。UI が1つ前の書き込みを待ってから呼ぶので、順番は保たれる
+    static OPEN: std::sync::Mutex<Vec<(std::path::PathBuf, std::fs::File)>> = std::sync::Mutex::new(Vec::new());
+    let head = || {
+        as_html.then(|| {
+            let css = log_css().unwrap_or_default();
+            let title = phi_proto::tag_to_html::escape_html(&label);
+            format!(
+                "<!doctype html>\n<meta charset=\"utf-8\">\n<title>{title} {date}</title>\n<style>\n{css}\n</style>\n"
+            )
+        })
+    };
+    write_log(&mut OPEN.lock().unwrap_or_else(|e| e.into_inner()), &path, &line, head)?;
+    Ok(path.display().to_string())
+}
+
+/// ログのファイルに1行足す。`open` は開いたままのファイル。新しいファイルには先に `head` を書く。
+/// 同じフォルダ(同じタブ)の別のファイル(前の日付)は閉じる
+fn write_log(
+    open: &mut Vec<(std::path::PathBuf, std::fs::File)>,
+    path: &std::path::Path,
+    line: &str,
+    head: impl FnOnce() -> Option<String>,
+) -> Result<(), String> {
+    use std::io::Write;
+    if !open.iter().any(|(p, _)| p == path) {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+        let new = !path.exists();
         let mut f = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&path)
+            .open(path)
             .map_err(|e| format!("{}: {e}", path.display()))?;
-        // 1行を1回の write で書く(writeln! は部品ごとに write を出す)
-        f.write_all(format!("{}\n", html_to_text(&html)).as_bytes())
-            .map_err(|e| e.to_string())?;
-        return Ok(path.display().to_string());
+        if let Some(head) = new.then(head).flatten() {
+            f.write_all(head.as_bytes()).map_err(|e| e.to_string())?;
+        }
+        open.retain(|(p, _)| p.parent() != path.parent());
+        open.push((path.to_path_buf(), f));
     }
-    let path = dir.join(format!("{date}.html"));
-    let new = !path.exists();
-    let mut f = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-        .map_err(|e| format!("{}: {e}", path.display()))?;
-    let mut out = String::new();
-    if new {
-        let css = log_css().unwrap_or_default();
-        let title = phi_proto::tag_to_html::escape_html(&label);
-        out = format!(
-            "<!doctype html>\n<meta charset=\"utf-8\">\n<title>{title} {date}</title>\n<style>\n{css}\n</style>\n"
-        );
+    let f = &mut open.iter_mut().find(|(p, _)| p == path).unwrap().1;
+    // 1行を1回の write で書く(writeln! は部品ごとに write を出す)
+    let written = f.write_all(line.as_bytes());
+    if written.is_err() {
+        // 書けなければ、次は開き直す
+        open.retain(|(p, _)| p != path);
     }
-    out += &format!("<div>{html}</div>\n");
-    f.write_all(out.as_bytes()).map_err(|e| e.to_string())?;
-    Ok(path.display().to_string())
+    written.map_err(|e| e.to_string())
 }
 
 /// ログの1行の HTML から文字だけを取り出す。タグを除き、文字参照を戻す。改行(<br>)は空白にする
