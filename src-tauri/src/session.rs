@@ -3,6 +3,7 @@
 //! 受信行は `phi_proto::Parser` で解析して UI へ送り、`#lag` などの自動応答はここで返す。
 //! 送信も受信も1つのタスクが持つ。
 
+use std::collections::VecDeque;
 use std::time::Duration;
 
 use phi_proto::{
@@ -197,8 +198,11 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     use std::io::Write;
                     let _ = f.write_all(&buf[..n]);
                 }
+                let mut queue: VecDeque<Vec<u8>> = lines.feed(&buf[..n]).into();
+                // 世界移動に失敗したら、#ch-srv の後の行と、移動の間に移動元から受けた行を続けて処理する(#71)
+                loop {
                 let mut moving_to = None;
-                'lines: for line in lines.feed(&buf[..n]) {
+                'lines: while let Some(line) = queue.pop_front() {
                     if crate::trace::on() {
                         crate::trace::write(&format!("recv {}", crate::trace::head(&String::from_utf8_lossy(&line))));
                     }
@@ -216,15 +220,17 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                         }
                     }
                 }
-                if let Some(server) = moving_to {
+                let Some(server) = moving_to else { break };
+                {
                     if !reply.is_empty() {
                         let bytes: Vec<u8> = reply.drain(..).flat_map(|l| line_bytes(&l)).collect();
                         let _ = stream.write_all(&bytes).await;
                     }
                     // 移動の間に UI が送った行は捨てる(Philly の RejectMainThreadSend)。
                     // 送信キューが閉じたら(タブを閉じた)移動をやめる。待たないと、閉じたタブのキャラが移動先へログインする(#71)
+                    let mut skipped = Vec::new();
                     let moved = tokio::select! {
-                        r = transfer(&mut stream, &mut lines, &server, &login.id, &mut emit) => Some(r),
+                        r = transfer(&mut stream, &mut lines, &mut skipped, &server, &login.id, &mut emit) => Some(r),
                         _ = async { while outgoing.recv().await.is_some() {} } => None,
                     };
                     match moved {
@@ -238,10 +244,13 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                             lines = LineBuffer::new();
                             parser = Parser::new();
                             while outgoing.try_recv().is_ok() {}
+                            last_recv = Instant::now();
+                            break;
                         }
-                        Some(None) => {}
+                        Some(None) => queue.extend(skipped),
                     }
                     last_recv = Instant::now();
+                }
                 }
             }
             text = outgoing.recv() => match text {
@@ -306,6 +315,7 @@ fn recorder(login: &Login) -> Option<std::fs::File> {
 async fn transfer(
     src: &mut TcpStream,
     src_lines: &mut LineBuffer,
+    src_skipped: &mut Vec<Vec<u8>>,
     server: &str,
     id: &str,
     emit: &mut impl FnMut(UiEvent),
@@ -338,7 +348,15 @@ async fn transfer(
     emit(system(true, "転送先世界に転送準備要求..."));
     let mut dst_lines = LineBuffer::new();
     let reserved = dst.write_all(&line_bytes(&format!("#reserve {id}"))).await.is_ok()
-        && wait_line(&mut dst, &mut dst_lines, b"#rsv-ok", &[b"#rsv-no", b"#x"], deadline()).await;
+        && wait_line(
+            &mut dst,
+            &mut dst_lines,
+            b"#rsv-ok",
+            &[b"#rsv-no", b"#x"],
+            deadline(),
+            &mut Vec::new(),
+        )
+        .await;
     if !reserved {
         let _ = src.write_all(&line_bytes("#no-srv")).await;
         emit(system(
@@ -351,7 +369,7 @@ async fn transfer(
     emit(system(true, "転送元世界に転送要求..."));
     let trans = format!("#trans {host} {port}");
     let accepted = src.write_all(&line_bytes(&trans)).await.is_ok()
-        && wait_line(src, src_lines, b"#trs-ok", &[b"#trs-no"], deadline()).await;
+        && wait_line(src, src_lines, b"#trs-ok", &[b"#trs-no"], deadline(), src_skipped).await;
     if !accepted {
         let _ = src.write_all(&line_bytes("#ch-srv-no")).await;
         emit(system(false, "転送失敗"));
@@ -374,21 +392,32 @@ async fn transfer(
     Some(dst)
 }
 
-/// `ok` の行が来たら true、`ng` の行が来るか、切れるか、`deadline` を過ぎたら false。他の行は読み捨てる。
-async fn wait_line(stream: &mut TcpStream, lines: &mut LineBuffer, ok: &[u8], ng: &[&[u8]], deadline: Instant) -> bool {
+/// `ok` の行が来たら true、`ng` の行が来るか、切れるか、`deadline` を過ぎたら false。
+/// 他の行は `skipped` に貯める(移動に失敗した時に、移動元から受けた行として処理し直す)。
+async fn wait_line(
+    stream: &mut TcpStream,
+    lines: &mut LineBuffer,
+    ok: &[u8],
+    ng: &[&[u8]],
+    deadline: Instant,
+    skipped: &mut Vec<Vec<u8>>,
+) -> bool {
     let mut buf = [0u8; 4096];
     loop {
         let n = match timeout_at(deadline, stream.read(&mut buf)).await {
             Ok(Ok(n)) if n > 0 => n,
             _ => return false,
         };
-        for line in lines.feed(&buf[..n]) {
+        let mut got = lines.feed(&buf[..n]).into_iter();
+        while let Some(line) = got.next() {
             if line == ok {
                 return true;
             }
             if ng.contains(&line.as_slice()) {
+                skipped.extend(got);
                 return false;
             }
+            skipped.push(line);
         }
     }
 }
@@ -527,7 +556,7 @@ mod tests {
 
     /// 移動元と移動先の偽サーバで、世界移動の手順を確かめる。
     /// `rsv` は移動先が #reserve に返す行。#rsv-ok なら成功、#rsv-no なら失敗の手順になる。
-    async fn world_transfer(rsv: &'static str) -> (Vec<String>, Vec<String>, Vec<Value>) {
+    async fn world_transfer(rsv: &'static str, trs: &'static str) -> (Vec<String>, Vec<String>, Vec<Value>) {
         let dst_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let dst_port = dst_listener.local_addr().unwrap().port();
         let src_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -555,12 +584,16 @@ mod tests {
             for _ in 0..login_lines(Some("ID")).len() {
                 read_line(&mut r).await;
             }
-            w.write_all(format!("#ch-srv 127.0.0.1 {dst_port}\n#name 捨てる行\n").as_bytes())
+            w.write_all(format!("#ch-srv 127.0.0.1 {dst_port}\n#name after-ch-srv\n").as_bytes())
                 .await
                 .unwrap();
             let mut got = vec![read_line(&mut r).await];
             if got[0].starts_with("#trans") {
-                w.write_all(b"#trs-ok\n").await.unwrap();
+                w.write_all(trs.as_bytes()).await.unwrap();
+                if trs.contains("#trs-no") {
+                    got.push(read_line(&mut r).await);
+                    w.write_all(b"#x\n").await.unwrap();
+                }
             } else {
                 // 失敗した時は移動元のまま続く
                 w.write_all(b"#x\n").await.unwrap();
@@ -588,14 +621,14 @@ mod tests {
 
     #[tokio::test]
     async fn world_transfer_succeeds() {
-        let (src, dst, events) = world_transfer("#rsv-ok").await;
+        let (src, dst, events) = world_transfer("#rsv-ok", "#trs-ok\n").await;
         assert_eq!(src[0], format!("#trans 127.0.0.1 {}\n", dst_port_of(&events)));
         assert_eq!(dst[0], "#reserve ID\n");
         assert_eq!(dst[1], "#ch-srv-ok\n");
         assert_eq!(dst[2], "#version-cli 05107100\n");
         assert!(!dst.iter().any(|l| l.starts_with("#open")));
         // 移動元の #ch-srv の後の行は捨てる
-        assert!(!events.iter().any(|e| e["name"] == "捨てる行"));
+        assert!(!events.iter().any(|e| e["name"] == "after-ch-srv"));
         assert!(
             events
                 .iter()
@@ -605,9 +638,21 @@ mod tests {
 
     #[tokio::test]
     async fn world_transfer_fails_on_rsv_no() {
-        let (src, _dst, events) = world_transfer("#rsv-no").await;
+        let (src, _dst, events) = world_transfer("#rsv-no", "").await;
         assert_eq!(src[0], "#no-srv\n");
         assert!(!events.iter().any(|e| e["type"] == "worldMoved"));
+        // 移動元のまま続くので、#ch-srv の後の行も処理する(#71)
+        assert!(events.iter().any(|e| e["name"] == "after-ch-srv"));
+    }
+
+    #[tokio::test]
+    async fn world_transfer_fails_on_trs_no_keeps_lines() {
+        let (src, _dst, events) = world_transfer("#rsv-ok", "#name during-wait\n#trs-no\n#name after-trs-no\n").await;
+        assert_eq!(src[1], "#ch-srv-no\n");
+        assert!(!events.iter().any(|e| e["type"] == "worldMoved"));
+        // 移動の間に受けた行と、#trs-no の後の行も、受けた順に処理する(#71)
+        let names: Vec<&str> = events.iter().filter_map(|e| e["name"].as_str()).collect();
+        assert_eq!(names, ["after-ch-srv", "during-wait", "after-trs-no"]);
     }
 
     /// 移動元の偽サーバ。ログインの行を読み、`ch_srv` を送り、次に受けた行を返す
