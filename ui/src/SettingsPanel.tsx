@@ -84,8 +84,7 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
         </label>
         <label>
           <input type="checkbox" checked={s.masterMagicMenu} onChange={(e) => set("masterMagicMenu", e.target.checked)} />
-          超魔法メニューを、マスターでなくても出す(サーバの権限ファイルでマスターになった時。MasterMagicMenu.xml は設定フォルダか
-          Philly フォルダの Config に置く)
+          超魔法メニューを、マスターでなくても出す(サーバの権限ファイルでマスターになった時)
         </label>
         <table>
           <thead>

@@ -1,5 +1,5 @@
 // 超魔法メニュー(Philly の MasterMagicMenu.xml と MainForm.cpp の MasterMagicMenu の実行)。#83
-// マスター(経験値が 99999999)の時だけ出す。XML は利用者の Philly フォルダか WPHI の設定フォルダから読み、同梱しない。
+// マスター(経験値が 99999999)の時だけ出す。XML は設定フォルダ・Philly フォルダ・同梱の分の順に探す。
 
 /** 項目の手順。send は送る行(list が "no" なら、届くリストを出さない) */
 export type Step =

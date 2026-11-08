@@ -346,6 +346,13 @@ fn masked([r, g, b]: [u8; 3], mask: [u8; 3]) -> Rgba<u8> {
 mod tests {
     use super::*;
 
+    /// 超魔法メニューの定義を同梱している(#83)
+    #[test]
+    fn bundles_master_magic_menu() {
+        let xml = codec::decode(bundled("Config/MasterMagicMenu.xml").unwrap());
+        assert!(xml.contains("<mastermagic caption=\"超魔法"));
+    }
+
     fn bundled_only() -> Assets {
         Assets::new(vec![])
     }

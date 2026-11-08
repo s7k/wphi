@@ -726,8 +726,7 @@ fn select_menu(app: &tauri::AppHandle, id: &str) {
     let _ = app.emit_to("main", menu::MENU_EVENT, id.to_string());
 }
 
-/// 超魔法メニューの MasterMagicMenu.xml(#83)。設定フォルダか、取り込んだ Philly フォルダの Config から読む。
-/// Philly の同梱の物は WPHI に入れない(ライセンスを確かめていない為)
+/// 超魔法メニューの MasterMagicMenu.xml(#83)。設定フォルダ → 取り込んだ Philly フォルダの Config → 同梱の分の順に探す
 #[tauri::command]
 fn master_magic_xml(app: tauri::AppHandle) -> Option<String> {
     let philly = Store::load(&store_path(&app).ok()?).philly_folder;
@@ -738,6 +737,7 @@ fn master_magic_xml(app: tauri::AppHandle) -> Option<String> {
     .into_iter()
     .flatten()
     .find_map(|p| std::fs::read(p).ok())
+    .or_else(|| assets::bundled("Config/MasterMagicMenu.xml").map(<[u8]>::to_vec))
     .map(|b| phi_proto::codec::decode(&b))
 }
 

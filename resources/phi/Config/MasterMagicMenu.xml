@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding= "Shift_JIS"?>
+<!-- mastermagic タグ -->
+<!--   マスター魔法の親メニュー（メインメニューの直系の子要素） -->
+<!--   caption:メニューのキャプション -->
+<!--   hint:メニューにカーソルを合わせた時のヒント -->
+
+<!-- menu タグ -->
+<!--   サブメニュー要素 -->
+<!--   caption:メニューのキャプション -->
+<!--   hint:メニューにカーソルを合わせた時のヒント -->
+<!--   サブメニューを持つメニュー要素 -->
+<!--   子要素は item のみ -->
+
+<!-- item タグ -->
+<!--   caption:メニューのキャプション -->
+<!--   hint:メニューにカーソルを合わせた時のヒント -->
+<!--   タグ内の直系の子要素を前から順番に実行していく -->
+<!--   item caption="-"/ でセパレーター -->
+
+<!-- send タグ（item の直系の子要素） -->
+<!--   送信内容（１つの item 内に ５個まで有効） -->
+<!--   %int    は直前の int_dialog    が返した内容に置換される -->
+<!--   %string は直前の string_dialog が返した内容に置換される -->
+
+<!-- ok_dialog タグ（item の直系の子要素） -->
+<!--    ok cancel を選択できるダイアログを表示する -->
+<!--    タグ内のテキストはダイアログのメッセージ -->
+<!--    ダイアログのメッセージには改行「&amp;#xa;」を入れる事が可能 -->
+<!--    cancel を選択した場合は、以下の要素は実行されない -->
+
+<!-- int_dialog タグ（item の直系の子要素） -->
+<!--    整数型を返すダイアログを表示する -->
+<!--    タグ内のテキストはダイアログのタイトル -->
+<!--    ダイアログでキャンセルした場合は、以下の要素は実行されない -->
+
+<!-- string_dialog タグ（item の直系の子要素） -->
+<!--    文字列を返すダイアログを表示する -->
+<!--    タグ内のテキストはダイアログのメッセージ -->
+<!--    ダイアログのメッセージには改行「&amp;#xa;」を入れる事が可能 -->
+<!--    ダイアログでキャンセルした場合は、以下の要素は実行されない -->
+
+<mastermagic caption="超魔法(&amp;S)" hint="マスター魔法">
+
+  <menu caption="移動魔法" hint="自分もしくは相手を移動する魔法">
+    <item caption="jump" hint="対象 PC の所に移動する">
+      <send list="no">cast</send>
+      <send>list</send>
+      <int_dialog>対象の No を指定してください</int_dialog>
+      <send list="no">cast</send>
+      <send>jump %int</send>
+    </item>
+
+    <item caption="draw" hint="対象 PC を呼び寄せる">
+      <send list="no">cast</send>
+      <send>list</send>
+      <int_dialog>対象の No を指定してください</int_dialog>
+      <send list="no">cast</send>
+      <send>draw %int</send>
+    </item>
+
+    <item caption="-"/>
+
+    <item caption="malor" hint="指定座標に移動する">
+      <string_dialog>移動先座標を指定してください&amp;#xa;xx yy</string_dialog>
+      <send list="no">cast</send>
+      <send>malor</send>
+      <send>%string</send>
+    </item>
+
+    <item caption="basi rurla" hint="対象を指定座標に移動する">
+      <send list="no">cast</send>
+      <send>list</send>
+      <string_dialog>対象と移動先座標を指定してください&amp;#xa;n xx yy</string_dialog>
+      <send list="no">cast</send>
+      <send>basi Rurla %string</send>
+    </item>
+
+    <item caption="-"/>
+
+    <item caption="Pass wall" hint="壁を通過できるようになる">
+      <send list="no">cast</send>
+      <send>Pass wall</send>
+    </item>
+
+  </menu>
+
+  <menu caption="通常魔法" hint="世界 を制御する魔法">
+    <item caption="Eye of the Yog=Sothoth" hint="クリーチャーの位置を知る">
+      <send list="no">cast</send>
+      <send>Eye of the Yog=Sothoth</send>
+    </item>
+
+    <item caption="Book of the Yog=Sothoth" hint="クリーチャーの位置を知り phied.log に書き出される">
+      <send list="no">cast</send>
+      <send>Book of the Yog=Sothoth</send>
+    </item>
+
+    <item caption="Dumapic" hint="自分の絶対座標を知る">
+      <send list="no">cast</send>
+      <send>Dumapic</send>
+    </item>
+
+    <item caption="Flag" hint="汎用フラグを表示する">
+      <send list="no">cast</send>
+      <send>Flag</send>
+    </item>
+
+    <item caption="Variable" hint="汎用変数の内容を表示する">
+      <send list="no">cast</send>
+      <send>Variable</send>
+    </item>
+
+    <item caption="-"/>
+
+    <item caption="Cache" hint="所持金 ⇔ TAX">
+      <send list="no">cast</send>
+      <send>Cache</send>
+    </item>
+
+    <item caption="Metamorphosis" hint="FLV, WLV, MLV, CLV, MHp, MMp, karma の値を変更する">
+      <send list="no">cast</send>
+      <send>Metamorphosis</send>
+    </item>
+
+    <item caption="Restoration" hint="Hp と Mp を最大値に回復し、一時的な負のステータスを回復する">
+      <send list="no">cast</send>
+      <send>Restoration</send>
+    </item>
+
+    <item caption="Adjustment inflation" hint="tax および taxbase(taxの景気への影響度合)の設定。">
+      <send list="no">cast</send>
+      <send>Adjustment inflation</send>
+    </item>
+  </menu>
+
+  <menu caption="操作魔法" hint="ファイル を制御する魔法">
+    <item caption="Load td" hint="phi.td を読み込む">
+      <send list="no">cast</send>
+      <send>Load td</send>
+    </item>
+
+    <item caption="Load swt" hint="phi.swt を読み込む">
+      <send list="no">cast</send>
+      <send>Load swt</send>
+    </item>
+
+    <item caption="Load fd" hint="phi.fd を読み込む">
+      <send list="no">cast</send>
+      <send>Load fd</send>
+    </item>
+
+    <item caption="Load ed" hint="phi.ed を読み込む">
+      <send list="no">cast</send>
+      <send>Load ed</send>
+    </item>
+
+    <item caption="Load dd" hint="phi.dd を読み込む">
+      <send list="no">cast</send>
+      <send>Load dd</send>
+    </item>
+
+    <item caption="Load ddx" hint="phi.ddx を読み込む">
+      <send list="no">cast</send>
+      <send>Load ddx</send>
+    </item>
+
+    <item caption="Load ex" hint="phi.ex を読み込む">
+      <send list="no">cast</send>
+      <send>Load ex</send>
+    </item>
+
+    <item caption="Load sd" hint="phi.sd を読み込む">
+      <send list="no">cast</send>
+      <send>Load sd</send>
+    </item>
+
+    <item caption="Load crt" hint="phi.crt を読み込む">
+      <send list="no">cast</send>
+      <send>Load crt</send>
+    </item>
+  </menu>
+
+  <menu caption="創造魔法" hint="DM を制御する魔法">
+    <item caption="Resource" hint="地形を変化する">
+      <string_dialog>地形を入れてください&amp;#xa;aa bb</string_dialog>
+      <send list="no">cast</send>
+      <send>Resource %string</send>
+    </item>
+
+    <item caption="-"/>
+
+    <item caption="Wish" hint="アイテムを作成する">
+      <string_dialog>アイテム性能を入れてください&amp;#xa;aaa  0000 00 n 00 00 00 00 00</string_dialog>
+      <send list="no">cast</send>
+      <send>Wish %string</send>
+    </item>
+
+    <item caption="Dup" hint="アイテムを複製する">
+      <send list="no">cast</send>
+      <send>Dup</send>
+    </item>
+
+    <item caption="-"/>
+
+    <item caption="Createobj" hint="オブジェデータを作成する">
+      <string_dialog>オブジェデータを入れてください&amp;#xa;t_woman  SDK "表示名"</string_dialog>
+      <send list="no">cast</send>
+      <send>Createobj %string</send>
+    </item>
+
+    <item caption="Eraseobj" hint="オブジェデータを消去する">
+      <string_dialog>座標を入れてください&amp;#xa;xx yy</string_dialog>
+      <send list="no">cast</send>
+      <send>Eraseobj %string</send>
+    </item>
+
+    <item caption="Save obj" hint="オブジェデータをセーブする">
+      <send list="no">cast</send>
+      <send>Save obj</send>
+    </item>
+  </menu>
+
+  <menu caption="世界停止魔法" hint="DM を制御する魔法">
+    <item caption="Evil wind from Malaika" hint="世界を停止させる">
+      <ok_dialog>世界を停止させます。&amp;#xa;よろしいですか？</ok_dialog>
+      <send list="no">cast</send>
+      <send>Evil wind from Malaika</send>
+    </item>
+  </menu>
+
+</mastermagic>
