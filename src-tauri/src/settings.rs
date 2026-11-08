@@ -33,6 +33,9 @@ pub struct Settings {
     pub auto_unequip_system_magic: bool,
     /// 系統魔法の後に外した武器を装備し直す([Automation] AutoEquipSystemMagic)
     pub auto_equip_system_magic: bool,
+    /// 超魔法メニューを、マスターでなくても出す(Philly の隠しコマンドの MasterMagicMenu)。
+    /// サーバの権限ファイルでマスターになった人は、クライアントからは見分けられない為(#83)
+    pub master_magic_menu: bool,
     /// マップの拡大率(%)。マップの画像を拡大縮小する。拡張マップの外周は、拡大した大きさで欄に収まる分だけ(Philly に無い)
     pub map_zoom: u32,
     /// 実験的: 自分が1マス進んだ時に、地図を滑らかにずらして描く。表示のメニューで切り替える(Philly に無い)
@@ -57,6 +60,7 @@ impl Default for Settings {
             log_font_size: 0,
             auto_unequip_system_magic: true,
             auto_equip_system_magic: false,
+            master_magic_menu: false,
             map_zoom: 100,
             smooth_move: false,
             automap: true,

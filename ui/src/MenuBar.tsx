@@ -3,7 +3,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
 
-type MenuModel = { name: string; items: { id: string; text: string; check: boolean }[] };
+/** id が "-" なら区切り線、空なら押せない見出し(超魔法のサブメニューの名前) */
+export type MenuModel = { name: string; items: { id: string; text: string; check: boolean }[] };
 
 /** macOS か。WKWebView は navigator.platform に MacIntel を返す */
 export const isMac = () => navigator.platform.startsWith("Mac");
@@ -11,7 +12,7 @@ export const isMac = () => navigator.platform.startsWith("Mac");
 /** 「設定(&S)...」の (&S) と & を除く。窓の中のメニューはアクセスキーを持たない */
 export const menuLabel = (text: string) => text.replace(/\(&.\)/, "").replace("&", "");
 
-export function MenuBar(props: { checked: (id: string) => boolean }) {
+export function MenuBar(props: { checked: (id: string) => boolean; extra?: MenuModel | null }) {
   const [model, setModel] = useState<MenuModel[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const bar = useRef<HTMLDivElement>(null);
@@ -44,7 +45,7 @@ export function MenuBar(props: { checked: (id: string) => boolean }) {
   };
   return (
     <div className="menu-bar" ref={bar}>
-      {model.map((m) => (
+      {[...model, ...(props.extra ? [props.extra] : [])].map((m) => (
         <div key={m.name} className="menu-top">
           <button
             className={open === m.name ? "menu-title open" : "menu-title"}
@@ -62,6 +63,10 @@ export function MenuBar(props: { checked: (id: string) => boolean }) {
               {m.items.map((it, i) =>
                 it.id === "-" ? (
                   <hr key={i} />
+                ) : it.id === "" ? (
+                  <div key={i} className="menu-header">
+                    {it.text}
+                  </div>
                 ) : (
                   <button key={it.id} className="menu-item" onClick={() => select(it.id)}>
                     <span className="menu-check">{it.check && props.checked(it.id) ? "✓" : ""}</span>

@@ -156,6 +156,47 @@ fn hidden_menus(menu_txt: &str) -> Vec<String> {
         .collect()
 }
 
+/// 超魔法メニューのサブメニュー。items の "-" は区切り線
+#[derive(serde::Deserialize)]
+pub struct MasterMenu {
+    pub caption: String,
+    pub items: Vec<String>,
+}
+
+const MASTER_ID: &str = "master-magic";
+
+/// 超魔法メニューを、メニューバーの最後に足し直す。None なら外すだけ
+pub fn set_master_menu<R: Runtime>(
+    app: &AppHandle<R>,
+    bar: &Menu<R>,
+    caption: &str,
+    menus: Option<&[MasterMenu]>,
+) -> tauri::Result<()> {
+    if let Some(old) = bar.get(MASTER_ID) {
+        bar.remove(&old)?;
+    }
+    let Some(menus) = menus else { return Ok(()) };
+    let top = Submenu::with_id(app, MASTER_ID, caption, true)?;
+    for (i, m) in menus.iter().enumerate() {
+        let sub = Submenu::new(app, &m.caption, true)?;
+        for (j, text) in m.items.iter().enumerate() {
+            if text == "-" {
+                sub.append(&PredefinedMenuItem::separator(app)?)?;
+            } else {
+                sub.append(&MenuItem::with_id(
+                    app,
+                    format!("mm:{i}:{j}"),
+                    text,
+                    true,
+                    None::<&str>,
+                )?)?;
+            }
+        }
+        top.append(&sub)?;
+    }
+    bar.append(&top)
+}
+
 /// 窓の中に描くメニューの項目。id が "-" なら区切り線。check はチェックの付く項目
 #[derive(serde::Serialize)]
 pub struct MenuModel {

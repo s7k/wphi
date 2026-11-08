@@ -806,6 +806,12 @@ body {
   text-align: center;
 }
 
+.menu-header {
+  padding: 3px 12px 1px 8px;
+  color: #808080;
+  font-size: 90%;
+}
+
 .menu-drop hr {
   margin: 4px 0;
   border: none;

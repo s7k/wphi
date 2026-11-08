@@ -23,6 +23,7 @@
   "logFontSize": 0,
   "autoUnequipSystemMagic": true,
   "autoEquipSystemMagic": false,
+  "masterMagicMenu": false,
   "mapZoom": 100,
   "smoothMove": false,
   "automap": true

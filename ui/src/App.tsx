@@ -7,6 +7,7 @@ import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { getVersion } from "@tauri-apps/api/app";
 import { latestRelease } from "./update.ts";
 import { isMac, MenuBar } from "./MenuBar";
+import { MASTER_EXP, parseMasterMagic, runMasterItem, type MasterMenu } from "./masterMagic.ts";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { SENT_EVENT, type Sent } from "./keyInput";
 import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
@@ -249,6 +250,44 @@ export function App() {
   // メニューの表示のモード(回転か北固定か、7x7 か 5x5 か)に、今のタブのモードのチェックを付ける。
   // モードはサーバが決めるので、地図を受けるたびに見る。変わった時だけ Rust へ送る
   const viewChecks = useRef("");
+  // 超魔法メニュー(#83)。表のタブのキャラがマスター(経験値 99999999)か、設定で出す時だけ出す
+  const [masterMenu, setMasterMenu] = useState<MasterMenu | null>(null);
+  const masterMenuRef = useRef<MasterMenu | null>(null);
+  masterMenuRef.current = masterMenu;
+  const [masterShown, setMasterShown] = useState(false);
+  const masterShownRef = useRef(false);
+  useEffect(() => {
+    invoke<string | null>("master_magic_xml")
+      .then((xml) => setMasterMenu(xml ? parseMasterMagic(xml) : null))
+      .catch(console.error);
+  }, []);
+  // 受信の処理からも呼ぶので、状態は ref から読む
+  const syncMasterMenu = () => {
+    const menu = masterMenuRef.current;
+    const s = activeRef.current === null ? undefined : mapStates.current.get(activeRef.current);
+    const show = !!menu && activeRef.current !== null && (settingsRef.current.masterMagicMenu || s?.status?.exp === MASTER_EXP);
+    if (show === masterShownRef.current) return;
+    masterShownRef.current = show;
+    setMasterShown(show);
+    invoke("set_master_menu", {
+      caption: menu?.caption ?? "",
+      menus: show ? menu!.menus.map((m) => ({ caption: m.caption, items: m.items.map((it) => (it === "-" ? "-" : it.caption)) })) : null,
+    }).catch(console.error);
+  };
+  useEffect(syncMasterMenu, [active, masterMenu, settings.masterMagicMenu]);
+  const runMaster = (id: string, session: number) => {
+    const [, i, j] = id.split(":").map(Number);
+    const item = masterMenuRef.current?.menus[i]?.items[j];
+    if (!item || item === "-") return;
+    runMasterItem(item.steps, {
+      send: (lines, cancel) => {
+        if (cancel > 0) listFlow(session).cancel += cancel;
+        sendLines(session, lines.join("\n"));
+      },
+      confirm: confirmBox,
+      ask: (label, numeric) => ask({ title: item.caption, label, numeric }),
+    }).catch(console.error);
+  };
   // macOS の窓の中のメニューのチェック(MenuBar)。OS のメニューは set_view_checks で付ける
   const [viewMode, setViewMode] = useState<{ turn: boolean; size57: boolean } | null>(null);
   const menuChecked = (id: string): boolean =>
@@ -419,6 +458,7 @@ export function App() {
       // 入力欄のツールバーと同じ切り替え。状態は InputEditor が持つ
       if (INPUT_MENU.includes(id)) return void window.dispatchEvent(new CustomEvent(INPUT_MENU_EVENT, { detail: id }));
       if (id === "priv") return togglePriv(session);
+      if (id.startsWith("mm:")) return runMaster(id, session);
       if (id === "automap-clear") return clearAutomap(mapStates.current.get(session)?.world);
       // 選んだ項目はチェックが勝手に切り替わるので、今のモードに付け直す。サーバが切り替えたら地図を受けた時にまた付け直す
       if (["map-turn", "map-solid", "map-57", "map-40"].includes(id)) syncViewChecks(true);
@@ -512,6 +552,7 @@ export function App() {
         if (session !== activeRef.current && old && (down(old.hp, ev.hp) || down(old.mp, ev.mp)))
           update(session, (t) => (t.hurt ? t : { ...t, hurt: true }));
         s.status = ev;
+        if (session === activeRef.current && old?.exp !== ev.exp) syncMasterMenu();
         break;
       }
       case "cond":
@@ -864,7 +905,24 @@ export function App() {
         <SettingsPanel settings={settings} onSaved={setSettings} onClose={() => setSettingsOpen(false)} />
       )}
       <style>{logCss}</style>
-      {isMac() && <MenuBar checked={menuChecked} />}
+      {isMac() && (
+        <MenuBar
+          checked={menuChecked}
+          extra={
+            masterShown && masterMenu
+              ? {
+                  name: masterMenu.caption,
+                  items: masterMenu.menus.flatMap((m, i) => [
+                    { id: "", text: m.caption, check: false },
+                    ...m.items.map((it, j) =>
+                      it === "-" ? { id: "-", text: "", check: false } : { id: `mm:${i}:${j}`, text: it.caption, check: false },
+                    ),
+                  ]),
+                }
+              : null
+          }
+        />
+      )}
       <TabBar tabs={tabs} active={active} onSelect={setActive} onClose={close} onSettings={() => setSettingsOpen(true)} />
       {tab ? (
         <div className="main-body">

@@ -82,6 +82,11 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
           />
           系統魔法の後に外した武器を装備し直す(チャット場では off を勧める)
         </label>
+        <label>
+          <input type="checkbox" checked={s.masterMagicMenu} onChange={(e) => set("masterMagicMenu", e.target.checked)} />
+          超魔法メニューを、マスターでなくても出す(サーバの権限ファイルでマスターになった時。MasterMagicMenu.xml は設定フォルダか
+          Philly フォルダの Config に置く)
+        </label>
         <table>
           <thead>
             <tr>

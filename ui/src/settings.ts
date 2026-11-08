@@ -23,6 +23,8 @@ export type Settings = {
   autoUnequipSystemMagic: boolean;
   /** 系統魔法の後に外した武器を装備し直す(AutoEquipSystemMagic) */
   autoEquipSystemMagic: boolean;
+  /** 超魔法メニューを、マスターでなくても出す(サーバの権限ファイルでマスターになった時) */
+  masterMagicMenu: boolean;
   /** マップの拡大率(%) */
   mapZoom: number;
   /** 実験的: 自分が進んだ時に地図を滑らかにずらす(表示のメニューで切り替える) */
