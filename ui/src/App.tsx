@@ -137,7 +137,7 @@ export function App() {
     invoke<Settings>("get_settings").then(setSettings).catch(console.error);
     // 表示のメニューで切り替えた分を覚える。覚えないと、設定の画面で保存した時に元に戻す
     const smooth = listen<Settings>(EXPERIMENT_EVENT, (e) =>
-      setSettings((s) => ({ ...s, smoothMove: e.payload.smoothMove, predictMove: e.payload.predictMove })),
+      setSettings((s) => ({ ...s, smoothMove: e.payload.smoothMove, automap: e.payload.automap })),
     );
     return () => {
       smooth.then((f) => f());
@@ -184,11 +184,11 @@ export function App() {
   // setTimeout を使わない。map 窓にフォーカスがある間 main 窓は裏の窓になり、WebView2 がタイマーを 1 秒ごとに間引くと地図が止まって見える(#44)
   const mapStatePort = useRef<MessageChannel | null>(null);
   const pendingDiffs = useRef<AutomapDiff[]>([]);
-  // 実験的: 表のタブの位置の予想(表示のメニューで切り替える)。0.1 秒ごとに、返事を待ちきった移動を進んだとみなす
+  // 拡張マップの付属: 表のタブの位置の予想。0.1 秒ごとに、返事を待ちきった移動を進んだとみなす
   const predictor = useRef(new Predictor());
   useEffect(() => {
     predictor.current.reset();
-    if (!settings.predictMove || active === null) return;
+    if (!settings.automap || active === null) return;
     const timer = setInterval(() => {
       if (predictor.current.tick()) sendMapState(activeRef.current);
     }, 100);
@@ -197,10 +197,10 @@ export function App() {
       predictor.current.reset();
       sendMapState(activeRef.current);
     };
-  }, [active, settings.predictMove]);
+  }, [active, settings.automap]);
   /** 移動を送る。位置を予想している時は数える */
   const sendMove = (session: number, text: string) => {
-    if (settingsRef.current.predictMove && session === activeRef.current) predictor.current.sent(text);
+    if (settingsRef.current.automap && session === activeRef.current) predictor.current.sent(text);
     sendLine(session, text);
   };
   const mapStateQueued = useRef(false);
@@ -322,12 +322,12 @@ export function App() {
       const move = moveInput(e, ctx);
       // 押し続けた時は OS のキーリピートに任せ、keydown のたびに1歩送る(Philly より前のクライアントと同じ)。
       // サーバは1ティックに1行ずつ処理するので、リピートが速いと離した後も少し歩く。
-      // 位置を予想している時だけは Philly と同じく、リピートは前の移動の返事(地図・「進めません」・予想)を待つ。
+      // 拡張マップの時だけは Philly と同じく、リピートは前の移動の返事(地図・「進めません」・予想)を待つ。
       // 待たないと予想がサーバより何歩も先へ進み、まだ記録していない所(真っ暗)を描く
       if (move) {
         trace(`main ${e.type} ${e.code}${e.repeat ? " repeat" : ""}`);
         const blocked =
-          e.repeat && settingsRef.current.predictMove && session === activeRef.current && predictor.current.waiting;
+          e.repeat && settingsRef.current.automap && session === activeRef.current && predictor.current.waiting;
         if (e.type === "keydown" && !blocked) sendMove(session, moveCommand(move.key, move.mods, ctx.northFix));
         return true;
       }

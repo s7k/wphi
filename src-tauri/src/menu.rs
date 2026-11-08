@@ -11,16 +11,16 @@ use tauri::{
 };
 
 pub const MENU_EVENT: &str = "phi-menu";
-/// 実験的な機能の切り替え(チェックの付く項目)。main.rs が設定に書き、EXPERIMENT_EVENT で設定の全体を全部の窓へ知らせる
+/// 設定を切り替える、チェックの付く項目。main.rs が設定に書き、EXPERIMENT_EVENT で設定の全体を全部の窓へ知らせる
 pub const SMOOTH_MOVE: &str = "smooth-move";
-pub const PREDICT_MOVE: &str = "predict-move";
+pub const AUTOMAP: &str = "automap";
 pub const EXPERIMENT_EVENT: &str = "phi-experiment";
 
-/// 実験的な機能の項目の、設定の値
+/// 切り替える項目の、設定の値
 pub fn experiment<'a>(s: &'a mut crate::settings::Settings, id: &str) -> Option<&'a mut bool> {
     match id {
         SMOOTH_MOVE => Some(&mut s.smooth_move),
-        PREDICT_MOVE => Some(&mut s.predict_move),
+        AUTOMAP => Some(&mut s.automap),
         _ => None,
     }
 }
@@ -112,10 +112,10 @@ const MENUS: Table = &[
             ("map-57", "7x7 マップ (Shift+7)"),
             ("map-40", "5x5 マップ (Shift+5)"),
             ("-", ""),
+            (AUTOMAP, "拡張マップ(位置の予想と長押しの制御付き)"),
             ("automap-clear", "この世界の拡張マップを消す"),
             ("-", ""),
             (SMOOTH_MOVE, "滑らかに動かす(実験的)"),
-            (PREDICT_MOVE, "地図が来ない時に位置を予想する(実験的)"),
         ],
     ),
     (

@@ -11,11 +11,11 @@ export type Settings = {
   logSaveHtml: boolean;
   /** 実験的: 自分が進んだ時に地図を滑らかにずらす(表示のメニューで切り替える) */
   smoothMove: boolean;
-  /** 実験的: 地図が来ない時に位置を予想して拡張マップをずらす(表示のメニューで切り替える) */
-  predictMove: boolean;
+  /** 拡張マップ。付属して位置を予想し、長押しのリピートを制御する。off なら 7x7 だけでリピートは OS 任せ(表示のメニュー) */
+  automap: boolean;
 };
 
-/** 表示のメニューで実験的な機能を切り替えた時に、Rust が設定の全体を全部の窓へ送る(src-tauri/src/menu.rs) */
+/** 表示のメニューでチェックの付く項目を切り替えた時に、Rust が設定の全体を全部の窓へ送る(src-tauri/src/menu.rs) */
 export const EXPERIMENT_EVENT = "phi-experiment";
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -26,7 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   soundPlay: true,
   logSaveHtml: true,
   smoothMove: false,
-  predictMove: false,
+  automap: true,
 };
 
 /** Philly.ini の文字列の \n を改行にする */

@@ -126,7 +126,7 @@ function MapWindow() {
     };
   }, []);
   const tiles = world ? automapOf(world) : {};
-  // 実験的: main 窓が位置を予想していれば(ui/src/predict.ts)、予想した位置の地図を記録地図から作って描く
+  // 拡張マップの付属: main 窓が位置を予想していれば(ui/src/predict.ts)、予想した位置の地図を記録地図から作って描く
   const raw = state?.map;
   const pred = state?.predict;
   const map = raw && pred && (pred.dx || pred.dy) ? predictedMap(raw, tiles, pred.dx, pred.dy) : raw;
@@ -138,7 +138,9 @@ function MapWindow() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const ring = ringFor(area.w, area.h - MAP_TOP, CHIP_SIZE);
+  const [smooth, setSmooth] = useState(false);
+  const [automapOn, setAutomapOn] = useState(true);
+  const ring = automapOn ? ringFor(area.w, area.h - MAP_TOP, CHIP_SIZE) : 0;
   // MapState は status などが変わっただけでも新しいオブジェクトで届くので、マップは中身で比べる
   const mapKey = JSON.stringify(map ?? null);
   const automap = useMemo(() => (map ? compose(map, tiles, ring) : null), [mapKey, world, tilesVer, ring]);
@@ -203,12 +205,13 @@ function MapWindow() {
 
   // 実験的: 自分が進んだ時に、地図を前の位置から滑らかにずらす(表示のメニューで切り替える)。
   // 北固定で、#ex-pos の届く世界だけ。ずらす間は最大 SLIDE_MS、画面の位置がサーバの位置より遅れる
-  const [smooth, setSmooth] = useState(false);
   useEffect(() => {
-    invoke<Settings>("get_settings")
-      .then((s) => setSmooth(s.smoothMove))
-      .catch(console.error);
-    const unlisten = listen<Settings>(EXPERIMENT_EVENT, (e) => setSmooth(e.payload.smoothMove));
+    const apply = (s: Settings) => {
+      setSmooth(s.smoothMove);
+      setAutomapOn(s.automap);
+    };
+    invoke<Settings>("get_settings").then(apply).catch(console.error);
+    const unlisten = listen<Settings>(EXPERIMENT_EVENT, (e) => apply(e.payload));
     return () => {
       unlisten.then((f) => f());
     };
