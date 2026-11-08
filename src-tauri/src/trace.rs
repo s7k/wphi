@@ -57,7 +57,7 @@ pub fn write(what: &str) {
 
 /// 送受信した行のうち、記録に書く部分。移動と回転は行ごと、# で始まる行は先頭の語、それ以外(発言など)は書かない
 pub fn head(line: &str) -> &str {
-    if line.starts_with("go ") || line.starts_with("turn ") || line == "go" {
+    if line.starts_with("go ") || line.starts_with("turn ") || line == "go" || line == "see" {
         return line;
     }
     if line.starts_with('#') {
@@ -74,6 +74,7 @@ mod tests {
     fn head_hides_text() {
         assert_eq!(head("go N"), "go N");
         assert_eq!(head("turn l"), "turn l");
+        assert_eq!(head("see"), "see");
         assert_eq!(head("#map C00:2 2 N name"), "#map");
         assert_eq!(head("#map-iv 10"), "#map-iv");
         assert_eq!(head("こんにちは"), "(text)");

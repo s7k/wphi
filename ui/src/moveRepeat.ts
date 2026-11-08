@@ -55,7 +55,7 @@ export class MoveRepeat {
   private pending = 0;
   /** 最後に送った方向(Philly の MoveDirectionBak) */
   private last: MoveKey | null = null;
-  /** マップを待ち始めた時刻(最後に移動を送った時)。待っていなければ Infinity */
+  /** マップを待ち始めた時刻(マップが来ないまま送った最初の移動の時)。待っていなければ Infinity */
   private waitSince = Infinity;
   private seeSent = false;
 
@@ -210,7 +210,10 @@ export class MoveRepeat {
     if (!always && !cmd.go) return;
     this.send(cmd.text);
     this.pending++;
-    this.waitSince = this.now();
-    this.seeSent = false;
+    // 連打で待ち始めを延ばさない。延ばすと、200ms より短い間隔で押している間は see を送らない
+    if (this.waitSince === Infinity) {
+      this.waitSince = this.now();
+      this.seeSent = false;
+    }
   }
 }

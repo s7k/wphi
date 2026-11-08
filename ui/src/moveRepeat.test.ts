@@ -119,3 +119,14 @@ test("リピート中にマップが来なければ、500ms で次の1歩を送�
   m.tick();
   assert.deepEqual(sent.slice(3), ["see", "go N"]);
 });
+
+test("連打してもマップが来なければ、最初の移動から 200ms で see を送る", () => {
+  const { m, sent, advance } = setup();
+  for (let i = 0; i < 4; i++) {
+    m.keyDown("8", "none", false);
+    m.keyUp("8");
+    advance(100);
+    m.tick();
+  }
+  assert.deepEqual(sent, ["go N", "go N", "see", "go N", "go N"]);
+});
