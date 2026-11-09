@@ -13,7 +13,7 @@ export const TAG_MENU: TagGroup[] = [
       { caption: "Custom(U)", tag: "/*color=#", close: "*//*.*/" },
       ...[
         ["Red", "R"], ["Blue", "B"], ["Cyan", "C"], ["Magenta", "M"], ["Navy", "N"], ["Lime", "L"], ["Purple", "P"],
-        ["Yellow", "Y"], ["Silver", "S"], ["Olieve", "O"], ["Teal", "T"], ["Maroon", "A"], ["White", "W"],
+        ["Yellow", "Y"], ["Silver", "S"], ["Olive", "O"], ["Teal", "T"], ["Maroon", "A"], ["White", "W"],
         ["Green", "E"], ["Gray", "G"],
       ].map(([n, k]) => color(n, k)),
     ],

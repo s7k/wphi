@@ -491,6 +491,38 @@ body {
   font-weight: bold;
 }
 
+.board-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 4px 0;
+}
+
+.board-toolbar button {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 4px;
+}
+
+.board-toolbar .board-swatch {
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid #000;
+}
+
+.board-toolbar input[type="color"] {
+  width: 24px;
+  height: 22px;
+  padding: 0;
+}
+
+.board-sep {
+  width: 6px;
+}
+
 .board-body {
   flex: 1;
   display: flex;
