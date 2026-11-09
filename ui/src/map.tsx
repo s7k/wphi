@@ -235,7 +235,8 @@ function MapWindow() {
     const tick = () => {
       const t = Math.min(1, (performance.now() - start) / SLIDE_MS);
       const k = (1 - t) * CHIP_SIZE;
-      setSlide(t >= 1 ? null : { x: step.dx * k, y: step.dy * k });
+      // 整数の px にする。端数の位置に描くと、チップの境目が隣と混ざって線に見える
+      setSlide(t >= 1 ? null : { x: Math.round(step.dx * k), y: Math.round(step.dy * k) });
       if (t < 1) raf = requestAnimationFrame(tick);
     };
     tick();
@@ -251,6 +252,7 @@ function MapWindow() {
     trace("map draw");
     // 上の余白を黒で塗り、マップはその下から描く(一番上の行のはみ出しは余白に出る)
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, ctx.canvas.width, MAP_TOP);
     ctx.translate(0, MAP_TOP);
