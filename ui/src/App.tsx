@@ -23,7 +23,7 @@ import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, EXPERIMENT_EVENT, shortcutText, type Settings } from "./settings.ts";
 import { DownloadPanel } from "./DownloadPanel";
 import { SettingsPanel } from "./SettingsPanel";
-import { NewCharacter } from "./NewCharacter";
+import { NewCharacter, WorldSelect } from "./NewCharacter";
 import { capConvs, partnersKey, privLines, privPartners, upsertConv, usersFromEvent, type User } from "./priv.ts";
 import { PrivPanel, type PrivConv } from "./PrivPanel";
 import { ListOverlay } from "./ListOverlay";
@@ -1531,6 +1531,14 @@ function CharacterList(props: {
         <label>
           表示名 <input value={label} onChange={(e) => setLabel(e.target.value)} required />
         </label>
+        <WorldSelect
+          host={host}
+          port={port}
+          onSelect={(h, p) => {
+            setHost(h);
+            setPort(p);
+          }}
+        />
         <label>
           サーバ <input value={host} onChange={(e) => setHost(e.target.value)} required />
         </label>

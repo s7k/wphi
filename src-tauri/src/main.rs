@@ -413,7 +413,7 @@ async fn download_item(app: tauri::AppHandle, id: String) -> Result<usize, Strin
 }
 
 /// 新規接続の設定(resist.ini)の世界。まだ取っていないか配布元の更新日が変わっていれば、先に取る。
-/// 取れなければ前に取った物を使い、それも無ければ空
+/// 取れなければ前に取った物を使い、それも無ければ同梱の worlds.ini(配布元が見つからない、同じ形の一覧)
 #[tauri::command]
 async fn register_worlds(app: tauri::AppHandle) -> Result<Vec<download::World>, String> {
     let path = data_dir(&app)?.join("resist.ini");
@@ -425,7 +425,13 @@ async fn register_worlds(app: tauri::AppHandle) -> Result<Vec<download::World>, 
             eprintln!("{e}");
         }
     }
-    Ok(std::fs::read(path).map(|b| download::worlds(&b)).unwrap_or_default())
+    let got = std::fs::read(path).map(|b| download::worlds(&b)).unwrap_or_default();
+    if !got.is_empty() {
+        return Ok(got);
+    }
+    Ok(assets::bundled("Config/worlds.ini")
+        .map(download::worlds)
+        .unwrap_or_default())
 }
 
 #[tauri::command]

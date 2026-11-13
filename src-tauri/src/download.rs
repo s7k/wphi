@@ -208,6 +208,13 @@ mod tests {
         })
     }
 
+    /// 同梱の worlds.ini が読める事
+    #[test]
+    fn bundled_worlds_ini() {
+        let got = worlds(crate::assets::bundled("Config/worlds.ini").unwrap());
+        assert!(got.iter().any(|w| w.name == "Metro Planetarium" && w.port == 20033));
+    }
+
     #[test]
     fn reads_resist_ini() {
         let ini = codec::encode("[Metro Planetarium]\nAddress=192.0.2.1\nPort=20033\nLine1=遥か\n[壊れ]\nAddress=x\n");

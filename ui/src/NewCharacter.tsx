@@ -14,9 +14,6 @@ function randomPass(): string {
 export function NewCharacter(props: { onCreated: () => void; onError: (message: string) => void }) {
   const [host, setHost] = useState("");
   const [port, setPort] = useState("");
-  // ダウンロードした新規接続の設定(resist.ini)の世界。選ぶとサーバとポートを埋める
-  const [worlds, setWorlds] = useState<{ name: string; host: string; port: number }[]>([]);
-  useEffect(() => void invoke<typeof worlds>("register_worlds").then(setWorlds).catch(console.error), []);
   const [graphics, setGraphics] = useState<string[] | null>(null);
   const [image, setImage] = useState(0);
   const [name, setName] = useState("");
@@ -69,27 +66,15 @@ export function NewCharacter(props: { onCreated: () => void; onError: (message: 
       }}
     >
       <h3>新規キャラ作成</h3>
-      {worlds.length > 0 && (
-        <label>
-          世界 <select
-            value={worlds.findIndex((w) => w.host === host && String(w.port) === port)}
-            onChange={(e) => {
-              const w = worlds[Number(e.target.value)];
-              if (!w) return;
-              setHost(w.host);
-              setPort(String(w.port));
-              setGraphics(null);
-            }}
-          >
-            <option value={-1}>選ぶか、下に書く</option>
-            {worlds.map((w, i) => (
-              <option key={i} value={i}>
-                {w.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      <WorldSelect
+        host={host}
+        port={port}
+        onSelect={(h, p) => {
+          setHost(h);
+          setPort(p);
+          setGraphics(null);
+        }}
+      />
       <label>
         サーバ <input
           value={host}
@@ -149,5 +134,32 @@ export function NewCharacter(props: { onCreated: () => void; onError: (message: 
       )}
       {done && <p>{done}</p>}
     </form>
+  );
+}
+
+type World = { name: string; host: string; port: number };
+
+/** 新規接続の設定(resist.ini。無ければ同梱の worlds.ini)の世界。選ぶとサーバとポートを埋める */
+export function WorldSelect(props: { host: string; port: string; onSelect: (host: string, port: string) => void }) {
+  const [worlds, setWorlds] = useState<World[]>([]);
+  useEffect(() => void invoke<World[]>("register_worlds").then(setWorlds).catch(console.error), []);
+  if (worlds.length === 0) return null;
+  return (
+    <label>
+      世界 <select
+        value={worlds.findIndex((w) => w.host === props.host && String(w.port) === props.port)}
+        onChange={(e) => {
+          const w = worlds[Number(e.target.value)];
+          if (w) props.onSelect(w.host, String(w.port));
+        }}
+      >
+        <option value={-1}>選ぶか、下に書く</option>
+        {worlds.map((w, i) => (
+          <option key={i} value={i}>
+            {w.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
