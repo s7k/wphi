@@ -257,11 +257,11 @@ export function MapView(props: { embedded?: boolean }) {
     const ctx = mapCanvas.current?.getContext("2d");
     if (!ctx || !map || !state) return;
     trace("map draw");
-    // 上の余白を黒で塗り、マップはその下から描く(一番上の行のはみ出しは余白に出る)
+    // 上の余白は透明にし、マップはその下から描く(一番上の行のはみ出しは余白に出る)。
+    // 余白と地図の外は欄の灰色にして、地図の中の何も無い黒いマスと見分けられるようにする
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, ctx.canvas.width, MAP_TOP);
+    ctx.clearRect(0, 0, ctx.canvas.width, MAP_TOP);
     ctx.translate(0, MAP_TOP);
     const imgs: ImageRefs = {
       chip: image(assetUrl("chip", { mapset: state.mapset })),
@@ -270,19 +270,8 @@ export function MapView(props: { embedded?: boolean }) {
       items: image(assetUrl("items")),
       chara: image,
     };
-    // サーバの送った 7x7(5x5)に細い外枠を引く。端に黒いマス(部屋の外など)があっても、どこまでが地図か分かるように。
-    // 拡張マップでは、外周の記録地図との境になる。ずらしている間も動かさない
-    const outline = (dim: number) => {
-      const core = gridDim(map.size);
-      const o = ((dim - core) / 2) * CHIP_SIZE;
-      ctx.setTransform(1, 0, 0, 1, 0, MAP_TOP);
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(o + 0.5, o + 0.5, core * CHIP_SIZE - 1, core * CHIP_SIZE - 1);
-    };
     if (!automap) {
       drawMap(ctx, { size: map.size, mapset: state.mapset, cells: map.cells, chars: map.chars, slide: slide ?? undefined }, imgs, frame);
-      outline(gridDim(map.size));
       return;
     }
     drawMap(
@@ -297,7 +286,6 @@ export function MapView(props: { embedded?: boolean }) {
     automap.recalled.forEach((on, i) => {
       if (on) ctx.fillRect((i % automap.dim) * CHIP_SIZE, Math.floor(i / automap.dim) * CHIP_SIZE, CHIP_SIZE, CHIP_SIZE);
     });
-    outline(automap.dim);
     // 描き直すのはマップ・地形・アニメ・画像の読み込み・大きさ・ずらす量が変わった時だけ。#status だけの変化では描かない
   }, [mapKey, automap, frame, loaded, state?.mapset, state?.defines?.join(), dim, slide]);
 

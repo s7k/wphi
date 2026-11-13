@@ -198,12 +198,13 @@ body {
  * canvas を欄の大きさで並べると、拡張マップの外周の幅で canvas の大きさが変わり、それで欄の大きさを
  * 測り直して外周が出たり消えたりを繰り返す事があった(Windows の WebView2)
  */
+/* 地図の外は灰色。地図の中の何も無いマス(黒)と見分ける */
 .map-area {
   flex: 1;
   min-width: 0;
   position: relative;
   overflow: hidden;
-  background: #000;
+  background: #404040;
 }
 
 /* 位置は map.tsx が欄の大きさから整数で決める */
