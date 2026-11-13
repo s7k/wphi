@@ -53,6 +53,8 @@ pub struct Settings {
     /// 拡張マップ(Philly に無い)。表示のメニューで切り替える。付属して、送った go に地図も「進めません」も来なければ
     /// 進んだとみなして位置を予想し、長押しのリピートは前の移動の返事を待つ。off なら 7x7 だけで、リピートは OS 任せ
     pub automap: bool,
+    /// 実験的: マップの窓を使わず、main 窓のログの左にマップを出す。表示のメニューで切り替える(Philly に無い)
+    pub single_window: bool,
 }
 
 impl Default for Settings {
@@ -78,6 +80,7 @@ impl Default for Settings {
             master_magic_menu: false,
             map_zoom: 100,
             smooth_move: false,
+            single_window: false,
             automap: true,
         }
     }

@@ -14,6 +14,7 @@ pub const MENU_EVENT: &str = "phi-menu";
 /// 設定を切り替える、チェックの付く項目。main.rs が設定に書き、EXPERIMENT_EVENT で設定の全体を全部の窓へ知らせる
 pub const SMOOTH_MOVE: &str = "smooth-move";
 pub const AUTOMAP: &str = "automap";
+pub const SINGLE_WINDOW: &str = "single-window";
 pub const EXPERIMENT_EVENT: &str = "phi-experiment";
 
 /// 切り替える項目の、設定の値
@@ -21,6 +22,7 @@ pub fn experiment<'a>(s: &'a mut crate::settings::Settings, id: &str) -> Option<
     match id {
         SMOOTH_MOVE => Some(&mut s.smooth_move),
         AUTOMAP => Some(&mut s.automap),
+        SINGLE_WINDOW => Some(&mut s.single_window),
         _ => None,
     }
 }
@@ -138,6 +140,7 @@ const MENUS: Table = &[
             ("automap-clear", "この世界の拡張マップを消す..."),
             ("-", ""),
             (SMOOTH_MOVE, "マップを滑らかに動かす(試験中)"),
+            (SINGLE_WINDOW, "マップをログと同じ窓に出す(試験中)"),
         ],
     ),
     (

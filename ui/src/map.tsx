@@ -1,13 +1,13 @@
 // map 窓(Philly の MapForm)。アクティブなタブのマップとステータスを表示する。
-// 状態は main 窓から MAP_STATE_EVENT で届く。
+// 状態は main 窓から MAP_STATE_EVENT で届く。窓の起動は mapMain.tsx。
+// 「マップをログと同じ窓に出す」の時は、main 窓が embedded で中に置く。届くイベントの to で、どちらに宛てた物かを見分ける。
 //
 // 配置は MapForm.dfm に合わせた。マップ(等倍で中央)、右に方角とキャラ名の一覧(ImageMapSide)、
 // 下にステータス(ImageStatus)、一番下に状態異常のステータスバー。
 import { invoke } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
-import { createRoot } from "react-dom/client";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { assetUrl } from "./asset";
 import { AUTOMAP_EVENT, compose, predictedMap, ringFor, loadTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { drawMap, type ImageRefs } from "./drawMap";
@@ -18,8 +18,7 @@ import { CHIP_SIZE, MAP_TOP, SLIDE_MS, gridDim, slideStep } from "./mapRender";
 import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
 import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
-import { hideOnClose, useImages, preventBrowserDefaults, useScreenshot } from "./windowUtil";
-import "./style.css";
+import { hideOnClose, useImages, useScreenshot } from "./windowUtil";
 
 /** Philly のキャラのアニメ周期(PersonalThread.h の ANIMATION_INTERVAL = 500ms) */
 const ANIMATION_MS = 500;
@@ -45,13 +44,17 @@ const FACING: Record<string, string> = { B: "n", R: "e", F: "s", L: "w" };
 
 const stripTags = (s: string) => s.replace(/\/\*.*?\*\//g, "").trim();
 
-function MapWindow() {
+/** MAP_STATE_EVENT などの宛先。main 窓の中に置いた地図なら "main" */
+export type MapPlace = "map" | "main";
+
+export function MapView(props: { embedded?: boolean }) {
+  const place: MapPlace = props.embedded ? "main" : "map";
   const [state, setState] = useState<MapState | null>(null);
   const [frame, setFrame] = useState(0);
   const [loaded, setLoaded] = useState(0);
   const image = useImages(() => setLoaded((n) => n + 1));
   const mapCanvas = useRef<HTMLCanvasElement>(null);
-  useScreenshot("map", mapCanvas);
+  useScreenshot("map", mapCanvas, place);
   // マップの欄。外周の幅はこの枠の大きさで決める(canvas の大きさは外周の幅で変わるので測らない)
   const mapArea = useRef<HTMLDivElement>(null);
   // HP・MP の減った分を出す為の、1つ前の #status(Philly の OldStatus)
@@ -59,9 +62,10 @@ function MapWindow() {
 
   useEffect(() => {
     // 隠している間は main 窓が送らない(#75)
-    hideOnClose(() => emitTo("main", MAP_HIDDEN_EVENT).catch(console.error));
-    const unlisten = listen<MapState>(MAP_STATE_EVENT, (e) => {
+    if (!props.embedded) hideOnClose(() => emitTo("main", MAP_HIDDEN_EVENT).catch(console.error));
+    const unlisten = listen<MapState & { to?: MapPlace }>(MAP_STATE_EVENT, (e) => {
       const s = e.payload;
+      if ((s.to ?? "map") !== place) return;
       trace("map recv");
       // 拡張マップの差分は MapState と一緒に届く。同じ処理の中で足し、1回で描く
       if (s.diffs?.length) {
@@ -77,7 +81,7 @@ function MapWindow() {
       setState(s);
     });
     // 開いた直後の状態を main 窓に求める
-    unlisten.then(() => emitTo("main", "phi-map-ready"));
+    unlisten.then(() => emitTo("main", "phi-map-ready", place));
     const timer = setInterval(() => setFrame((f) => f ^ 1), ANIMATION_MS);
     return () => {
       unlisten.then((f) => f());
@@ -87,6 +91,8 @@ function MapWindow() {
 
   // マップ窓で押したキーは main 窓へ送り、そこで操作にする(Philly も FormMap のキーを KeyDown に回す)
   useEffect(() => {
+    // main 窓の中なら、キーは main 窓がそのまま受ける
+    if (props.embedded) return;
     const forward = (k: ForwardedKey) => emitTo("main", KEY_EVENT, k).catch(console.error);
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing) return;
@@ -118,7 +124,8 @@ function MapWindow() {
   };
   const [tilesVer, setTilesVer] = useState(0);
   useEffect(() => {
-    const unlisten = listen<AutomapDiff>(AUTOMAP_EVENT, (e) => {
+    const unlisten = listen<AutomapDiff & { to?: MapPlace }>(AUTOMAP_EVENT, (e) => {
+      if ((e.payload.to ?? "map") !== place) return;
       if (e.payload.clear) automaps.current.set(e.payload.world, {});
       Object.assign(automapOf(e.payload.world), e.payload.diff);
       setTilesVer((v) => v + 1);
@@ -201,10 +208,10 @@ function MapWindow() {
   const direction = northFix ? 0 : (map?.dir ?? 0);
 
   // タイトル(MakeMap.cpp の DrawDirectionAnime)
-  const place = state?.area ? `${state.area} （${state.world ?? ""}）` : "マップ";
-  const title = (northFix ? "" : (DIRECTION_TITLE[direction] ?? "")) + place;
+  const areaName = state?.area ? `${state.area} （${state.world ?? ""}）` : "マップ";
+  const title = (northFix ? "" : (DIRECTION_TITLE[direction] ?? "")) + areaName;
   useEffect(() => {
-    getCurrentWindow().setTitle(title).catch(console.error);
+    if (!props.embedded) getCurrentWindow().setTitle(title).catch(console.error);
   }, [title]);
 
   // 実験的: 自分が進んだ時に、地図を前の位置から滑らかにずらす(表示のメニューで切り替える)。
@@ -349,10 +356,3 @@ function MapWindow() {
     </div>
   );
 }
-
-preventBrowserDefaults();
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <MapWindow />
-  </StrictMode>,
-);

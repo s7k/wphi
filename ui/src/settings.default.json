@@ -31,5 +31,6 @@
   "masterMagicMenu": false,
   "mapZoom": 100,
   "smoothMove": false,
-  "automap": true
+  "automap": true,
+  "singleWindow": false
 }

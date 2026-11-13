@@ -68,10 +68,11 @@ export function preventBrowserDefaults() {
 }
 
 /** 画像の保存(phi-ss)を頼まれたら、canvas を PNG にして保存し、main 窓へ場所を知らせる(#82) */
-export function useScreenshot(kind: "map" | "eagleeye", canvas: RefObject<HTMLCanvasElement | null>) {
+export function useScreenshot(kind: "map" | "eagleeye", canvas: RefObject<HTMLCanvasElement | null>, place?: string) {
   useEffect(() => {
-    const unlisten = listen<{ kind: string; label: string }>("phi-ss", (e) => {
-      if (e.payload.kind !== kind) return;
+    // to は、地図を main 窓の中に置いた時の宛先(map.tsx の MapPlace)。map 窓と両方で保存しないようにする
+    const unlisten = listen<{ kind: string; label: string; to?: string }>("phi-ss", (e) => {
+      if (e.payload.kind !== kind || (place && (e.payload.to ?? "map") !== place)) return;
       const c = canvas.current;
       if (!c) return;
       c.toBlob(async (blob) => {
@@ -87,5 +88,5 @@ export function useScreenshot(kind: "map" | "eagleeye", canvas: RefObject<HTMLCa
     return () => {
       unlisten.then((f) => f());
     };
-  }, [kind, canvas]);
+  }, [kind, canvas, place]);
 }

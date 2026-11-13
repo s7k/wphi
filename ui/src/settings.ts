@@ -37,6 +37,7 @@ export type Settings = {
   smoothMove: boolean;
   /** 拡張マップ。付属して位置を予想し、長押しのリピートを制御する。off なら 7x7 だけでリピートは OS 任せ(表示のメニュー) */
   automap: boolean;
+  singleWindow: boolean;
 };
 
 /** 表示のメニューでチェックの付く項目を切り替えた時と、設定を保存した時に、Rust が設定の全体を全部の窓へ送る */

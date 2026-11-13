@@ -1,5 +1,5 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
-import { emitTo, listen } from "@tauri-apps/api/event";
+import { emit, emitTo, listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { memo, useEffect, useRef, useState, type KeyboardEvent } from "react";
 
@@ -22,6 +22,7 @@ import { absorb, AUTOMAP_EVENT, blockOf, loadTiles, removeTiles, saveTiles, type
 import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, EXPERIMENT_EVENT, shortcutText, type Settings } from "./settings.ts";
 import { DownloadPanel } from "./DownloadPanel";
+import { MapView, type MapPlace } from "./map";
 import { SettingsPanel } from "./SettingsPanel";
 import { NewCharacter, WorldSelect } from "./NewCharacter";
 import { capConvs, partnersKey, privLines, privPartners, upsertConv, usersFromEvent, type User } from "./priv.ts";
@@ -179,7 +180,7 @@ export function App() {
     invoke<Settings>("get_settings").then(setSettings).catch(console.error);
     // 表示のメニューで切り替えた分を覚える。覚えないと、設定の画面で保存した時に元に戻す
     const smooth = listen<Settings>(EXPERIMENT_EVENT, (e) =>
-      setSettings((s) => ({ ...s, smoothMove: e.payload.smoothMove, automap: e.payload.automap })),
+      setSettings((s) => ({ ...s, smoothMove: e.payload.smoothMove, automap: e.payload.automap, singleWindow: e.payload.singleWindow })),
     );
     return () => {
       smooth.then((f) => f());
@@ -260,6 +261,30 @@ export function App() {
     if (settingsRef.current.automap && session === activeRef.current) predictor.current.sent(text);
     sendLine(session, text);
   };
+  // 実験的: マップをログと同じ窓に出す(settings.singleWindow)。mapPane は main 窓の中の地図を出しているか
+  const [mapPane, setMapPane] = useState(true);
+  const mapPaneRef = useRef(mapPane);
+  mapPaneRef.current = mapPane;
+  const mapPlace = (): MapPlace => (settingsRef.current.singleWindow ? "main" : "map");
+  // 同じ窓に出す間は map 窓を隠し、やめたら出し直す。切り替えた時だけ動かす(起動した時は map 窓の表示を変えない)
+  const singleBefore = useRef(false);
+  useEffect(() => {
+    if (singleBefore.current === settings.singleWindow) return;
+    singleBefore.current = settings.singleWindow;
+    Window.getByLabel("map")
+      .then(async (w) => {
+        if (!w) return;
+        if (settings.singleWindow) {
+          mapShown.current = false;
+          await w.hide();
+        } else if (!(await w.isVisible())) {
+          await w.show();
+          mapShown.current = true;
+        }
+        sendMapState(activeRef.current);
+      })
+      .catch(console.error);
+  }, [settings.singleWindow]);
   const mapStateQueued = useRef(false);
   const mapStateSession = useRef<number | null>(null);
   const mapShown = useRef(true);
@@ -282,15 +307,15 @@ export function App() {
       mapStatePort.current.port1.onmessage = () => {
         mapStateQueued.current = false;
         // 隠した map 窓には送らない。拡張マップの差分は貯めておき、表示した時にまとめて送る(#75)
-        if (!mapShown.current) return;
+        const to = mapPlace();
+        if (to === "map" ? !mapShown.current : !mapPaneRef.current) return;
         const s = mapStateSession.current;
         const state = s === null ? undefined : mapStates.current.get(s);
         const diffs = pendingDiffs.current.splice(0);
         const predict = predictor.current.offset;
         trace("main emit");
-        emitTo("map", MAP_STATE_EVENT, { ...(state ?? { session: -1, mapset: "" }), diffs, predict }).catch((e) =>
-          console.error(e),
-        );
+        // 宛先は to で見分ける(map.tsx)。main 窓の中の地図にも届くよう、全部の窓へ送る
+        emit(MAP_STATE_EVENT, { ...(state ?? { session: -1, mapset: "" }), diffs, predict, to }).catch((e) => console.error(e));
       };
     }
     mapStatePort.current.port2.postMessage(null);
@@ -412,8 +437,13 @@ export function App() {
       equip: settingsRef.current.autoEquipSystemMagic,
     });
     // マップ窓の表示・非表示(Philly の Shift+F5 DispMap)
-    const toggleMap = () =>
-      Window.getByLabel("map").then(async (w) => {
+    const toggleMap = () => {
+      // 同じ窓に出している時は、ログの左の地図を出し入れする。出すと地図が phi-map-ready を送り、状態を受け取る
+      if (mapPlace() === "main") {
+        mapPaneRef.current = !mapPaneRef.current;
+        return setMapPane(mapPaneRef.current);
+      }
+      return Window.getByLabel("map").then(async (w) => {
         if (!w) return;
         if (await w.isVisible()) {
           mapShown.current = false;
@@ -424,6 +454,7 @@ export function App() {
           sendMapState(activeRef.current);
         }
       });
+    };
     /** 操作にしたら true */
     const onKey = (e: ForwardedKey): boolean => {
       // 前のタブ(Ctrl+Shift+Tab)。keys.ts は Ctrl と Shift を一緒に押したキーを扱わないので、ここで見る
@@ -544,7 +575,7 @@ export function App() {
       const label = tabsRef.current.find((t) => t.session === session)?.label ?? "";
       if (id === "open-char-dir") return void invoke("open_character_dir", { label }).catch((e) => setError(String(e)));
       if (id === "ss-map" || id === "ss-eagleeye")
-        return void emitTo(id === "ss-map" ? "map" : "eagleeye", "phi-ss", { kind: id.slice(3), label }).catch(console.error);
+        return void emit("phi-ss", { kind: id.slice(3), label, to: mapPlace() }).catch(console.error);
       if (id === "talk-add") {
         const t = tabsRef.current.find((t) => t.session === session);
         return void ask({ title: "発言の前に付ける言葉", label: "発言の前に付ける言葉を入力してください(空欄なら付けない)", initial: t?.talkAdd ?? "" }).then((v) => {
@@ -628,7 +659,7 @@ export function App() {
     unsavedWorlds.current.delete(world);
     pendingDiffs.current = pendingDiffs.current.filter((d) => d.world !== world);
     removeTiles(world);
-    emitTo("map", AUTOMAP_EVENT, { world, diff: {}, clear: true } satisfies AutomapDiff).catch(console.error);
+    emit(AUTOMAP_EVENT, { world, diff: {}, clear: true, to: mapPlace() }).catch(console.error);
   }
   function recordAutomap(world: string, ev: Extract<UiEvent, { type: "map" }>) {
     let tiles = automaps.current.get(world);
@@ -1082,7 +1113,8 @@ export function App() {
       )}
       <TabBar tabs={tabs} active={active} onSelect={setActive} onClose={close} onSettings={() => setSettingsOpen(true)} />
       {tab ? (
-        <div className="main-body">
+        <div className={settings.singleWindow ? "main-body single" : "main-body"}>
+        {settings.singleWindow && mapPane && <MapPane />}
         <div className="log-area">
           <div
             className="log-menu-area"
@@ -1574,5 +1606,60 @@ function CharacterList(props: {
 
       <NewCharacter onCreated={props.onChanged} onError={props.onError} />
     </div>
+  );
+}
+
+const MAP_PANE_KEY = "wphi:mapPaneWidth";
+/** 地図の欄の下のステータス(.status-panel 50px と .map-status-bar 22px と線)と、右の方角と名前の欄(.map-side) */
+const MAP_PANE_BELOW = 74;
+const MAP_PANE_SIDE = 153;
+
+/** ログの左に置く地図(settings.singleWindow)。境目をドラッグして幅を変え、この窓の localStorage に覚える。
+ * 縦長の窓では、CSS で地図を上に積む */
+function MapPane() {
+  const [width, setWidth] = useState<number | null>(() => {
+    try {
+      return Number(localStorage.getItem(MAP_PANE_KEY)) || null;
+    } catch {
+      return null;
+    }
+  });
+  const pane = useRef<HTMLDivElement>(null);
+  // 幅を決めていない間は、地図の欄が正方形になる幅にする。欄の高さは、ログの欄の高さからステータスの分を引いた物
+  const [auto, setAuto] = useState(0);
+  useEffect(() => {
+    const body = pane.current?.parentElement;
+    if (!body) return;
+    const ro = new ResizeObserver(() =>
+      setAuto(Math.round(Math.min(body.clientHeight - MAP_PANE_BELOW + MAP_PANE_SIDE, body.clientWidth * 0.6))),
+    );
+    ro.observe(body);
+    return () => ro.disconnect();
+  }, []);
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const left = pane.current?.getBoundingClientRect().left ?? 0;
+    const bar = e.currentTarget;
+    bar.setPointerCapture(e.pointerId);
+    let w = width ?? auto;
+    const move = (m: PointerEvent) => setWidth((w = Math.max(200, Math.round(m.clientX - left))));
+    const up = () => {
+      bar.removeEventListener("pointermove", move);
+      bar.removeEventListener("pointerup", up);
+      try {
+        if (w) localStorage.setItem(MAP_PANE_KEY, String(w));
+      } catch {
+        // 覚えられなくても、今の幅のまま使う
+      }
+    };
+    bar.addEventListener("pointermove", move);
+    bar.addEventListener("pointerup", up);
+  };
+  return (
+    <>
+      <div className="map-pane" ref={pane} style={{ width: width ?? (auto || undefined) }}>
+        <MapView embedded />
+      </div>
+      <div className="map-pane-splitter" onPointerDown={onPointerDown} title="ドラッグで地図の幅を変える" />
+    </>
   );
 }
