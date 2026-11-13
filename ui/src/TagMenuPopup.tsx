@@ -3,11 +3,7 @@ import { useEffect } from "react";
 import { TAG_MENU, wrapTag, type TagItem } from "./tagMenu.ts";
 
 /** textarea の選んだ文字を t で囲み、カーソルを置き直す */
-export function applyTag(
-  ta: HTMLTextAreaElement,
-  t: TagItem,
-  onInsert: (value: string) => void,
-) {
+export function applyTag(ta: HTMLTextAreaElement, t: TagItem, onInsert: (value: string) => void) {
   const r = wrapTag(ta.value, ta.selectionStart, ta.selectionEnd, t);
   onInsert(r.value);
   ta.focus();
@@ -17,11 +13,7 @@ export function applyTag(
 
 export type TagMenuAt = { x: number; y: number; ta: HTMLTextAreaElement };
 
-export function TagMenu(props: {
-  at: TagMenuAt;
-  onInsert: (value: string) => void;
-  onClose: () => void;
-}) {
+export function TagMenu(props: { at: TagMenuAt; onInsert: (value: string) => void; onClose: () => void }) {
   useEffect(() => {
     const close = () => props.onClose();
     window.addEventListener("click", close);

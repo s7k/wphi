@@ -21,6 +21,7 @@ import { assetUrl } from "./asset";
 import { absorb, AUTOMAP_EVENT, blockOf, loadTiles, removeTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, EXPERIMENT_EVENT, shortcutText, type Settings } from "./settings.ts";
+import { DownloadPanel } from "./DownloadPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { NewCharacter } from "./NewCharacter";
 import { capConvs, partnersKey, privLines, privPartners, upsertConv, usersFromEvent, type User } from "./priv.ts";
@@ -147,6 +148,7 @@ export function App() {
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [downloadOpen, setDownloadOpen] = useState(false);
   // 語や数を聞いている間のダイアログ(AskDialog)。答えは resolve で返す
   const [asking, setAsking] = useState<{ id: number; opts: AskOptions; resolve: (text: string | null) => void } | null>(
     null,
@@ -513,6 +515,7 @@ export function App() {
       if (id === "all-disconnect") return tabsNow.filter((t) => !t.closed).forEach((t) => disconnect(t.session));
       if (id === "all-force-close") return tabsNow.filter((t) => !t.closed).forEach((t) => forceClose(t.session));
       if (id === "new-tab") return setActive(null);
+      if (id === "download") return setDownloadOpen(true);
       if (id === "open-config-dir") return void invoke("open_config_dir").catch((e) => setError(String(e)));
       if (id === "trace")
         return void invoke<boolean>("trace_on")
@@ -1057,6 +1060,7 @@ export function App() {
       {settingsOpen && (
         <SettingsPanel settings={settings} onSaved={setSettings} onClose={() => setSettingsOpen(false)} />
       )}
+      {downloadOpen && <DownloadPanel onClose={() => setDownloadOpen(false)} />}
       <style>{logCss}</style>
       {isMac() && (
         <MenuBar

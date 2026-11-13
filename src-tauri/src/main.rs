@@ -3,6 +3,7 @@
 mod assets;
 mod auto_unequip;
 mod characters;
+mod download;
 mod jsonfile;
 mod menu;
 mod register;
@@ -115,7 +116,7 @@ fn set_open_tabs(app: tauri::AppHandle, labels: Vec<String>) -> Result<(), Strin
     })
 }
 
-/// 画像を探す場所。取り込んだ Philly フォルダ → アプリを置いたフォルダ → 実行ファイルに埋め込んだ同梱の分の順。
+/// 画像を探す場所。取り込んだ Philly フォルダ → アプリを置いたフォルダ → ダウンロードした分 → 実行ファイルに埋め込んだ同梱の分の順。
 /// 配布の zip には、アプリの隣に空の `chara` と `chip` を入れてある(`tools/package.sh`)。
 fn load_assets(app: &tauri::AppHandle) -> Result<Assets, String> {
     let store = Store::load(&store_path(app)?);
@@ -128,6 +129,7 @@ fn load_assets(app: &tauri::AppHandle) -> Result<Assets, String> {
             .map(Into::into)
             .into_iter()
             .chain(portable)
+            .chain(data_dir(app).ok())
             .collect(),
     ))
 }
@@ -338,6 +340,70 @@ fn import_philly_settings(app: tauri::AppHandle) -> Result<settings::Settings, S
 }
 
 /// 新規キャラ作成で選べる初期グラの名前。
+/// ダウンロードした物の置き場(設定フォルダの `data`)。中は Philly と同じく `chara`・`chip`
+fn data_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(config_dir(app)?.join("data"))
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DownloadRow {
+    #[serde(flatten)]
+    item: download::Item,
+    /// 取った時の配布元の更新日。取っていなければ None
+    got: Option<String>,
+}
+
+fn download_items_of() -> Vec<download::Item> {
+    assets::bundled("Config/unew.ini")
+        .map(|b| download::items(&phi_proto::codec::decode(b)))
+        .unwrap_or_default()
+}
+
+/// ダウンロード出来る物の一覧と、取った時の更新日
+#[tauri::command]
+fn download_items(app: tauri::AppHandle) -> Result<Vec<DownloadRow>, String> {
+    let got: HashMap<String, String> = jsonfile::load(&data_dir(&app)?.join("downloaded.json"));
+    Ok(download_items_of()
+        .into_iter()
+        .map(|item| DownloadRow {
+            got: got.get(&item.id).cloned(),
+            item,
+        })
+        .collect())
+}
+
+/// 1つ取って展開し、画像を読み直す。書いたファイルの数を返す
+#[tauri::command]
+async fn download_item(app: tauri::AppHandle, id: String) -> Result<usize, String> {
+    let item = download_items_of()
+        .into_iter()
+        .find(|i| i.id == id)
+        .ok_or("一覧に無い物です")?;
+    let data = data_dir(&app)?;
+    let dest = data.join(&item.dir);
+    let url = item.url.clone();
+    let n = tauri::async_runtime::spawn_blocking(move || download::extract(&download::fetch(&url)?, &dest))
+        .await
+        .map_err(|e| e.to_string())??
+        .len();
+    let path = data.join("downloaded.json");
+    let mut got: HashMap<String, String> = jsonfile::load(&path);
+    got.insert(item.id, item.date);
+    jsonfile::save(&path, &got)?;
+    use tauri::Manager;
+    reload_assets(app.clone(), app.state())?;
+    Ok(n)
+}
+
+/// ダウンロードした新規接続の設定(resist.ini)の世界。取っていなければ空
+#[tauri::command]
+fn register_worlds(app: tauri::AppHandle) -> Result<Vec<download::World>, String> {
+    Ok(std::fs::read(data_dir(&app)?.join("resist.ini"))
+        .map(|b| download::worlds(&b))
+        .unwrap_or_default())
+}
+
 #[tauri::command]
 async fn register_graphics(host: String, port: u16) -> Result<Vec<String>, String> {
     register::graphics(&host, port).await
@@ -1018,6 +1084,9 @@ fn main() {
             set_open_tabs,
             import_philly,
             register_graphics,
+            register_worlds,
+            download_items,
+            download_item,
             get_settings,
             save_settings,
             import_philly_settings,

@@ -882,3 +882,7 @@ body {
   margin-right: 4px;
   color: #808080;
 }
+
+.download-list td {
+  padding: 2px 8px 2px 0;
+}

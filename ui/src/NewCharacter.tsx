@@ -1,7 +1,7 @@
 // 新規キャラ作成(Philly では別プログラムの PhillyNewCharacter.exe)。
 // 作ったキャラはそのまま一覧に入り、ID は設定フォルダの .phirc に置く。
 import { invoke } from "@tauri-apps/api/core";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { assetUrl } from "./asset";
 
 /** パスワードを省いた時に決める6字(英小文字と数字) */
@@ -14,6 +14,9 @@ function randomPass(): string {
 export function NewCharacter(props: { onCreated: () => void; onError: (message: string) => void }) {
   const [host, setHost] = useState("");
   const [port, setPort] = useState("");
+  // ダウンロードした新規接続の設定(resist.ini)の世界。選ぶとサーバとポートを埋める
+  const [worlds, setWorlds] = useState<{ name: string; host: string; port: number }[]>([]);
+  useEffect(() => void invoke<typeof worlds>("register_worlds").then(setWorlds).catch(console.error), []);
   const [graphics, setGraphics] = useState<string[] | null>(null);
   const [image, setImage] = useState(0);
   const [name, setName] = useState("");
@@ -66,6 +69,27 @@ export function NewCharacter(props: { onCreated: () => void; onError: (message: 
       }}
     >
       <h3>新規キャラ作成</h3>
+      {worlds.length > 0 && (
+        <label>
+          世界 <select
+            value={worlds.findIndex((w) => w.host === host && String(w.port) === port)}
+            onChange={(e) => {
+              const w = worlds[Number(e.target.value)];
+              if (!w) return;
+              setHost(w.host);
+              setPort(String(w.port));
+              setGraphics(null);
+            }}
+          >
+            <option value={-1}>選ぶか、下に書く</option>
+            {worlds.map((w, i) => (
+              <option key={i} value={i}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label>
         サーバ <input
           value={host}
