@@ -360,12 +360,22 @@ fn download_items_of() -> Vec<download::Item> {
         .unwrap_or_default()
 }
 
+/// 新規接続の設定(resist.ini)の項目。これは一覧に出さず、新規キャラ作成を開いた時に取る
+fn is_resist(item: &download::Item) -> bool {
+    item.url.to_lowercase().ends_with("/resist.lzh")
+}
+
+fn downloaded(app: &tauri::AppHandle) -> Result<HashMap<String, String>, String> {
+    Ok(jsonfile::load(&data_dir(app)?.join("downloaded.json")))
+}
+
 /// ダウンロード出来る物の一覧と、取った時の更新日
 #[tauri::command]
 fn download_items(app: tauri::AppHandle) -> Result<Vec<DownloadRow>, String> {
-    let got: HashMap<String, String> = jsonfile::load(&data_dir(&app)?.join("downloaded.json"));
+    let got = downloaded(&app)?;
     Ok(download_items_of()
         .into_iter()
+        .filter(|i| !is_resist(i))
         .map(|item| DownloadRow {
             got: got.get(&item.id).cloned(),
             item,
@@ -373,14 +383,9 @@ fn download_items(app: tauri::AppHandle) -> Result<Vec<DownloadRow>, String> {
         .collect())
 }
 
-/// 1つ取って展開し、画像を読み直す。書いたファイルの数を返す
-#[tauri::command]
-async fn download_item(app: tauri::AppHandle, id: String) -> Result<usize, String> {
-    let item = download_items_of()
-        .into_iter()
-        .find(|i| i.id == id)
-        .ok_or("一覧に無い物です")?;
-    let data = data_dir(&app)?;
+/// 1つ取って data に展開し、取った時の更新日を覚える。書いたファイルの数を返す
+async fn fetch_item(app: &tauri::AppHandle, item: download::Item) -> Result<usize, String> {
+    let data = data_dir(app)?;
     let dest = data.join(&item.dir);
     let url = item.url.clone();
     let n = tauri::async_runtime::spawn_blocking(move || download::extract(&download::fetch(&url)?, &dest))
@@ -391,17 +396,36 @@ async fn download_item(app: tauri::AppHandle, id: String) -> Result<usize, Strin
     let mut got: HashMap<String, String> = jsonfile::load(&path);
     got.insert(item.id, item.date);
     jsonfile::save(&path, &got)?;
+    Ok(n)
+}
+
+/// 1つ取って展開し、画像を読み直す。書いたファイルの数を返す
+#[tauri::command]
+async fn download_item(app: tauri::AppHandle, id: String) -> Result<usize, String> {
+    let item = download_items_of()
+        .into_iter()
+        .find(|i| i.id == id)
+        .ok_or("一覧に無い物です")?;
+    let n = fetch_item(&app, item).await?;
     use tauri::Manager;
     reload_assets(app.clone(), app.state())?;
     Ok(n)
 }
 
-/// ダウンロードした新規接続の設定(resist.ini)の世界。取っていなければ空
+/// 新規接続の設定(resist.ini)の世界。まだ取っていないか配布元の更新日が変わっていれば、先に取る。
+/// 取れなければ前に取った物を使い、それも無ければ空
 #[tauri::command]
-fn register_worlds(app: tauri::AppHandle) -> Result<Vec<download::World>, String> {
-    Ok(std::fs::read(data_dir(&app)?.join("resist.ini"))
-        .map(|b| download::worlds(&b))
-        .unwrap_or_default())
+async fn register_worlds(app: tauri::AppHandle) -> Result<Vec<download::World>, String> {
+    let path = data_dir(&app)?.join("resist.ini");
+    if let Some(item) = download_items_of().into_iter().find(is_resist) {
+        let current = downloaded(&app)?.get(&item.id) == Some(&item.date);
+        if (!current || !path.exists())
+            && let Err(e) = fetch_item(&app, item).await
+        {
+            eprintln!("{e}");
+        }
+    }
+    Ok(std::fs::read(path).map(|b| download::worlds(&b)).unwrap_or_default())
 }
 
 #[tauri::command]

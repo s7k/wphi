@@ -11,25 +11,36 @@ export function DownloadPanel(props: { onClose: () => void }) {
   const load = () => invoke<Row[]>("download_items").then(setRows).catch((e) => setMessage(String(e)));
   useEffect(() => void load(), []);
 
-  async function get(r: Row) {
-    setBusy(r.id);
-    setMessage(`${r.title} を取っています...`);
+  async function get(list: Row[]) {
     try {
-      const n = await invoke<number>("download_item", { id: r.id });
-      setMessage(`${r.title} を取りました(${n} 個のファイル)。`);
-      await load();
+      for (const r of list) {
+        setBusy(r.id);
+        setMessage(`${r.title} を取得しています...`);
+        const n = await invoke<number>("download_item", { id: r.id });
+        setMessage(`${r.title} を取得しました(${n} 個のファイル)。`);
+        await load();
+      }
+      if (list.length > 1) setMessage(`${list.length} 個を取得しました。`);
     } catch (e) {
       setMessage(String(e));
     } finally {
       setBusy(null);
     }
   }
+  // 取得していない物と、新しい版がある物
+  const stale = rows.filter((r) => r.got !== r.date);
 
   return (
     <div className="settings-panel">
-      <div className="board-title">キャラグラとマップチップを取る</div>
+      <div className="board-title">キャラグラとマップチップを取得する</div>
       <div className="settings-body">
-        <p>配布元から取って、設定フォルダの data に置きます。取った画像はすぐに使います。</p>
+        <p>配布元から取得して、設定フォルダの data に置きます。取得した画像はすぐに使います。</p>
+        <div>
+          <button disabled={busy !== null || stale.length === 0} onClick={() => get(stale)}>
+            全部取得する
+          </button>{" "}
+          {stale.length === 0 && rows.length > 0 ? "全部取得済みです。" : ""}
+        </div>
         <table className="download-list">
           <tbody>
             {rows.map((r) => (
@@ -37,8 +48,8 @@ export function DownloadPanel(props: { onClose: () => void }) {
                 <td title={r.url}>{r.title}</td>
                 <td>{r.got === null ? "" : r.got === r.date ? "取得済み" : "新しい版があります"}</td>
                 <td>
-                  <button disabled={busy !== null} onClick={() => get(r)}>
-                    {busy === r.id ? "取っています" : r.got === null ? "取る" : "取り直す"}
+                  <button disabled={busy !== null} onClick={() => get([r])}>
+                    {busy === r.id ? "取得しています" : r.got === null ? "取得する" : "取得し直す"}
                   </button>
                 </td>
               </tr>
