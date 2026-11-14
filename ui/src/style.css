@@ -343,7 +343,7 @@ body {
   text-shadow: -1px 0 #555, 1px 0 #555, 0 -1px #555, 0 1px #555;
 }
 
-/* Status.bmp の F・W・M・C・Gp と CHK・SKL。地の teal はやめ、文字の色で見分ける */
+/* Status.bmp の F・W・M・C・Gp と CHK。地の teal はやめ、文字の色で見分ける。名前は略さずに出す */
 .fwmc {
   display: grid;
   grid-template-columns: auto 34px auto 34px;

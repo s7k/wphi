@@ -53,19 +53,19 @@ export function StatusPanel(props: {
         )}
       </div>
       <div className="fwmc">
-        <span className="label-f">F</span>
+        <span className="label-f">Fighter</span>
         {value(s?.f)}
-        <span className="label-w">W</span>
+        <span className="label-w">Wizard</span>
         {value(s?.w)}
-        <span className="label-m">M</span>
+        <span className="label-m">Merchant</span>
         {value(s?.m)}
-        <span className="label-c">C</span>
+        <span className="label-c">Creator</span>
         {value(s?.c)}
         <button className="status-button" onClick={() => send("check\nlook")}>
           <Search />
           CHK
         </button>
-        <span className="label-gp">Gp</span>
+        <span className="label-gp">Gold</span>
         {value(s?.gp)}
       </div>
     </div>
