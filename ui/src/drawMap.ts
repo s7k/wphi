@@ -199,12 +199,6 @@ export function drawMap(
       drawChara(ctx, ch, cs, scale, imgs, animFrame, dx * scale, input.eagleEye ? 0 : CHARA_Y_ABOVE_FLOOR * scale);
     }
   }
-
-  // 6. 中心セル(自キャラ位置)ハイライト(移植元: QColor(255,255,255,40))。
-  ctx.save();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
-  ctx.fillRect(cx * cs + 1, cy * cs + 1, cs - 2, cs - 2);
-  ctx.restore();
 }
 
 /**
