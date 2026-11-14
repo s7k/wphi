@@ -63,7 +63,7 @@ export function StatusPanel(props: {
         {value(s?.c)}
         <button className="status-button" onClick={() => send("check\nlook")}>
           <Search />
-          CHK
+          Status
         </button>
         <span className="label-gp">Gold</span>
         {value(s?.gp)}

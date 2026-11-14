@@ -343,7 +343,7 @@ body {
   text-shadow: -1px 0 #555, 1px 0 #555, 0 -1px #555, 0 1px #555;
 }
 
-/* Status.bmp の F・W・M・C・Gp と CHK。地の teal はやめ、文字の色で見分ける。名前は略さずに出す */
+/* Status.bmp の F・W・M・C・Gp と CHK(Status と書く)。地の teal はやめ、文字の色で見分ける。名前は略さずに出す */
 .fwmc {
   display: grid;
   grid-template-columns: auto 34px auto 34px;
@@ -394,6 +394,9 @@ body {
 }
 
 .status-button {
+  /* Status は左の2列を使い、Gold を C の下(右の2列)に置く */
+  grid-column: 1 / span 2;
+  justify-self: start;
   padding: 0 2px;
   font: 10px/12px var(--ui-font);
 }
