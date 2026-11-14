@@ -928,7 +928,8 @@ body {
 }
 
 /* ボタンのアイコン(lucide-react)。文字の大きさと色に合わせる */
-button > svg {
+button > svg,
+.toggle > svg {
   width: 1.1em;
   height: 1.1em;
   vertical-align: -0.2em;
@@ -936,6 +937,7 @@ button > svg {
   flex-shrink: 0;
 }
 
-button > svg:only-child {
+button > svg:only-child,
+.toggle > svg:only-child {
   margin-right: 0;
 }

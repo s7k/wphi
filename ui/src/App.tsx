@@ -35,7 +35,7 @@ import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, TRA
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
 import { pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
-import { Check, FolderOpen, Import, Megaphone, MessageSquare, Plug, Plus, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
+import { ArrowDownToLine, Check, FolderOpen, Import, Megaphone, MessageSquare, Layers, Plug, Plus, Save, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
 
 // src-tauri/src/characters.rs の Store
 type Character = { label: string; host: string; port: number };
@@ -1479,18 +1479,22 @@ function InputEditor(props: {
               if (!e.target.checked) setLoudAll(false);
             }}
           />
+          <Megaphone />
           {loudAll ? "すべて大声" : "大声"}
         </label>
         <label className={allTab ? "toggle on" : "toggle"}>
           <input type="checkbox" checked={allTab} onChange={(e) => setAllTab(e.target.checked)} />
+          <Layers />
           全タブ発言
         </label>
         <label className={props.logFollow ? "toggle on" : "toggle"} title="ログが増えたら最下行へ移る">
           <input type="checkbox" checked={props.logFollow} onChange={(e) => props.onLogFollow(e.target.checked)} />
+          <ArrowDownToLine />
           ログを固定
         </label>
         <label className={props.logSave ? "toggle on" : "toggle"}>
           <input type="checkbox" checked={props.logSave} onChange={(e) => props.onLogSave(e.target.checked)} />
+          <Save />
           ログ保存
         </label>
         <button className="toggle" title="ログの保存先のフォルダを開く" onClick={props.onOpenLogDir}>
