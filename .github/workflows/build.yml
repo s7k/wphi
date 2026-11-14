@@ -90,3 +90,6 @@ jobs:
             || gh release create "$GITHUB_REF_NAME" --title "WPHI ${GITHUB_REF_NAME#v}" --generate-notes \
             || true
           gh release upload "$GITHUB_REF_NAME" out/* --clobber
+          # Latest は作った順で決まるので、続けてタグを打つと古い版が Latest になる。一番新しい版を Latest にし直す
+          newest=$(gh release list --limit 100 --json tagName -q '.[].tagName' | sort -V | tail -1)
+          gh release edit "$newest" --latest
