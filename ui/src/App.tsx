@@ -35,6 +35,7 @@ import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, TRA
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
 import { pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
+import { Check, FolderOpen, Import, Megaphone, MessageSquare, Plug, Plus, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
 
 // src-tauri/src/characters.rs の Store
 type Character = { label: string; host: string; port: number };
@@ -1271,14 +1272,15 @@ function TabBar(props: {
             {t.label}
           </button>
           <button className="tab-close" title="切断して閉じる" onClick={() => props.onClose(t.session)}>
-            ×
+            <X />
           </button>
         </span>
       ))}
-      <button className="tab" onClick={() => props.onSelect(null)}>
-        ＋
+      <button className="tab" title="キャラを選んで接続する" onClick={() => props.onSelect(null)}>
+        <Plus />
       </button>
       <button className="tab tab-settings" onClick={props.onSettings}>
+        <SettingsIcon />
         設定
       </button>
     </div>
@@ -1453,10 +1455,17 @@ function InputEditor(props: {
           </p>
           <div className="confirm-buttons">
             <button autoFocus onClick={() => answerLoud("yes")}>
+              <Check />
               はい
             </button>
-            <button onClick={() => answerLoud("all")}>すべて大声</button>
-            <button onClick={() => answerLoud("no")}>いいえ</button>
+            <button onClick={() => answerLoud("all")}>
+              <Megaphone />
+              すべて大声
+            </button>
+            <button onClick={() => answerLoud("no")}>
+              <X />
+              いいえ
+            </button>
           </div>
         </div>
       )}
@@ -1485,9 +1494,11 @@ function InputEditor(props: {
           ログ保存
         </label>
         <button className="toggle" title="ログの保存先のフォルダを開く" onClick={props.onOpenLogDir}>
+          <FolderOpen />
           保存先
         </button>
         <button className="toggle" onClick={props.onPriv}>
+          <MessageSquare />
           priv
         </button>
       </div>
@@ -1544,8 +1555,14 @@ function CharacterList(props: {
                 {c.host}:{c.port}
               </td>
               <td>
-                <button onClick={() => props.onConnect(c.label)}>接続</button>
-                <button onClick={() => run(invoke("delete_character", { label: c.label }))}>削除</button>
+                <button onClick={() => props.onConnect(c.label)}>
+                  <Plug />
+                  接続
+                </button>
+                <button onClick={() => run(invoke("delete_character", { label: c.label }))}>
+                  <Trash2 />
+                  削除
+                </button>
               </td>
             </tr>
           ))}
@@ -1581,7 +1598,10 @@ function CharacterList(props: {
           キャラ ID(登録済みのキャラの接続先だけを変える時は空欄)
           <input type="password" value={id} onChange={(e) => setId(e.target.value)} />
         </label>
-        <button type="submit">登録</button>
+        <button type="submit">
+          <UserPlus />
+          登録
+        </button>
       </form>
 
       <form
@@ -1600,7 +1620,10 @@ function CharacterList(props: {
           Philly フォルダ(<code>*.chara</code> のあるフォルダ)
           <input value={folder} onChange={(e) => setFolder(e.target.value)} required />
         </label>
-        <button type="submit">取り込む</button>
+        <button type="submit">
+          <Import />
+          取り込む
+        </button>
         {imported && <p>{imported}</p>}
       </form>
 

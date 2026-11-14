@@ -3,6 +3,7 @@
 
 import { useEffect, useRef } from "react";
 import { hasMore, listOk, moreNo, pageTop, type ListState } from "./list.ts";
+import { Check, ChevronsDown, X } from "lucide-react";
 
 const stripTags = (s: string) => s.replace(/\/\*.*?\*\//g, "");
 
@@ -42,9 +43,16 @@ export function ListOverlay(props: {
       </ul>
       {/* ボタン名は Philly と同じ(MainForm.cpp)。More は9件目(続きの印)がある時だけ押せる */}
       <div className="list-buttons">
-        <button onClick={() => props.onSend(listOk(l))}>O K</button>
-        <button onClick={() => props.onSend(".")}>Cancel</button>
+        <button onClick={() => props.onSend(listOk(l))}>
+          <Check />
+          O K
+        </button>
+        <button onClick={() => props.onSend(".")}>
+          <X />
+          Cancel
+        </button>
         <button disabled={!hasMore(l) || !!l.waiting} onClick={() => props.onMore(moreNo(l))}>
+          <ChevronsDown />
           More
         </button>
       </div>

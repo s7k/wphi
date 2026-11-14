@@ -1,6 +1,7 @@
 // キャラグラ・マップチップ・新規接続の設定のダウンロード(Raphi の unew.ini。download.rs)。
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
+import { Download, LoaderCircle, RefreshCw, X } from "lucide-react";
 
 type Row = { id: string; title: string; url: string; dir: string; date: string; got: string | null };
 
@@ -37,6 +38,7 @@ export function DownloadPanel(props: { onClose: () => void }) {
         <p>配布元から取得して、設定フォルダの data に置きます。取得した画像はすぐに使います。</p>
         <div>
           <button disabled={busy !== null || stale.length === 0} onClick={() => get(stale)}>
+            <Download />
             全部取得する
           </button>{" "}
           {stale.length === 0 && rows.length > 0 ? "全部取得済みです。" : ""}
@@ -49,6 +51,7 @@ export function DownloadPanel(props: { onClose: () => void }) {
                 <td>{r.got === null ? "" : r.got === r.date ? "取得済み" : "新しい版があります"}</td>
                 <td>
                   <button disabled={busy !== null} onClick={() => get([r])}>
+                    {busy === r.id ? <LoaderCircle /> : r.got === null ? <Download /> : <RefreshCw />}
                     {busy === r.id ? "取得しています" : r.got === null ? "取得する" : "取得し直す"}
                   </button>
                 </td>
@@ -60,6 +63,7 @@ export function DownloadPanel(props: { onClose: () => void }) {
       </div>
       <div className="board-buttons">
         <button onClick={props.onClose} disabled={busy !== null}>
+          <X />
           閉じる
         </button>
       </div>

@@ -1,10 +1,11 @@
 // 看板エディタ(Philly の MEditForm)。#m-edit を受けた時と、S(write)を押した時に開く。
 // Philly は別窓だが、窓の配置は P4 でまとめて決めるので、今は main 窓の中に重ねる。
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { boardText } from "./boardText.ts";
 import { TAG_MENU, type TagItem } from "./tagMenu.ts";
 import { TagMenu, applyTag, type TagMenuAt } from "./TagMenuPopup";
+import { AArrowDown, AArrowUp, Bold, Italic, Send, Strikethrough, Subscript, Superscript, Underline, X } from "lucide-react";
 
 // 読む人の OS に無いフォントは、読む人の既定のフォントで出る
 const FONTS = [
@@ -21,6 +22,26 @@ const [COLORS, SIZES, STYLES] = TAG_MENU.map((g) =>
   g.items.filter((t) => t.tag.endsWith("*/")),
 );
 const label = (t: TagItem) => t.caption.split("(")[0];
+const STYLE_ICON: Record<string, ReactNode> = {
+  Large: <AArrowUp />,
+  Small: <AArrowDown />,
+  Bold: <Bold />,
+  Italic: <Italic />,
+  Strike: <Strikethrough />,
+  Under: <Underline />,
+  Sup: <Superscript />,
+  Sub: <Subscript />,
+};
+const STYLE_TITLE: Record<string, string> = {
+  Large: "大きく",
+  Small: "小さく",
+  Bold: "太字",
+  Italic: "斜体",
+  Strike: "取り消し線",
+  Under: "下線",
+  Sup: "上付き",
+  Sub: "下付き",
+};
 
 function TagToolbar(props: {
   ta: () => HTMLTextAreaElement | null;
@@ -56,17 +77,8 @@ function TagToolbar(props: {
       />
       <span className="board-sep" />
       {[...SIZES, ...STYLES].map((t) => (
-        <button key={t.tag} title={t.tag} onClick={() => apply(t)}>
-          {{
-            Large: "大",
-            Small: "小",
-            Bold: "太",
-            Italic: "斜",
-            Strike: "消",
-            Under: "下線",
-            Sup: "上付",
-            Sub: "下付",
-          }[label(t)] ?? label(t)}
+        <button key={t.tag} title={`${STYLE_TITLE[label(t)] ?? label(t)} ${t.tag}`} onClick={() => apply(t)}>
+          {STYLE_ICON[label(t)] ?? label(t)}
         </button>
       ))}
       <span className="board-sep" />
@@ -157,9 +169,13 @@ export function BoardEditor(props: {
       </div>
       <div className="board-buttons">
         <button onClick={() => props.onSend(boardText(text))}>
+          <Send />
           送信(Shift+Enter)
         </button>
-        <button onClick={props.onCancel}>キャンセル</button>
+        <button onClick={props.onCancel}>
+          <X />
+          キャンセル
+        </button>
       </div>
     </div>
   );

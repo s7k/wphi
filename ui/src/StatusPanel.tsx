@@ -3,6 +3,7 @@
 // Status.bmp の teal の地は古く見えるので使わず、文字の色で見分ける。
 import { sendLines } from "./keyInput";
 import type { CondEvent, StatusEvent } from "./protocol";
+import { Search } from "lucide-react";
 
 /** バーの割合(0〜100) */
 const pct = (v: number, max: number) => (max > 0 ? Math.max(0, Math.min(100, (v / max) * 100)) : 0);
@@ -61,10 +62,8 @@ export function StatusPanel(props: {
         <span className="label-c">C</span>
         {value(s?.c)}
         <button className="status-button" onClick={() => send("check\nlook")}>
+          <Search />
           CHK
-        </button>
-        <button className="status-button" onClick={() => send("skills")}>
-          SKL
         </button>
         <span className="label-gp">Gp</span>
         {value(s?.gp)}

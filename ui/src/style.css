@@ -926,3 +926,16 @@ body {
     display: none;
   }
 }
+
+/* ボタンのアイコン(lucide-react)。文字の大きさと色に合わせる */
+button > svg {
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: -0.2em;
+  margin-right: 0.25em;
+  flex-shrink: 0;
+}
+
+button > svg:only-child {
+  margin-right: 0;
+}

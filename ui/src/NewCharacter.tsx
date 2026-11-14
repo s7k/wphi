@@ -3,6 +3,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { assetUrl } from "./asset";
+import { List, UserPlus } from "lucide-react";
 
 /** パスワードを省いた時に決める6字(英小文字と数字) */
 function randomPass(): string {
@@ -99,6 +100,7 @@ export function NewCharacter(props: { onCreated: () => void; onError: (message: 
       </label>
       {graphics === null ? (
         <button type="submit" disabled={busy}>
+          <List />
           キャラグラの一覧を読む
         </button>
       ) : (
@@ -128,6 +130,7 @@ export function NewCharacter(props: { onCreated: () => void; onError: (message: 
             メール(省略可) <input value={mail} onChange={(e) => setMail(e.target.value)} />
           </label>
           <button type="submit" disabled={busy}>
+            <UserPlus />
             作る
           </button>
         </>

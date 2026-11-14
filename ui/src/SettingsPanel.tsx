@@ -2,6 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 import { clampZoom, MAP_ZOOM_MAX, MAP_ZOOM_MIN, type Settings } from "./settings.ts";
+import { Import, Save, X } from "lucide-react";
 
 export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings) => void; onClose: () => void }) {
   const [s, setS] = useState(props.settings);
@@ -126,7 +127,10 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
         {message && <p>{message}</p>}
       </div>
       <div className="board-buttons">
-        <button onClick={() => save(s)}>保存</button>
+        <button onClick={() => save(s)}>
+          <Save />
+          保存
+        </button>
         <button
           onClick={() =>
             invoke<Settings>("import_philly_settings")
@@ -138,9 +142,13 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
               .catch((e) => setMessage(String(e)))
           }
         >
+          <Import />
           Philly.ini から取り込む
         </button>
-        <button onClick={props.onClose}>閉じる</button>
+        <button onClick={props.onClose}>
+          <X />
+          閉じる
+        </button>
       </div>
     </div>
   );

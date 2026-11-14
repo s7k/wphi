@@ -1,6 +1,7 @@
 // 語や数を聞くダイアログ(Philly の InputQuery と IntInputDialog)。main 窓の中に出す。
 import { useState } from "react";
 import type { AskOptions } from "./keys.ts";
+import { Check, Send, X } from "lucide-react";
 
 export function AskDialog(props: { opts: AskOptions; onAnswer: (text: string | null) => void }) {
   const [text, setText] = useState(props.opts.initial ?? "");
@@ -33,9 +34,11 @@ export function AskDialog(props: { opts: AskOptions; onAnswer: (text: string | n
         </label>
         <div className="confirm-buttons">
           <button type="submit" disabled={!ok}>
+            {props.opts.numeric ? <Send /> : <Check />}
             {props.opts.numeric ? "送信" : "OK"}
           </button>
           <button type="button" onClick={() => props.onAnswer(null)}>
+            <X />
             キャンセル
           </button>
         </div>

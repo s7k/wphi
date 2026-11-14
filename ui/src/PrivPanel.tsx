@@ -4,6 +4,7 @@ import { useState, type KeyboardEvent } from "react";
 import { partnersKey, type User } from "./priv.ts";
 import { LogLines } from "./LogLineList";
 import type { LogLine } from "./logLines.ts";
+import { MessagesSquare, X } from "lucide-react";
 
 /** confirm: 受けた priv の宛先のタグで作った3人以上の会話。初めて送る前に宛先を確かめる(#53) */
 export type PrivConv = { to: string[]; lines: LogLine[]; unread: boolean; confirm?: boolean };
@@ -38,7 +39,9 @@ export function PrivPanel(props: {
     <div className="priv-panel">
       <div className="priv-head">
         <span>priv</span>
-        <button onClick={props.onClose}>×</button>
+        <button title="閉じる" onClick={props.onClose}>
+          <X />
+        </button>
       </div>
       <div className="priv-convs">
         {props.convs.map((c) => {
@@ -85,6 +88,7 @@ export function PrivPanel(props: {
             setPicked([]);
           }}
         >
+          <MessagesSquare />
           選んだ相手と話す
         </button>
       </div>

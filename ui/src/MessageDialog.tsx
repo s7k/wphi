@@ -2,6 +2,7 @@
 // window.confirm と window.alert は WebView によって出ず、confirm は黙って false を返す
 // (macOS で Call と Return が唱えられなかった)。どの OS でも同じに出す為、自分で描く
 import { useEffect, useState } from "react";
+import { Check, X } from "lucide-react";
 
 type Request = { message: string; confirm: boolean; resolve: (ok: boolean) => void };
 
@@ -50,14 +51,17 @@ export function MessageDialogHost() {
           {req.confirm ? (
             <>
               <button type="button" onClick={() => answer(true)}>
+                <Check />
                 はい
               </button>
               <button type="button" autoFocus onClick={() => answer(false)}>
+                <X />
                 いいえ
               </button>
             </>
           ) : (
             <button type="button" autoFocus onClick={() => answer(true)}>
+              <Check />
               OK
             </button>
           )}
