@@ -59,6 +59,9 @@ await shot("download");
 await button("閉じる").click();
 
 // 地図の演出。行を流し、アニメーションを途中で止めて地図の周りを撮る。演出が消えるのを待ってから次へ
+// 自分は地図の真ん中にいる。Kotone が3マス東にいるので、右へ寄せて切り抜く
+const map = await page.locator("canvas").first().boundingBox();
+const clip = { x: Math.round(map.x + map.width / 2 - 105), y: Math.round(map.y + map.height / 2 - 85), width: 300, height: 170 };
 for (const [scene, at] of [
   ["talk", 0],
   ["slash", 60],
@@ -72,7 +75,7 @@ for (const [scene, at] of [
   await page.evaluate((s) => window.guideEffect(s), scene);
   await page.waitForTimeout(100);
   await page.evaluate((t) => document.getAnimations().forEach((a) => ((a.currentTime = t), a.pause())), at);
-  await shot(`effect-${scene}`, { clip: { x: 110, y: 160, width: 300, height: 170 } });
+  await shot(`effect-${scene}`, { clip });
   await page.evaluate(() => document.getAnimations().forEach((a) => a.play()));
   await page.waitForTimeout(4500);
 }

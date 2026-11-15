@@ -72,19 +72,24 @@ fn chip(x: i32, y: i32) -> u8 {
     }
 }
 
-/// 自分が (x, y) にいる時の、北固定 7x7 の受信行
+/// 地図の幅と高さ。ログと同じ窓の地図は 13x11 マスを見せ、セッションは外周を1マスずつ足して求める(session.rs の view_line)
+const VIEW_W: i32 = 15;
+const VIEW_H: i32 = 13;
+
+/// 自分が (x, y) にいる時の、北固定の v6 の受信行
 fn frame(x: i32, y: i32, facing: u8) -> Vec<Vec<u8>> {
-    let mut m = format!("#m57 M N {:08x}:", 0x6a3b_0000u32).into_bytes();
-    for r in 0..7 {
-        for c in 0..7 {
-            m.push(chip(x + c - 3, y + r - 3));
-            m.push(0);
+    let (cx, cy) = ((VIEW_W - 1) / 2, (VIEW_H - 1) / 2);
+    let mut lines = vec![format!("#v6 M N {:08x} {VIEW_W} {VIEW_H}", 0x6a3b_0000u32).into_bytes()];
+    for r in 0..VIEW_H {
+        let mut l = format!("#v6 R {r:02} ").into_bytes();
+        for c in 0..VIEW_W {
+            l.push(chip(x + c - cx, y + r - cy));
+            l.push(0);
         }
+        lines.push(l);
     }
-    m.extend_from_slice(b" ");
-    let mut lines = vec![m];
     let mut o = |id: u32, gx: i32, gy: i32, dir: u8, name: &str, gra: &str| {
-        let mut l = format!("#m57 O C{id:04x}:{gx} {gy} {} ", dir as char).into_bytes();
+        let mut l = format!("#v6 O C{id:04x}:{gx:02} {gy:02} {} ", dir as char).into_bytes();
         let mut n = codec::encode(name);
         n.resize(31, b' ');
         l.extend_from_slice(&n);
@@ -95,15 +100,15 @@ fn frame(x: i32, y: i32, facing: u8) -> Vec<Vec<u8>> {
         l.extend_from_slice(b" # 40 ");
         lines.push(l);
     };
-    o(1, 3, 3, facing, ME, "t_valkyrie");
+    o(1, cx, cy, facing, ME, "t_valkyrie");
     for (i, (name, gra, ox, oy, dir)) in OTHERS.iter().enumerate() {
-        let (gx, gy) = (ox - x + 3, oy - y + 3);
-        if (0..7).contains(&gx) && (0..7).contains(&gy) {
+        let (gx, gy) = (ox - x + cx, oy - y + cy);
+        if (0..VIEW_W).contains(&gx) && (0..VIEW_H).contains(&gy) {
             o(2 + i as u32, gx, gy, *dir, name, gra);
         }
     }
     lines.push(format!("#ex-pos {x} {y}").into_bytes());
-    lines.push(b"#m57 .".to_vec());
+    lines.push(b"#v6 .".to_vec());
     lines
 }
 
@@ -114,6 +119,7 @@ fn transcript() -> Vec<Vec<u8>> {
     text("#ex-notice area=はじまりの草原");
     text("#mapset default");
     text("#ex-map style=solid");
+    text(&format!("#ex-map view={VIEW_W} {VIEW_H}"));
     text(&format!("#status {ME} : 1820: 2400: 960: 1200: 48210: 3150: 2215: 1840: 960: 1205"));
     text("#cond -------");
     text("/*color=#2080d0*/ようこそ WPHI Guide の世界へ。/*.*/");

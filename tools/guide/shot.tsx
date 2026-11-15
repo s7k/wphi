@@ -57,6 +57,9 @@ mockIPC(
         return "9.9.9";
       case "menu_model":
         return [];
+      case "set_map_view":
+        (window as any).guideView = args;
+        return null;
       case "download_items":
         return JSON.parse(await text("/download_items"));
       default:
