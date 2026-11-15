@@ -252,6 +252,23 @@ body {
 .map-amount.h-up { color: #7dff9a; }
 .map-amount.m-down { color: #c890ff; }
 .map-amount.m-up { color: #6fd0ff; }
+.map-amount.miss { color: #d0d0d0; font-size: 13px; }
+.map-amount.poison { color: #c070ff; }
+.map-amount.palsy { color: #ffe040; }
+/* 倒されたキャラ。白く光って上へ薄れて行く */
+.map-dead {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 240, 1) 20%, rgba(255, 230, 120, 0.7) 45%, rgba(255, 230, 120, 0) 70%);
+  animation: map-dead 0.9s ease-out forwards;
+}
+@keyframes map-dead {
+  from { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  30% { transform: translate(-50%, -55%) scale(1.1); opacity: 1; }
+  to { transform: translate(-50%, -110%) scale(1.3, 0.3); opacity: 0; }
+}
 /* 斬撃と魔法弾。--a は攻撃したキャラから受けたキャラへの向き、--dx・--dy はその距離(map.tsx) */
 .map-slash,
 .map-bolt,

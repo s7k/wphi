@@ -16,10 +16,10 @@ import { KEY_EVENT, MOUSE_EVENT, sendLine, type ForwardedKey, type ForwardedMous
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
 import { CHIP_SIZE, MAP_TOP, SLIDE_MS, gridDim, slideStep } from "./mapRender";
 import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
-import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type StatusEvent } from "./protocol";
+import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapChar, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
 import { hideOnClose, useImages, useScreenshot } from "./windowUtil";
-import { findChar, MAP_POP_EVENT, type Pop } from "./mapPop.ts";
+import { findChar, MAP_POP_EVENT, type Pop, type PopKind } from "./mapPop.ts";
 
 /** Philly のキャラのアニメ周期(PersonalThread.h の ANIMATION_INTERVAL = 500ms) */
 const ANIMATION_MS = 500;
@@ -48,6 +48,17 @@ const stripTags = (s: string) => s.replace(/\/\*.*?\*\//g, "").trim();
 /** 吹き出しと増減の数字を出す時間 */
 const TALK_MS = 4000;
 const AMOUNT_MS = 1200;
+
+/** 吹き出しの下に浮かせる文字の色(style.css) */
+const AMOUNT_CLASS: Partial<Record<PopKind, string>> = {
+  "-hp": "h-down",
+  "+hp": "h-up",
+  "-mp": "m-down",
+  "+mp": "m-up",
+  miss: "miss",
+  poison: "poison",
+  palsy: "palsy",
+};
 
 /** MAP_STATE_EVENT などの宛先。main 窓の中に置いた地図なら "main" */
 export type MapPlace = "map" | "main";
@@ -153,12 +164,19 @@ export function MapView(props: { embedded?: boolean }) {
     return () => ro.disconnect();
   }, []);
   // キャラの上に出す吹き出しと増減の数字(ui/src/mapPop.ts)。キャラが動いても付いて行くよう、位置は描く時に名前で探す
-  const [pops, setPops] = useState<(Pop & { id: number })[]>([]);
+  const [pops, setPops] = useState<(Pop & { id: number; at?: { x: number; y: number } })[]>([]);
+  // 倒されたキャラはすぐ地図から消えるので、届いた時の位置を覚えて出す
+  const popCharsRef = useRef<{ chars: MapChar[]; center: number }>({ chars: [], center: 0 });
   useEffect(() => {
     let id = 0;
     const unlisten = listen<{ pops: Pop[]; to: MapPlace }>(MAP_POP_EVENT, (e) => {
       if (e.payload.to !== place) return;
-      const added = e.payload.pops.map((p) => ({ ...p, id: ++id }));
+      const { chars, center } = popCharsRef.current;
+      const added = e.payload.pops.flatMap((p) => {
+        if (p.kind !== "dead") return [{ ...p, id: ++id }];
+        const c = findChar(chars, p.name, center);
+        return c ? [{ ...p, id: ++id, at: { x: c.x, y: c.y } }] : [];
+      });
       // 吹き出しは1人に1つ。新しい発言で置き換える
       const talkers = new Set(added.filter((p) => p.kind === "talk").map((p) => p.name));
       setPops((ps) => [...ps.filter((p) => !(p.kind === "talk" && talkers.has(p.name))), ...added]);
@@ -314,11 +332,25 @@ export function MapView(props: { embedded?: boolean }) {
   const canvasLeft = Math.floor((area.w - dim * CHIP_SIZE * zoom) / 2);
   const canvasTop = Math.floor((area.h - (dim * CHIP_SIZE + MAP_TOP) * zoom) / 2);
   const popChars = automap?.chars ?? map?.chars ?? [];
+  popCharsRef.current = { chars: popChars, center: Math.floor(dim / 2) };
   // 同じキャラに続けて出た数字は、上へずらして重ねない
   const stack = new Map<string, number>();
   const popEls = pops.flatMap((p) => {
-    const c = findChar(popChars, p.name, Math.floor(dim / 2));
+    const c = p.at ?? findChar(popChars, p.name, Math.floor(dim / 2));
     if (!c) return [];
+    if (p.kind === "dead")
+      return [
+        <div
+          key={p.id}
+          className="map-dead"
+          style={{
+            left: canvasLeft + (c.x * CHIP_SIZE + CHIP_SIZE / 2) * zoom,
+            top: canvasTop + (MAP_TOP + c.y * CHIP_SIZE + CHIP_SIZE / 2) * zoom,
+            width: CHIP_SIZE * 1.6 * zoom,
+            height: CHIP_SIZE * 1.6 * zoom,
+          }}
+        />,
+      ];
     const n = p.kind === "talk" ? 0 : (stack.get(p.name) ?? 0);
     if (p.kind !== "talk") stack.set(p.name, n + 1);
     const style = {
@@ -344,8 +376,8 @@ export function MapView(props: { embedded?: boolean }) {
     }
     return [
       ...fx,
-      <div key={p.id} className={p.kind === "talk" ? "map-talk" : `map-amount ${p.kind[1]}${p.kind[0] === "+" ? "-up" : "-down"}`} style={style}>
-        {p.kind === "talk" ? p.text : `${p.kind[0] === "+" ? "+" : ""}${p.text}`}
+      <div key={p.id} className={p.kind === "talk" ? "map-talk" : `map-amount ${AMOUNT_CLASS[p.kind] ?? ""}`} style={style}>
+        {p.kind[0] === "+" ? `+${p.text}` : p.text}
       </div>,
     ];
   });

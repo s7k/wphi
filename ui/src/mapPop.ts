@@ -7,7 +7,8 @@
 
 export const MAP_POP_EVENT = "phi-map-pop";
 
-export type PopKind = "talk" | "-hp" | "+hp" | "-mp" | "+mp";
+/** dead は倒されたキャラ。倒されたキャラは地図から消えるので、地図は届いた時の位置に出す */
+export type PopKind = "talk" | "-hp" | "+hp" | "-mp" | "+mp" | "miss" | "poison" | "palsy" | "dead";
 /** by は攻撃したキャラ。地図が斬撃を出し、magic なら魔法弾を出す */
 export type Pop = { name: string; kind: PopKind; text: string; by?: string; magic?: true };
 
@@ -15,6 +16,22 @@ export const stripTags = (s: string) => s.replace(/\/\*.*?\*\//g, "").trim();
 
 const AMOUNT = /\[(\d+) ([hm])p\]/;
 const GAIN = /回復した|吸収した|absorbed|cured/;
+
+/** 増減の付かない知らせ。(文型, 種類, 出す文字)。どれも1つ目の括弧がキャラ */
+const NOTICES: [RegExp, PopKind, string][] = [
+  // DMM_MISS_ATTACK。攻撃した側しか分からないので、攻撃した側に出す
+  [/^(.+?) ?はミスした\./, "miss", "MISS"],
+  [/^(.+?) miss\./, "miss", "MISS"],
+  // DMM_KILL_BY_OTHER・DMM_KILL_BY_PK・DMM_KILL_SELF
+  [/^(.+?) は .+?に殺された\./, "dead", ""],
+  [/^(.+?) は .+?で死んだ\./, "dead", ""],
+  [/^(.+?) is killed by /, "dead", ""],
+  // DMM_POISON_BY_ATTACK・DMM_POISON・DMM_PALSY_BY_ATTACK・DMM_PALSY
+  [/^(.+?) は \d+ lv の毒を/, "poison", "毒"],
+  [/^(.+?) is \d+ lv poisoned/, "poison", "毒"],
+  [/^(.+?) は \d+ 秒間 .*麻痺/, "palsy", "麻痺"],
+  [/^(.+?) is paralyzed in /, "palsy", "麻痺"],
+];
 
 /** 増減を受けたキャラ(to)と、攻撃したキャラ(by)とその武器か魔法(with)。文型で決める */
 function target(s: string): { to: string; by?: string; with?: string } | undefined {
@@ -43,6 +60,10 @@ export function popsFromLine(raw: string, spoken = new Map<string, string>()): P
   const who = text.slice(0, sep).trim();
   const body = text.slice(sep + 3).trim();
   if (who === "DM") {
+    for (const [re, kind, label] of NOTICES) {
+      const m = body.match(re);
+      if (m) return [{ name: m[1], kind, text: label }];
+    }
     const a = body.match(AMOUNT);
     const t = a && target(body);
     const kind = a && (`${GAIN.test(body) ? "+" : "-"}${a[2]}p` as PopKind);

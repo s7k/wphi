@@ -51,6 +51,25 @@ test("唱えた呪文で攻撃したら魔法", () => {
   ]);
 });
 
+test("ミス・倒された・毒と麻痺", () => {
+  // dm_msg_jp.h・dm_msg_en.h の DMM_MISS_ATTACK・DMM_KILL_*・DMM_POISON*・DMM_PALSY*
+  const one = (line: string) => popsFromLine(`${DM} > ${line} `);
+  assert.deepEqual(one("太郎 はミスした."), [{ name: "太郎", kind: "miss", text: "MISS" }]);
+  assert.deepEqual(one("Taro miss."), [{ name: "Taro", kind: "miss", text: "MISS" }]);
+  assert.deepEqual(one("スライム は 太郎 に殺された."), [{ name: "スライム", kind: "dead", text: "" }]);
+  assert.deepEqual(one("太郎 は スライム に/*color=red*/殺された/*.*/."), [{ name: "太郎", kind: "dead", text: "" }]);
+  assert.deepEqual(one("太郎 は 毒で死んだ."), [{ name: "太郎", kind: "dead", text: "" }]);
+  assert.deepEqual(one("Slime is killed by Taro."), [{ name: "Slime", kind: "dead", text: "" }]);
+  assert.deepEqual(one("太郎 は 3 lv の毒を受けた."), [{ name: "太郎", kind: "poison", text: "毒" }]);
+  assert.deepEqual(one("太郎 は 3 lv の毒を /*.*/Poison /*color=gray*/によって受けた."), [{ name: "太郎", kind: "poison", text: "毒" }]);
+  assert.deepEqual(one("Taro is 3 lv poisoned."), [{ name: "Taro", kind: "poison", text: "毒" }]);
+  assert.deepEqual(one("太郎 は 5 秒間 麻痺する."), [{ name: "太郎", kind: "palsy", text: "麻痺" }]);
+  assert.deepEqual(one("太郎 は 5 秒間 /*.*/Palsy /*color=gray*/によって麻痺した."), [{ name: "太郎", kind: "palsy", text: "麻痺" }]);
+  assert.deepEqual(one("Taro is paralyzed in 5 sec."), [{ name: "Taro", kind: "palsy", text: "麻痺" }]);
+  // 既に麻痺している、は出さない
+  assert.deepEqual(one("太郎 は既に麻痺している."), []);
+});
+
 test("増減ではない色付きの数字は出さない", () => {
   assert.deepEqual(popsFromLine(`${DM} > 太郎 は Fighter level が /*color=+mp*/1/*color=gray*/ 上昇した.`), []);
   assert.deepEqual(popsFromLine(`${DM} > /*color=-hp*/12/*color=gray*//100 hp left. `), []);
