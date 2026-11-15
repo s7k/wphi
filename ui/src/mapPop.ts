@@ -7,24 +7,23 @@
 export const MAP_POP_EVENT = "phi-map-pop";
 
 export type PopKind = "talk" | "-hp" | "+hp" | "-mp" | "+mp";
-export type Pop = { name: string; kind: PopKind; text: string };
+/** by は攻撃したキャラ。地図が斬撃か魔法弾を出す */
+export type Pop = { name: string; kind: PopKind; text: string; by?: string };
 
 export const stripTags = (s: string) => s.replace(/\/\*.*?\*\//g, "").trim();
 
 const AMOUNT = /\[\/\*color=([+-][hm]p)\*\/(\d+)\/\*[^*]*\*\/ [hm]p\]/;
 
-/** 増減を受けたキャラ。文型で決める */
-function target(s: string): string | undefined {
-  const m =
-    // "B は A の 武器 による攻撃を吸収した" "B は A の 魔法 を吸収した"
-    s.match(/^(.+?) は .+? の .*吸収した/) ??
-    s.match(/^(.+?) absorbed /) ??
-    // "A は B を 武器 で攻撃した" "A は B を 魔法 で回復した"
-    s.match(/^.+? は (.+?) を /) ??
-    s.match(/^.+? (?:attacked(?: to)?|cured) (.+?) by /) ??
-    // "A が 魔法 によって回復した" "B は 罠 からダメージを受けた"
-    s.match(/^(.+?) (?:は|が|is )/);
-  return m?.[1];
+/** 増減を受けたキャラ(to)と、攻撃したキャラ(by)。文型で決める */
+function target(s: string): { to: string; by?: string } | undefined {
+  let m: RegExpMatchArray | null;
+  // "B は A の 武器 による攻撃を吸収した" "B は A の 魔法 を吸収した"
+  if ((m = s.match(/^(.+?) は (.+?) の .*吸収した/) ?? s.match(/^(.+?) absorbed from (.+?)'s /))) return { to: m[1], by: m[2] };
+  // "A は B を 武器 で攻撃した" "A は B を 魔法 で回復した"
+  if ((m = s.match(/^(.+?) は (.+?) を .*で攻撃した/) ?? s.match(/^(.+?) attacked(?: to)? (.+?) by /))) return { to: m[2], by: m[1] };
+  if ((m = s.match(/^.+? は (.+?) を /) ?? s.match(/^.+? cured (.+?) by /))) return { to: m[1] };
+  // "A が 魔法 によって回復した" "B は 罠 からダメージを受けた"
+  if ((m = s.match(/^(.+?) (?:は|が|is )/))) return { to: m[1] };
 }
 
 /** ログの1行(タグ付き)から、地図に出す物を作る */
@@ -36,8 +35,8 @@ export function popsFromLine(raw: string): Pop[] {
   const body = text.slice(sep + 3).trim();
   if (who === "DM") {
     const a = raw.match(AMOUNT);
-    const name = a && target(body);
-    return a && name ? [{ name, kind: a[1] as PopKind, text: a[2] }] : [];
+    const t = a && target(body);
+    return a && t ? [{ name: t.to, kind: a[1] as PopKind, text: a[2], ...(t.by && { by: t.by }) }] : [];
   }
   // "名前 > 発言" と priv の "[名前] > 発言"。NPC の発言も同じ形
   const name = who.startsWith("[") && who.endsWith("]") ? who.slice(1, -1) : who;

@@ -326,7 +326,24 @@ export function MapView(props: { embedded?: boolean }) {
       // 吹き出しは頭の上、数字は胴から浮かせる
       top: canvasTop + (MAP_TOP + c.y * CHIP_SIZE + (p.kind === "talk" ? 0 : CHIP_SIZE / 2)) * zoom - n * 14,
     };
+    // 攻撃した時の演出。どちらの文型も同じなので武器と魔法は見分けられず、隣のマスなら斬撃、離れていれば魔法弾にする
+    const fx: React.ReactNode[] = [];
+    const by = p.by ? findChar(popChars, p.by, Math.floor(dim / 2)) : undefined;
+    if (by && by !== c && n === 0) {
+      const dx = (c.x - by.x) * CHIP_SIZE * zoom;
+      const dy = (c.y - by.y) * CHIP_SIZE * zoom;
+      const at = { left: style.left, top: canvasTop + (MAP_TOP + c.y * CHIP_SIZE + CHIP_SIZE / 2) * zoom };
+      const vars = { "--a": `${(Math.atan2(dy, dx) * 180) / Math.PI}deg`, "--dx": `${dx}px`, "--dy": `${dy}px` };
+      if (Math.max(Math.abs(c.x - by.x), Math.abs(c.y - by.y)) <= 1)
+        fx.push(<div key={`${p.id}s`} className="map-slash" style={{ ...at, ...vars } as React.CSSProperties} />);
+      else
+        fx.push(
+          <div key={`${p.id}b`} className="map-bolt" style={{ left: at.left - dx, top: at.top - dy, ...vars } as React.CSSProperties} />,
+          <div key={`${p.id}x`} className="map-burst" style={at} />,
+        );
+    }
     return [
+      ...fx,
       <div key={p.id} className={p.kind === "talk" ? "map-talk" : `map-amount ${p.kind[1]}${p.kind[0] === "+" ? "-up" : "-down"}`} style={style}>
         {p.kind === "talk" ? p.text : `${p.kind[0] === "+" ? "+" : ""}${p.text}`}
       </div>,

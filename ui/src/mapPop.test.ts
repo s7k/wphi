@@ -8,7 +8,7 @@ test("攻撃と回復の増減", () => {
   // dm_msg_jp.h の DMM_ATTACK_HP・DMM_CURE_SELF・DMM_CURE_OTHER・DMM_ABS_FROM_ATTACK・DMM_TRAP_HP
   assert.deepEqual(
     popsFromLine(`${DM} > 太郎 は 案内人 を /*.*/ロングソード /*color=gray*/で攻撃した. [/*color=-hp*/88/*color=gray*/ hp] `),
-    [{ name: "案内人", kind: "-hp", text: "88" }],
+    [{ name: "案内人", kind: "-hp", text: "88", by: "太郎" }],
   );
   assert.deepEqual(popsFromLine(`${DM} > 太郎 が /*.*/キュアー /*color=gray*/によって回復した. [/*color=+hp*/14/*color=gray*/ hp] `), [
     { name: "太郎", kind: "+hp", text: "14" },
@@ -18,7 +18,7 @@ test("攻撃と回復の増減", () => {
   ]);
   assert.deepEqual(
     popsFromLine(`${DM} > 案内人 は 太郎 の /*.*/ファイア /*color=gray*/による攻撃を吸収した. [/*color=+hp*/30/*color=gray*/ hp]`),
-    [{ name: "案内人", kind: "+hp", text: "30" }],
+    [{ name: "案内人", kind: "+hp", text: "30", by: "太郎" }],
   );
   assert.deepEqual(popsFromLine(`${DM} > 太郎 は 毒の沼 からダメージを受けた. [/*color=-hp*/5/*color=gray*/ hp] `), [
     { name: "太郎", kind: "-hp", text: "5" },
@@ -28,7 +28,7 @@ test("攻撃と回復の増減", () => {
   ]);
   // dm_msg_en.h
   assert.deepEqual(popsFromLine(`${DM} > Taro attacked to Guide by Long sword. [/*color=-hp*/88/*.*/ hp] `), [
-    { name: "Guide", kind: "-hp", text: "88" },
+    { name: "Guide", kind: "-hp", text: "88", by: "Taro" },
   ]);
   assert.deepEqual(popsFromLine(`${DM} > Taro is cured by Cure. [/*color=+hp*/14/*.*/ hp] `), [{ name: "Taro", kind: "+hp", text: "14" }]);
 });

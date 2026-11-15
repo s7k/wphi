@@ -220,7 +220,6 @@ body {
   white-space: nowrap;
 }
 .map-talk {
-  /* 数字はすぐ消えるので、吹き出しを上に重ねる */
   z-index: 1;
   transform: translate(-50%, calc(-100% - 8px));
   max-width: 14em;
@@ -253,6 +252,72 @@ body {
 .map-amount.h-up { color: #7dff9a; }
 .map-amount.m-down { color: #c890ff; }
 .map-amount.m-up { color: #6fd0ff; }
+/* 斬撃と魔法弾。--a は攻撃したキャラから受けたキャラへの向き、--dx・--dy はその距離(map.tsx) */
+.map-slash,
+.map-bolt,
+.map-burst {
+  position: absolute;
+  pointer-events: none;
+}
+/* 増減の数字と演出は、吹き出しで隠さない */
+.map-amount,
+.map-slash,
+.map-bolt,
+.map-burst {
+  z-index: 2;
+}
+.map-slash {
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-right-color: rgba(220, 245, 255, 0.95);
+  animation: map-slash 0.35s ease-out forwards;
+}
+@keyframes map-slash {
+  from { transform: rotate(calc(var(--a) - 70deg)); opacity: 1; }
+  to { transform: rotate(calc(var(--a) + 70deg)); opacity: 0; }
+}
+.map-bolt {
+  width: 28px;
+  height: 6px;
+  margin: -3px 0 0 -28px;
+  transform-origin: right center;
+  border-radius: 3px;
+  background: linear-gradient(to right, transparent, #6fd0ff);
+  animation: map-bolt 0.3s linear forwards;
+}
+.map-bolt::after {
+  content: "";
+  position: absolute;
+  right: -3px;
+  top: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e8f8ff;
+  box-shadow: 0 0 6px #6fd0ff;
+}
+@keyframes map-bolt {
+  from { transform: translate(0, 0) rotate(var(--a)); opacity: 1; }
+  90% { transform: translate(var(--dx), var(--dy)) rotate(var(--a)); opacity: 1; }
+  to { transform: translate(var(--dx), var(--dy)) rotate(var(--a)); opacity: 0; }
+}
+.map-burst {
+  width: 36px;
+  height: 36px;
+  margin: -18px 0 0 -18px;
+  border-radius: 50%;
+  border: 2px solid #6fd0ff;
+  box-shadow: 0 0 8px #6fd0ff;
+  opacity: 0;
+  animation: map-burst 0.35s ease-out 0.27s forwards;
+}
+@keyframes map-burst {
+  from { transform: scale(0.2); opacity: 1; }
+  to { transform: scale(1.3); opacity: 0; }
+}
 @keyframes map-amount {
   from { transform: translate(-50%, -40%); opacity: 1; }
   70% { opacity: 1; }
