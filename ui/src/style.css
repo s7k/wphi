@@ -801,7 +801,7 @@ body {
   background: #000;
 }
 
-/* 縦横比を保って窓いっぱいに合わせる(v6 の 65x29 は 1マス 32px だと 2080x928 になる) */
+/* 縦横比を保って窓いっぱいに合わせる(v6 の 65x49 は 1マス 32px だと 2080x1568 になる) */
 .eagleeye-window canvas {
   display: block;
   width: 100%;

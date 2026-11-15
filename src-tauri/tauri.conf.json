@@ -31,7 +31,7 @@
         "title": "イーグルアイ",
         "url": "eagleeye.html",
         "width": 1040,
-        "height": 464,
+        "height": 784,
         "visible": false,
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows"
       }

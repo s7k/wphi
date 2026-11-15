@@ -16,7 +16,7 @@ const M57_DIRECTION_OFFSET: usize = 7;
 const M57_CHIP_OFFSET: usize = 18;
 const MAP_CHIP_BYTE: usize = MAP_CELLS * 2;
 /// EagleEye の幅と高さの上限。行の頭の幅と行番号は 10 進 2 桁なので 99 まで。
-/// v6 の接続は 65x29 で届く(docs/05-protocol-v6.md)
+/// v6 の接続は 65x49 で届く(docs/05-protocol-v6.md)
 const MAX_EAGLE_EYE_COUNT: usize = 99;
 
 /// `#status` の名前以降の10項目。
@@ -1086,10 +1086,10 @@ mod tests {
         e
     }
 
-    /// v6 の接続には 65x29、それ以外は 15x15 と 11x11 で届く。自キャラは中央
+    /// v6 の接続には 65x49、それ以外は 15x15 と 11x11 で届く。自キャラは中央
     #[test]
     fn eagleeye_sizes() {
-        for (w, h, me) in [(65, 29, (32, 14)), (15, 15, (7, 7)), (11, 11, (5, 5))] {
+        for (w, h, me) in [(65, 49, (32, 24)), (15, 15, (7, 7)), (11, 11, (5, 5))] {
             let e = eagle(w, h);
             assert_eq!((e.width, e.height), (w as i64, h as i64));
             assert_eq!((e.self_pos.x, e.self_pos.y), me);

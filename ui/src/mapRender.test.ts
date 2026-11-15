@@ -62,7 +62,7 @@ test("v6 は届いた地図の外周1マスを窓の外に置き、7x7 は全部
   // 回転は見せる範囲の自キャラが selfPos(見せる大きさ) に来る。9x9 の窓に 11x11 は上に2行、下に0行
   assert.deepEqual(viewArea(map(11, 11, "turn"), 9, 9), { x: 1, y: 2, w: 9, h: 9 });
   assert.deepEqual(viewArea(map(9, 9, "turn"), 7, 7), { x: 1, y: 1, w: 7, h: 7 });
-  // 上限の 15x15 は 13x13 を見せる
+  // 15x15 が届けば 13x13 を見せる
   assert.deepEqual(viewArea(map(15, 15, "turn"), 21, 21), { x: 1, y: 1, w: 13, h: 13 });
   for (const n of [5, 7, 9, 11, 13, 15, 17]) {
     const v = viewArea(map(n, n, "turn"), n - 2, n - 2);

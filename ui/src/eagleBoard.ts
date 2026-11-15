@@ -12,7 +12,7 @@ const PERSON = 0x58;
 const PERSON_GRA = "t_man";
 
 /**
- * EagleEye のマスを盤面にする。幅と高さはサーバが送った通り(v6 の接続は 65x29 で正方形でない)。
+ * EagleEye のマスを盤面にする。幅と高さはサーバが送った通り(v6 の接続は 65x49 で正方形でない)。
  * 人のマスは属性を消して、既定グラの人を置く
  */
 export function eagleBoard(ev: EagleEyeEvent): { cells: MapCell[]; chars: MapChar[] } {
