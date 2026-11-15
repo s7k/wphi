@@ -2,7 +2,8 @@
 // main 窓がログの行から作って MAP_POP_EVENT で地図へ送り、地図が名前でキャラを探して上に出す。
 //
 // 増減はサーバの戦闘メッセージ(dm_msg_jp.h・dm_msg_en.h)の "[/*color=-hp*/88/*color=gray*/ hp]" から取る。
-// 数字の付く色のタグは他にもある(レベルの上下、DMM_LEFT_HP など)が、"[" と " hp]" で挟んだ形は増減だけ
+// 数字の付く色のタグは他にもある(レベルの上下、DMM_LEFT_HP など)が、"[" と " hp]" で挟んだ形は増減だけ。
+// 色のタグの付かないサーバもある("[4256 hp]")ので、増えたか減ったかは動詞で決める
 
 export const MAP_POP_EVENT = "phi-map-pop";
 
@@ -12,7 +13,8 @@ export type Pop = { name: string; kind: PopKind; text: string; by?: string };
 
 export const stripTags = (s: string) => s.replace(/\/\*.*?\*\//g, "").trim();
 
-const AMOUNT = /\[\/\*color=([+-][hm]p)\*\/(\d+)\/\*[^*]*\*\/ [hm]p\]/;
+const AMOUNT = /\[(\d+) ([hm])p\]/;
+const GAIN = /回復した|吸収した|absorbed|cured/;
 
 /** 増減を受けたキャラ(to)と、攻撃したキャラ(by)。文型で決める */
 function target(s: string): { to: string; by?: string } | undefined {
@@ -34,9 +36,10 @@ export function popsFromLine(raw: string): Pop[] {
   const who = text.slice(0, sep).trim();
   const body = text.slice(sep + 3).trim();
   if (who === "DM") {
-    const a = raw.match(AMOUNT);
+    const a = body.match(AMOUNT);
     const t = a && target(body);
-    return a && t ? [{ name: t.to, kind: a[1] as PopKind, text: a[2], ...(t.by && { by: t.by }) }] : [];
+    const kind = a && (`${GAIN.test(body) ? "+" : "-"}${a[2]}p` as PopKind);
+    return a && t && kind ? [{ name: t.to, kind, text: a[1], ...(t.by && { by: t.by }) }] : [];
   }
   // "名前 > 発言" と priv の "[名前] > 発言"。NPC の発言も同じ形
   const name = who.startsWith("[") && who.endsWith("]") ? who.slice(1, -1) : who;

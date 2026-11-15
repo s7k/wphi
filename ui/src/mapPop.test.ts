@@ -26,6 +26,9 @@ test("攻撃と回復の増減", () => {
   assert.deepEqual(popsFromLine(`${DM} > 太郎 は食中毒でダメージを受けた. [/*color=-mp*/3/*color=gray*/ mp] `), [
     { name: "太郎", kind: "-mp", text: "3" },
   ]);
+  // 色のタグを付けないサーバ
+  assert.deepEqual(popsFromLine("DM > Wilt が Goddess hand! によって回復した. [4256 hp]"), [{ name: "Wilt", kind: "+hp", text: "4256" }]);
+  assert.deepEqual(popsFromLine("DM > Wilt は スライム を 剣 で攻撃した. [30 hp]"), [{ name: "スライム", kind: "-hp", text: "30", by: "Wilt" }]);
   // dm_msg_en.h
   assert.deepEqual(popsFromLine(`${DM} > Taro attacked to Guide by Long sword. [/*color=-hp*/88/*.*/ hp] `), [
     { name: "Guide", kind: "-hp", text: "88", by: "Taro" },
