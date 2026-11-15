@@ -58,6 +58,8 @@ const AMOUNT_CLASS: Partial<Record<PopKind, string>> = {
   miss: "miss",
   poison: "poison",
   palsy: "palsy",
+  buff: "buff",
+  debuff: "debuff",
 };
 
 /** MAP_STATE_EVENT などの宛先。main 窓の中に置いた地図なら "main" */
@@ -360,6 +362,20 @@ export function MapView(props: { embedded?: boolean }) {
     };
     // 攻撃した時の演出。魔法なら攻撃したキャラから魔法弾を飛ばし、武器なら受けたキャラの上に斬撃を出す
     const fx: React.ReactNode[] = [];
+    // 強化は足元から光が立ち上り、弱体は上から沈む
+    if ((p.kind === "buff" || p.kind === "debuff") && n === 0)
+      fx.push(
+        <div
+          key={`${p.id}a`}
+          className={`map-aura ${p.kind}`}
+          style={{
+            left: style.left,
+            top: canvasTop + (MAP_TOP + (c.y + 1) * CHIP_SIZE) * zoom,
+            width: CHIP_SIZE * zoom,
+            height: CHIP_SIZE * 1.4 * zoom,
+          }}
+        />,
+      );
     const by = p.by ? findChar(popChars, p.by, Math.floor(dim / 2)) : undefined;
     if (by && by !== c && n === 0) {
       const dx = (c.x - by.x) * CHIP_SIZE * zoom;

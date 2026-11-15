@@ -18,7 +18,7 @@ import { AskDialog } from "./AskDialog";
 import { alertBox, confirmBox, MessageDialogHost } from "./MessageDialog";
 import { popupTagMenu } from "./TagMenuPopup";
 import { assetUrl } from "./asset";
-import { MAP_POP_EVENT, popsFromLine } from "./mapPop.ts";
+import { MAP_POP_EVENT, newPopState, popsFromLine } from "./mapPop.ts";
 import { absorb, AUTOMAP_EVENT, blockOf, loadTiles, removeTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, EXPERIMENT_EVENT, shortcutText, type Settings } from "./settings.ts";
@@ -938,8 +938,8 @@ export function App() {
       setError(`${label}: ${e}`);
       return;
     }
-    // 吹き出しと増減(ui/src/mapPop.ts)の為に、キャラごとに最後に唱えた発言
-    const spoken = new Map<string, string>();
+    // 吹き出しと増減(ui/src/mapPop.ts)の為に、前の行から引き継ぐ物
+    const popState = newPopState();
     handle = (ev) => {
       switch (ev.type) {
         case "log":
@@ -948,7 +948,7 @@ export function App() {
           if (ev.channel === "priv" && ev.from) addPriv(session, ev.from, ev.html);
           if (ev.raw) {
             // 唱えた呪文を覚える為、表でないタブの行も通す
-            const pops = popsFromLine(ev.raw, spoken);
+            const pops = popsFromLine(ev.raw, popState);
             if (pops.length && session === activeRef.current && settingsRef.current.mapEffects)
               emit(MAP_POP_EVENT, { pops, to: mapPlace() }).catch(console.error);
           }

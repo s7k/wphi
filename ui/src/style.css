@@ -255,6 +255,33 @@ body {
 .map-amount.miss { color: #d0d0d0; font-size: 13px; }
 .map-amount.poison { color: #c070ff; }
 .map-amount.palsy { color: #ffe040; }
+.map-amount.buff { color: #ffc040; font-size: 13px; }
+.map-amount.debuff { color: #80a8ff; font-size: 13px; }
+/* 強化と弱体の光。left・top はキャラのマスの下辺の中央 */
+.map-aura {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+  transform-origin: bottom center;
+  border-radius: 50% 50% 0 0;
+}
+.map-aura.buff {
+  background: linear-gradient(to top, rgba(255, 210, 80, 0.85), rgba(255, 240, 160, 0));
+  animation: map-aura-up 0.9s ease-out forwards;
+}
+.map-aura.debuff {
+  background: linear-gradient(to bottom, rgba(90, 130, 255, 0.85), rgba(90, 130, 255, 0));
+  animation: map-aura-down 0.9s ease-in forwards;
+}
+@keyframes map-aura-up {
+  from { transform: translate(-50%, -100%) scaleY(0.2); opacity: 1; }
+  60% { opacity: 0.9; }
+  to { transform: translate(-50%, -100%) scaleY(1.2); opacity: 0; }
+}
+@keyframes map-aura-down {
+  from { transform: translate(-50%, -100%) scaleY(1.2); opacity: 0.9; }
+  to { transform: translate(-50%, -100%) scaleY(0.2); opacity: 0; }
+}
 /* 倒されたキャラ。白く光って上へ薄れて行く */
 .map-dead {
   position: absolute;

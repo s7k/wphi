@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { findChar, popsFromLine } from "./mapPop.ts";
+import { findChar, newPopState, popsFromLine } from "./mapPop.ts";
 
 const DM = "/*color=gray*/DM";
 
@@ -37,7 +37,7 @@ test("攻撃と回復の増減", () => {
 });
 
 test("唱えた呪文で攻撃したら魔法", () => {
-  const spoken = new Map<string, string>();
+  const spoken = newPopState();
   popsFromLine("Wilt > Fire ball", spoken);
   assert.deepEqual(popsFromLine("DM > Wilt は スライム を Fire ball で攻撃した. [30 hp]", spoken), [
     { name: "スライム", kind: "-hp", text: "30", by: "Wilt", magic: true },
@@ -70,6 +70,26 @@ test("ミス・倒された・毒と麻痺", () => {
   assert.deepEqual(one("太郎 は既に麻痺している."), []);
 });
 
+test("強化と弱体", () => {
+  const st = newPopState();
+  const one = (line: string) => popsFromLine(`${DM} > ${line} `, st);
+  // 自分にかけた強化は、名前が無いので "" にし、地図が中央の自分に出す
+  assert.deepEqual(one("攻撃力が 12 point 上がった."), [{ name: "", kind: "buff", text: "攻撃力↑" }]);
+  assert.deepEqual(one("防御率が 20% 60 秒間上がった."), [{ name: "", kind: "buff", text: "防御率↑" }]);
+  assert.deepEqual(one("Attack speed is 10% up in 60 sec."), [{ name: "", kind: "buff", text: "攻撃速度↑" }]);
+  assert.deepEqual(one("/*.*/Force field /*color=gray*/が 30 秒間張られる."), [{ name: "", kind: "buff", text: "Force field" }]);
+  // 仲間にかけた時は、直前の「かけた」の相手に出す。その次の行からは自分に戻る
+  assert.deepEqual(one("太郎 は 花子 に /*.*/Protect /*color=gray*/をかけた."), []);
+  assert.deepEqual(one("防御率が 20% 上がった."), [{ name: "花子", kind: "buff", text: "防御率↑" }]);
+  assert.deepEqual(one("魔法抵抗率が 20% 上がった."), [{ name: "", kind: "buff", text: "魔法抵抗率↑" }]);
+  assert.deepEqual(one("スライム の攻撃力が 5 point /*.*/Degrade /*color=gray*/によって下がった."), [
+    { name: "スライム", kind: "debuff", text: "攻撃力↓" },
+  ]);
+  assert.deepEqual(one("スライム の速度が 30% 60 秒間 /*.*/Slow /*color=gray*/によって下がった."), [
+    { name: "スライム", kind: "debuff", text: "速度↓" },
+  ]);
+});
+
 test("増減ではない色付きの数字は出さない", () => {
   assert.deepEqual(popsFromLine(`${DM} > 太郎 は Fighter level が /*color=+mp*/1/*color=gray*/ 上昇した.`), []);
   assert.deepEqual(popsFromLine(`${DM} > /*color=-hp*/12/*color=gray*//100 hp left. `), []);
@@ -90,4 +110,5 @@ test("同じ名前なら中央に近いキャラ", () => {
   ];
   assert.equal(findChar(chars, "スライム", 3), chars[1]);
   assert.equal(findChar(chars, "花子", 3), undefined);
+  assert.equal(findChar(chars, "", 3), chars[2]);
 });
