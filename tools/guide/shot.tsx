@@ -27,6 +27,10 @@ mockIPC(
         };
       case "connect": {
         const ch = args.onEvent as Channel<unknown>;
+        // 撮る側(shoot.mjs)が地図の演出の行を流す為
+        (window as any).guideEffect = async (scene: string) => {
+          for (const ev of JSON.parse(await text(`/effects?scene=${scene}`))) ch.onmessage(ev);
+        };
         const events: unknown[] = JSON.parse(await text("/events"));
         // 地図は1歩ずつ届くように少し間を置く(拡張マップが通った所を覚える)
         setTimeout(async () => {

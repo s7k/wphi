@@ -5,6 +5,7 @@
 //! - `/asset/<種類>?...`: `phi-asset://` と同じ PNG。同梱の分(resources/phi)だけを使う。公開するガイドに、出所の分からない絵を載せない為
 //! - `/log_css`、`/log_html?text=`: 同名のコマンドと同じ
 //! - `/download_items`: 同梱の unew.ini の一覧。マップチップと PCGL のキャラグラは取得済みにする
+//! - `/effects?scene=`: 地図の演出(ui/src/mapPop.ts)を出す受信行のイベント。接続して歩き終わった後に流す
 //!
 //! 他のプレイヤーの名前や発言が写らないように、名前と発言は全部ここで作る。
 
@@ -144,11 +145,39 @@ fn transcript() -> Vec<Vec<u8>> {
     out
 }
 
+/// 地図の演出を出す行。歩き終わった時の地図では、Mirai が中央、Kotone が3マス東、市場の猫が1マス南にいる
+fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
+    const DM: &str = "/*color=gray*/DM > ";
+    let lines: &[&str] = match scene {
+        "talk" => &["Kotone > 市場はこっちです", "市場の猫 > にゃあ"],
+        "slash" => &["DM Mirai は 市場の猫 を /*.*/木の枝 /*color=gray*/で攻撃した. [/*color=-hp*/12/*color=gray*/ hp] "],
+        "bolt" => &["Kotone > Fire ball", "DM Kotone は 市場の猫 を /*.*/Fire ball /*color=gray*/で攻撃した. [/*color=-hp*/30/*color=gray*/ hp] "],
+        "heal" => &[
+            "DM Kotone は Mirai を /*.*/Heal /*color=gray*/で回復した. [/*color=+hp*/40/*color=gray*/ hp] ",
+            "DM Kotone は 市場の猫 を /*.*/Mana /*color=gray*/で回復した. [/*color=+mp*/8/*color=gray*/ mp] ",
+        ],
+        "status" => &["DM Mirai はミスした. ", "DM 市場の猫 は 3 lv の毒を受けた. ", "DM Kotone は 5 秒間 麻痺する. "],
+        "dead" => &["DM 市場の猫 は Mirai に殺された. "],
+        "buff" => &[
+            "DM 攻撃力が 12 point 上がった. ",
+            "DM Mirai は Kotone に /*.*/Protect /*color=gray*/をかけた. ",
+            "DM 防御率が 20% 上がった. ",
+        ],
+        "debuff" => &["DM 市場の猫 の速度が 30% /*.*/Slow /*color=gray*/によって下がった. "],
+        _ => &[],
+    };
+    lines.iter().map(|l| codec::encode(&l.replacen("DM ", DM, 1))).collect()
+}
+
 fn events() -> Value {
+    to_events(transcript())
+}
+
+fn to_events(lines: Vec<Vec<u8>>) -> Value {
     let mut p = Parser::new();
     let opts = LogOptions::default();
     let mut out = Vec::new();
-    for line in transcript() {
+    for line in lines {
         for ev in p.feed(&line) {
             out.push(match ev {
                 Event::Message(m) => json!({
@@ -184,6 +213,10 @@ fn main() {
         let (path, q) = target.split_once('?').unwrap_or((&target, ""));
         let (ty, body): (&str, Option<Vec<u8>>) = match path {
             "/events" => ("application/json", Some(events().to_string().into_bytes())),
+            "/effects" => {
+                let scene = query(q).remove("scene").unwrap_or_default();
+                ("application/json", Some(to_events(effect_lines(&scene)).to_string().into_bytes()))
+            }
             "/download_items" => {
                 let ini = codec::decode(assets::bundled("Config/unew.ini").unwrap_or_default());
                 let rows: Vec<Value> = download::items(&ini)

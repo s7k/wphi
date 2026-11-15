@@ -276,7 +276,7 @@ body {
   border-radius: 50% 50% 0 0;
 }
 .map-aura.buff {
-  background: linear-gradient(to top, rgba(255, 210, 80, 0.85), rgba(255, 240, 160, 0));
+  background: linear-gradient(to top, rgba(255, 150, 0, 0.95), rgba(255, 200, 60, 0.5) 60%, rgba(255, 220, 120, 0));
   animation: map-aura-up 0.9s ease-out forwards;
 }
 .map-aura.debuff {
@@ -325,8 +325,10 @@ body {
   height: 40px;
   margin: -20px 0 0 -20px;
   border-radius: 50%;
-  border: 3px solid transparent;
-  border-right-color: rgba(220, 245, 255, 0.95);
+  border: 4px solid transparent;
+  border-right-color: #fff;
+  /* 明るい地面でも見えるように縁を付ける */
+  filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 3px #6fd0ff);
   animation: map-slash 0.35s ease-out forwards;
 }
 @keyframes map-slash {
