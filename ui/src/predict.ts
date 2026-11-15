@@ -139,6 +139,7 @@ export class Predictor {
 
 /**
  * 予想した位置の地図。最後に届いた v6 の北固定の地図を (dx, dy) ずらし、新しく入る端を '?' で埋める。
+ * 1 マスなら '?' の端は窓の外の外周に入り(mapRender.ts の viewArea)、窓には外周にあった地形が入る。
  * 自キャラは中央に残し、他のキャラは地形と一緒にずらす。v6 の北固定でなければそのまま
  */
 export function predictedMap(map: MapEvent, dx: number, dy: number): MapEvent {

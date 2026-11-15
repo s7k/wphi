@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { arrangeRow, fitBoard, itemDrawRect, selfPos, slideStep, viewFor } from "./mapRender.ts";
+import { arrangeRow, drawRange, itemDrawRect, selfPos, slideStep, viewArea, viewFor } from "./mapRender.ts";
 
 test("アイテムは Philly と同じく床の上端の8px上に描く(#41)", () => {
   const r = itemDrawRect(1, " ".charCodeAt(0), 32, 64);
@@ -48,24 +48,41 @@ test("v6 で要求するマス数は、欄に入る数を奇数に切り下げ�
   assert.equal(viewFor(10000, 32), 99);
 });
 
-test("サーバが要求より小さい v6 の地図を返したら、中央に置いて外側を '?' で埋める", () => {
-  const map = {
-    type: "map" as const,
-    width: 3,
-    height: 3,
-    v6: true,
-    dir: 0,
-    style: "turn",
-    cells: Array.from({ length: 9 }, () => ({ chip: 1, attr: 0 })),
-    chars: [{ id: 0, x: 1, y: 1, dir: "F", name: "me", gra: "", status: 0, gigant: "#", layer: 12, default: 0 }],
-  };
-  const b = fitBoard(map, 7, 5);
-  assert.deepEqual([b.width, b.height], [7, 5]);
-  assert.deepEqual(b.cells[0], { chip: 63, attr: 0 });
-  assert.deepEqual(b.cells[1 * 7 + 2], { chip: 1, attr: 0 });
-  assert.deepEqual([b.chars[0].x, b.chars[0].y], [3, 2]);
-  // 回転の 3x3 の自キャラは (1, 1)。盤面では2マス右、1マス下
-  assert.deepEqual(b.self, { x: 3, y: 2 });
-  // v6 でない地図はそのまま
-  assert.equal(fitBoard({ ...map, v6: undefined }, 7, 5).cells, map.cells);
+test("v6 は届いた地図の外周1マスを窓の外に置き、7x7 は全部見せる", () => {
+  const map = (width: number, height: number, style = "solid") =>
+    ({ type: "map" as const, width, height, v6: true as const, dir: 0, style, cells: [], chars: [] });
+  // 窓 11x7 に 13x9 を求め、そのまま届いた
+  assert.deepEqual(viewArea(map(13, 9), 11, 7), { x: 1, y: 1, w: 11, h: 7 });
+  // サーバの上限で高さが 13 に削られた(窓 15 に 17 を求めた)。見せるのは外周を除いた 11
+  assert.deepEqual(viewArea(map(17, 13), 15, 15), { x: 1, y: 1, w: 15, h: 11 });
+  // 窓を縮めた直後の大きい地図は中央を見せる
+  assert.deepEqual(viewArea(map(13, 9), 7, 5), { x: 3, y: 2, w: 7, h: 5 });
+  // 外周を除くと 3 に足りない時は外周も見せる
+  assert.deepEqual(viewArea(map(3, 3), 5, 5), { x: 0, y: 0, w: 3, h: 3 });
+  // 回転は見せる範囲の自キャラが selfPos(見せる大きさ) に来る。9x9 の窓に 11x11 は上に2行、下に0行
+  assert.deepEqual(viewArea(map(11, 11, "turn"), 9, 9), { x: 1, y: 2, w: 9, h: 9 });
+  assert.deepEqual(viewArea(map(9, 9, "turn"), 7, 7), { x: 1, y: 1, w: 7, h: 7 });
+  // 上限の 15x15 は 13x13 を見せる
+  assert.deepEqual(viewArea(map(15, 15, "turn"), 21, 21), { x: 1, y: 1, w: 13, h: 13 });
+  for (const n of [5, 7, 9, 11, 13, 15, 17]) {
+    const v = viewArea(map(n, n, "turn"), n - 2, n - 2);
+    const all = selfPos(n, n, true);
+    assert.deepEqual(selfPos(v.w, v.h, true), { x: all.x - v.x, y: all.y - v.y });
+    assert.ok(v.y >= 0 && v.y + v.h <= n);
+  }
+  assert.deepEqual(viewArea({ ...map(7, 7), v6: undefined }, 11, 7), { x: 0, y: 0, w: 7, h: 7 });
+});
+
+test("ずらして描く時は、ずらした向きの反対側の外周の列と行も描く", () => {
+  const view = { x: 1, y: 1, w: 11, h: 7 };
+  // ずらさなければ窓の中だけ
+  assert.deepEqual(drawRange(view, { x: 0, y: 0 }, 13, 9, 32), { c0: 1, c1: 11, r0: 1, r1: 7 });
+  // 東へ進んだ直後は右へずらすので、窓の左の外周が入る
+  assert.deepEqual(drawRange(view, { x: 20, y: 0 }, 13, 9, 32), { c0: 0, c1: 11, r0: 1, r1: 7 });
+  // 北へ進んだ直後は上へずらすので、窓の下の外周が入る
+  assert.deepEqual(drawRange(view, { x: 0, y: -32 }, 13, 9, 32), { c0: 1, c1: 11, r0: 1, r1: 8 });
+  // 2マスずらしても、地図の外は描かない
+  assert.deepEqual(drawRange(view, { x: -64, y: 64 }, 13, 9, 32), { c0: 1, c1: 12, r0: 0, r1: 7 });
+  // 7x7 は全部見せるので、ずらしても全部描く
+  assert.deepEqual(drawRange({ x: 0, y: 0, w: 7, h: 7 }, { x: 20, y: -20 }, 7, 7, 32), { c0: 0, c1: 6, r0: 0, r1: 6 });
 });

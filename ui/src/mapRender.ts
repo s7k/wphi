@@ -13,7 +13,7 @@
  *   既に透過PNG化済(512×96, 32×48セル/16列×2行)を配信前提([06])。
  */
 
-import type { MapCell, MapChar, MapEvent } from './protocol';
+import type { MapCell, MapEvent } from './protocol';
 
 // ── チップ ────────────────────────────────────────────────
 
@@ -502,28 +502,42 @@ export function viewFor(px: number, cell: number): number {
 }
 
 /**
- * 描く盤面。v6 の地図がサーバの返した大きさで要求(w×h)より小さい時は、中央に置いて外側を '?' で埋める。
- * v6 でない地図(7x7)はそのまま
+ * 地図のうち窓に見せる範囲。x, y はその左上の、地図の中の位置。v6 でない地図(7x7)は全部見せる。
+ * v6 は窓より上下左右に1マスずつ多く求める(session.rs の view_line)ので、届いた地図の外周は窓の外に置き、
+ * スムーズ移動でずらした時に窓に入る端に使う。サーバが上限で小さく返した時も外周は窓の外に置き、見せる範囲が窓より狭くなる。
+ * 5 マスより小さく、外周を除くと 3 マスに足りない時は外周も見せる。
+ * 見せる範囲の自キャラが、見せる大きさで決まる位置(selfPos)に来るように置く。北固定は中央。
+ * 回転は自キャラが地図の大きさ M で決まる位置にいるので、外周が上と下で1マスずつとは限らない
+ * (M=11 の自キャラは 7 行目、見せる 9x9 の自キャラは 5 行目なので、上に2行、下に0行)
  */
-export function fitBoard(
-  map: MapEvent,
-  w: number,
-  h: number,
-): { width: number; height: number; cells: MapCell[]; chars: MapChar[]; self: { x: number; y: number } } {
-  const me = selfPos(map.width, map.height, map.style === 'turn');
-  const bw = map.v6 ? Math.max(w, map.width) : map.width;
-  const bh = map.v6 ? Math.max(h, map.height) : map.height;
-  if (bw === map.width && bh === map.height) return { width: bw, height: bh, cells: map.cells, chars: map.chars, self: me };
-  const ox = (bw - map.width) >> 1;
-  const oy = (bh - map.height) >> 1;
-  const cells = Array.from({ length: bw * bh }, (_, i) => {
-    const x = (i % bw) - ox;
-    const y = Math.floor(i / bw) - oy;
-    const inside = x >= 0 && x < map.width && y >= 0 && y < map.height;
-    return (inside && map.cells[y * map.width + x]) || { chip: UNKNOWN, attr: 0 };
-  });
-  const chars = map.chars.map((c) => ({ ...c, x: c.x + ox, y: c.y + oy }));
-  return { width: bw, height: bh, cells, chars, self: { x: me.x + ox, y: me.y + oy } };
+export function viewArea(map: MapEvent, w: number, h: number): { x: number; y: number; w: number; h: number } {
+  if (!map.v6) return { x: 0, y: 0, w: map.width, h: map.height };
+  const fit = (n: number, want: number) => Math.min(want, n < 5 ? n : n - 2);
+  const turn = map.style === 'turn';
+  const [vw, vh] = [fit(map.width, w), fit(map.height, h)];
+  const all = selfPos(map.width, map.height, turn);
+  const shown = selfPos(vw, vh, turn);
+  return { x: all.x - shown.x, y: all.y - shown.y, w: vw, h: vh };
+}
+
+/**
+ * 描くマスの範囲(列 c0..c1、行 r0..r1)。見せる範囲 view に、スムーズ移動のずらし(slide px)で窓に入る外側の列と行を足す。
+ * それより外のマスは描かない。窓のすぐ下の行のチップのはみ出しや、窓の外のキャラの名前が窓に掛かる為
+ */
+export function drawRange(
+  view: { x: number; y: number; w: number; h: number },
+  slide: { x: number; y: number },
+  width: number,
+  height: number,
+  cs: number,
+): { c0: number; c1: number; r0: number; r1: number } {
+  const cells = (px: number) => Math.ceil(Math.max(0, px) / cs);
+  return {
+    c0: Math.max(0, view.x - cells(slide.x)),
+    c1: Math.min(width - 1, view.x + view.w - 1 + cells(-slide.x)),
+    r0: Math.max(0, view.y - cells(slide.y)),
+    r1: Math.min(height - 1, view.y + view.h - 1 + cells(-slide.y)),
+  };
 }
 
 /**

@@ -108,9 +108,11 @@ fn login_lines(id: Option<&str>, view: Option<(u8, u8)>) -> Vec<String> {
         .collect()
 }
 
-/// v6 の視界の要求。回転はサーバが正方形しか受け付けないので、小さい方に揃えて送る
+/// v6 の視界の要求。窓より上下左右に1マスずつ多く求め、外周は窓の外に置く(ui/src/mapRender.ts の viewArea)。
+/// スムーズ移動で地図をずらした時に、窓に入る端を描く為。回転はサーバが正方形しか受け付けないので、小さい方に揃えて送る
 fn view_line((w, h): (u8, u8), turn: bool) -> String {
     let (w, h) = if turn { (w.min(h), w.min(h)) } else { (w, h) };
+    let (w, h) = (w + 2, h + 2);
     format!("#ex-map view={w} {h}")
 }
 
@@ -698,10 +700,10 @@ mod tests {
         )
         .await;
         let got = server.await.unwrap();
-        assert!(got.contains(&"#ex-map view=11 7\n".to_string()));
+        assert!(got.contains(&"#ex-map view=13 9\n".to_string()));
         assert_eq!(
             got[got.len() - 3..],
-            ["#ex-map view=7 7\n", "#ex-map view=9 9\n", "#ex-map view=13 9\n"]
+            ["#ex-map view=9 9\n", "#ex-map view=11 11\n", "#ex-map view=15 11\n"]
         );
     }
 
@@ -780,7 +782,7 @@ mod tests {
         assert_eq!(dst[2], "#version-cli 05107100\n");
         assert!(!dst.iter().any(|l| l.starts_with("#open")));
         // サーバは世界移動で v6 の大きさを消すので、移動先へも送り直す
-        assert!(dst.contains(&"#ex-map view=11 7\n".to_string()));
+        assert!(dst.contains(&"#ex-map view=13 9\n".to_string()));
         // 移動元の #ch-srv の後の行は捨てる
         assert!(!events.iter().any(|e| e["name"] == "after-ch-srv"));
         assert!(

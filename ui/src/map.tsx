@@ -14,7 +14,7 @@ import { trace } from "./trace.ts";
 import { isNorthFix, KEY_EVENT, MOUSE_EVENT, sendLine, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { predictedMap } from "./predict.ts";
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
-import { CHIP_SIZE, MAP_TOP, SLIDE_MS, fitBoard, slideStep, viewFor } from "./mapRender";
+import { CHIP_SIZE, MAP_TOP, SLIDE_MS, selfPos, slideStep, viewArea, viewFor } from "./mapRender";
 import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
 import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapChar, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
@@ -180,11 +180,19 @@ export function MapView(props: { embedded?: boolean }) {
   // MapState は status などが変わっただけでも新しいオブジェクトで届くので、マップは中身で比べる
   const mapKey = JSON.stringify(map ?? null);
   const view = northFix ? { w: viewW, h: viewH } : { w: Math.min(viewW, viewH), h: Math.min(viewW, viewH) };
-  // サーバが要求より小さい v6 の地図を返した時は、中央に置いて外側を '?' で埋める
-  const board = useMemo(() => (map ? fitBoard(map, view.w, view.h) : null), [mapKey, view.w, view.h]);
-  const boardW = board?.width ?? 7;
-  const boardH = board?.height ?? 7;
-  const me = board?.self ?? { x: 3, y: 3 };
+  // 盤面は届いた地図のまま描き、窓には view の範囲を見せる(v6 は外周1マスが窓の外)
+  const board = useMemo(
+    () => map && { ...map, self: selfPos(map.width, map.height, map.style === "turn"), view: viewArea(map, view.w, view.h) },
+    [mapKey, view.w, view.h],
+  );
+  const boardW = board?.view.w ?? 7;
+  const boardH = board?.view.h ?? 7;
+  // 自キャラと、窓に見えるキャラ。位置は窓の左上を 0 とする
+  const me = board ? { x: board.self.x - board.view.x, y: board.self.y - board.view.y } : { x: 3, y: 3 };
+  const chars = (board?.chars ?? []).flatMap((c) => {
+    const [x, y] = [c.x - board!.view.x, c.y - board!.view.y];
+    return x >= 0 && x < boardW && y >= 0 && y < boardH ? [{ ...c, x, y }] : [];
+  });
 
   // マップのマウス操作。左ボタンでその向きへ1歩進み、右ボタンで hit(Philly の MapForm.cpp)。押し続けても繰り返さない
   const [cursor, setCursor] = useState("default");
@@ -208,7 +216,7 @@ export function MapView(props: { embedded?: boolean }) {
     const r = e.currentTarget.getBoundingClientRect();
     const [w, h] = [boardW * CHIP_SIZE, boardH * CHIP_SIZE];
     const to = northFixTurn((e.clientX - r.left) / zoom, (e.clientY - r.top) / zoom - MAP_TOP, w, h);
-    const now = FACING[board?.chars.find((ch) => ch.x === me.x && ch.y === me.y)?.dir ?? ""];
+    const now = FACING[chars.find((ch) => ch.x === me.x && ch.y === me.y)?.dir ?? ""];
     if (!to || to === now || `${to}:${now}` === lastTurn.current) return;
     lastTurn.current = `${to}:${now}`;
     sendLine(state.session, `turn ${to}`);
@@ -304,12 +312,11 @@ export function MapView(props: { embedded?: boolean }) {
 
   const canvasLeft = Math.floor((area.w - boardW * CHIP_SIZE * zoom) / 2);
   const canvasTop = Math.floor((area.h - (boardH * CHIP_SIZE + MAP_TOP) * zoom) / 2);
-  const popChars = board?.chars ?? [];
-  popCharsRef.current = { chars: popChars, me };
+  popCharsRef.current = { chars, me };
   // 同じキャラに続けて出た数字は、上へずらして重ねない
   const stack = new Map<string, number>();
   const popEls = pops.flatMap((p) => {
-    const c = p.at ?? findChar(popChars, p.name, me);
+    const c = p.at ?? findChar(chars, p.name, me);
     if (!c) return [];
     if (p.kind === "dead")
       return [
@@ -347,7 +354,7 @@ export function MapView(props: { embedded?: boolean }) {
           }}
         />,
       );
-    const by = p.by ? findChar(popChars, p.by, me) : undefined;
+    const by = p.by ? findChar(chars, p.by, me) : undefined;
     if (by && by !== c && n === 0) {
       const dx = (c.x - by.x) * CHIP_SIZE * zoom;
       const dy = (c.y - by.y) * CHIP_SIZE * zoom;
@@ -370,7 +377,7 @@ export function MapView(props: { embedded?: boolean }) {
   });
 
   // 名前の一覧は上の行から順に並べる(CharacterNameList.cpp の SetNameList)
-  const names = (map?.chars ?? [])
+  const names = chars
     .map((c, i) => ({ c, i }))
     .sort((a, b) => a.c.y - b.c.y || a.i - b.i)
     .map(({ c }) => stripTags(c.name))

@@ -32,6 +32,7 @@ import {
   chipQuarterSrcRect,
   magnifiedDst,
   WATER_BYTE,
+  drawRange,
 } from './mapRender';
 
 /** drawMap が参照する画像群。null/undefined は未ロード扱いで描画スキップ。 */
@@ -66,6 +67,8 @@ export interface DrawMapInput {
    * 自キャラはずらさない
    */
   slide?: { x: number; y: number };
+  /** 窓に見せる範囲(mapRender.ts の viewArea)。canvas の左上に (x, y) のマスが来る。省略時は全部 */
+  view?: { x: number; y: number; w: number; h: number };
 }
 
 /** EagleEye でアイテムのマスに描くマップチップ(Philly の MapChipCache->Draw(..., 19, ...)) */
@@ -97,9 +100,10 @@ export function drawMap(
   const cs = cellSize;
   const scale = cs / CHIP_SIZE; // 1 or 2
 
-  ctx.clearRect(0, 0, width * cs, height * cs);
+  const view = input.view ?? { x: 0, y: 0, w: width, h: height };
+  ctx.clearRect(0, 0, view.w * cs, view.h * cs);
   ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, width * cs, height * cs);
+  ctx.fillRect(0, 0, view.w * cs, view.h * cs);
 
   const chipImg = imgs.chip;
   // マスのチップシート(Philly の DefineNo = Attribute & 0x03)
@@ -113,14 +117,18 @@ export function drawMap(
   const me = input.self ?? { x: (width - 1) >> 1, y: (height - 1) >> 1 };
   const slide = input.slide && (input.slide.x || input.slide.y) ? input.slide : null;
   const atCenter = (c: MapChar) => c.x === me.x && c.y === me.y;
+  const { c0, c1, r0, r1 } = drawRange(view, slide ?? { x: 0, y: 0 }, width, height, cs);
+  const inRange = (c: MapChar) => c.x >= c0 && c.x <= c1 && c.y >= r0 && c.y <= r1;
+  ctx.save();
+  ctx.translate(-view.x * cs, -view.y * cs);
   ctx.save();
   if (slide) ctx.translate(slide.x, slide.y);
 
   // 行ごとに チップ → 水縁 → 看板 → アイテム → キャラ の順で重ね描画。
-  for (let row = 0; row < height; row++) {
+  for (let row = r0; row <= r1; row++) {
     // 1. ベースチップ
     if (chipImg) {
-      for (let col = 0; col < width; col++) {
+      for (let col = c0; col <= c1; col++) {
         const cell = input.cells[cellIndex(col, row, width)];
         const img = cell && chipFor(cell);
         if (!cell || !img) continue;
@@ -132,7 +140,7 @@ export function drawMap(
 
     // 1.5 水縁overlay(隣接チップに応じた四分割境界描画)
     if (chipImg && water) {
-      for (let col = 0; col < width; col++) {
+      for (let col = c0; col <= c1; col++) {
         const cell = input.cells[cellIndex(col, row, width)];
         const img = cell && chipFor(cell);
         if (!cell || !img || cell.chip !== WATER_BYTE) continue;
@@ -154,7 +162,7 @@ export function drawMap(
 
     // 2. 看板overlay(attribute bit 0x08)。看板チップは段差ありのため stretch 描画。
     if (chipImg) {
-      for (let col = 0; col < width; col++) {
+      for (let col = c0; col <= c1; col++) {
         const cell = input.cells[cellIndex(col, row, width)];
         const img = cell && hasBoard(cell.attr) && chipFor(cell);
         if (img) drawChip(ctx, img, boardChipIndex(cell!.chip), col, row, cs, scale, 'stretch');
@@ -163,13 +171,13 @@ export function drawMap(
 
     // 3. アイテムoverlay(attribute bits 0x70)
     if (input.eagleEye && chipImg) {
-      for (let col = 0; col < width; col++) {
+      for (let col = c0; col <= c1; col++) {
         const cell = input.cells[cellIndex(col, row, width)];
         const img = cell && hasItem(cell.attr) && chipFor(cell);
         if (img) drawChip(ctx, img, EAGLE_EYE_ITEM_CHIP, col, row, cs, scale, 'stretch');
       }
     } else if (imgs.items) {
-      for (let col = 0; col < width; col++) {
+      for (let col = c0; col <= c1; col++) {
         const cell = input.cells[cellIndex(col, row, width)];
         if (!cell || !hasItem(cell.attr)) continue;
         // 防御円('x'/'%')上は上11pxクリップで円内に収める(itemDrawRect)。scale で拡大。
@@ -183,14 +191,14 @@ export function drawMap(
     }
 
     // 4. キャラ(この行)。同じマスに2人いれば横にずらす(arrangeRow)
-    const rowChars = input.chars.filter((c) => c.y === row && c.x >= 0 && c.x < width && !(slide && atCenter(c)));
+    const rowChars = input.chars.filter((c) => c.y === row && inRange(c) && !(slide && atCenter(c)));
     for (const { ch, dx } of arrangeRow(rowChars)) {
       drawChara(ctx, ch, cs, scale, imgs, animFrame, dx * scale, input.eagleEye ? 0 : CHARA_Y_ABOVE_FLOOR * scale);
     }
   }
 
   // 5. キャラ名ラベル(自キャラは除外)。
-  drawCharaNames(ctx, input.chars.filter((c) => !atCenter(c)), cs, scale, width, height);
+  drawCharaNames(ctx, input.chars.filter((c) => !atCenter(c) && inRange(c)), cs, scale, width, height);
   ctx.restore();
 
   // ずらしている間は、自キャラを最後にずらさずに描く
@@ -199,6 +207,7 @@ export function drawMap(
       drawChara(ctx, ch, cs, scale, imgs, animFrame, dx * scale, input.eagleEye ? 0 : CHARA_Y_ABOVE_FLOOR * scale);
     }
   }
+  ctx.restore();
 }
 
 /**

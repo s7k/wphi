@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { PREDICT_WAIT_MS, Predictor, predictedMap } from "./predict.ts";
+import { viewArea } from "./mapRender.ts";
 import type { MapEvent } from "./protocol";
 
 function setup() {
@@ -165,6 +166,10 @@ test("予想した位置の地図は、v6 の北固定の地図を1マスずら�
   assert.deepEqual(m.cells.slice(0, 5), [cell(1, 0), cell(2, 0), cell(3, 0), cell(4, 0), { chip: 63, attr: 0 }]);
   // 自キャラは中央のまま、東のキャラは1つ近づき、西の端のキャラは外に出る
   assert.deepEqual(m.chars.map((c) => [c.name, c.x, c.y]), [["me", 2, 1], ["east", 2, 1]]);
+  // '?' の列は外周に入り、窓に見せる範囲(外周の内側)には来ない
+  const v = viewArea(m, 3, 3);
+  assert.equal(v.x + v.w, 4);
+  assert.ok(m.cells.every((c, i) => i % 5 < 4 || c.chip === 63));
   // #m57 の地図はずらさない
   const m57 = { ...map, v6: undefined };
   assert.equal(predictedMap(m57, 1, 0), m57);
