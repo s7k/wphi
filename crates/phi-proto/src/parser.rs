@@ -209,8 +209,9 @@ pub struct Chara {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Map {
-    /// 7(`#m57`)か 5(`#map`)。
-    pub size: u8,
+    /// 幅と高さのマス数。`#m57` は 7、`#map` は 5、`#v6` は `#v6 M` の W と H
+    pub width: u8,
+    pub height: u8,
     /// 自キャラの向き。N=0 から時計回りに45度刻み。
     pub dir: u8,
     pub cells: Vec<Cell>,
@@ -221,6 +222,9 @@ pub struct Map {
     /// `#ex-pos` の絶対座標(x は東、y は南へ増える)。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pos: Option<Pos>,
+    /// `#v6` で届いた地図(docs/05-protocol-v6.md)。Python 版の出力と比べるので、偽の時は出さない
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub v6: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -364,6 +368,10 @@ pub struct Parser {
     /// `#user` の名前 → 番号。届いた順を保つ。
     ulist: Vec<(String, i64)>,
 
+    /// `#v6 M` の幅と高さと、届いた `#v6 R` の行(行番号の位置)。`#v6 .` で全部揃っていれば地図にする
+    v6_size: (u8, u8),
+    v6_rows: Vec<Option<Vec<Cell>>>,
+
     eagle: EagleEyeAccum,
     mapset: Option<String>,
     map_style: Option<String>,
@@ -386,6 +394,11 @@ impl Parser {
     /// `#ulist` を送る時に呼ぶ。届き直す `#user` だけの一覧にする(Philly の RequestUlist)。
     pub fn clear_users(&mut self) {
         self.ulist.clear();
+    }
+
+    /// サーバが最後に返した `#ex-map style=` の値(`turn` か `solid`)。
+    pub fn map_style(&self) -> Option<&str> {
+        self.map_style.as_deref()
     }
 
     /// `#user` で届いた名前のユーザ番号。priv の宛先を決める為に使う。
@@ -417,6 +430,10 @@ impl Parser {
             }
             if raw.starts_with(b"#map M") {
                 self.parse_map_m(raw);
+                return Vec::new();
+            }
+            if raw.starts_with(b"#v6 R ") {
+                self.parse_v6_r(raw);
                 return Vec::new();
             }
             let text = decode(raw);
@@ -523,6 +540,7 @@ impl Parser {
                 self.map_size = 5;
                 return self.finish_map();
             }
+            "#v6 ." => return self.finish_v6(),
             "#ex-eagleeye end" => {
                 return vec![Event::EagleEye(self.eagle.build(self.mapset.clone()))];
             }
@@ -546,14 +564,22 @@ impl Parser {
             }];
         }
         if raw.starts_with(b"#m57 O ") {
-            self.parse_m57_o(raw);
+            self.parse_m57_o(raw, 7, 1);
+            return Vec::new();
+        }
+        if raw.starts_with(b"#v6 O ") {
+            self.parse_m57_o(raw, 6, 2);
+            return Vec::new();
+        }
+        if let Some(rest) = text.strip_prefix("#v6 M ") {
+            self.parse_v6_m(raw, rest);
             return Vec::new();
         }
         if raw.starts_with(b"#m57 W ") {
             // 1行に2キャラ: raw[7..74] と raw[75..142]
             for (from, to) in [(7, 74), (75, 142)] {
                 if raw.len() >= to {
-                    self.parse_m57_o(&[b"#m57 O ", &raw[from..to]].concat());
+                    self.parse_m57_o(&[b"#m57 O ", &raw[from..to]].concat(), 7, 1);
                 }
             }
             return Vec::new();
@@ -743,29 +769,36 @@ impl Parser {
         self.map_cells = Some(cells);
     }
 
-    /// `#m57 O` の固定位置の欄を読む。
+    /// `#m57 O` と `#v6 O` の固定位置の欄を読む。`head` は層の位置、`digits` は座標の桁数。
     ///
-    /// [7]層 [8..12]ID(16進) [13]X [15]Y [17]向き [19..50]名前(cp932)
-    /// [51..53]状態(16進) [54..69]グラ名(cp932) [70]Gigant [72..74]種別(16進)
-    fn parse_m57_o(&mut self, raw: &[u8]) {
-        if raw.len() < 74 {
+    /// `#m57 O`(head 7、1桁): [7]層 [8..12]ID(16進) [13]X [15]Y [17]向き [19..50]名前(cp932)
+    /// [51..53]状態(16進) [54..69]グラ名(cp932) [70]Gigant [72..74]種別(16進)。
+    /// `#v6 O`(head 6、2桁)は行の頭が1バイト短く、座標が1桁ずつ長いので、向きから後ろは1バイト後ろへずれる
+    fn parse_m57_o(&mut self, raw: &[u8], head: usize, digits: usize) {
+        // 向きの位置。ここから後ろの欄は #m57 O と #v6 O で同じ並び
+        let t = head + 2 * digits + 8;
+        if raw.len() < t + 57 {
             return;
         }
         let ascii = |r: std::ops::Range<usize>| std::str::from_utf8(&raw[r]).ok().filter(|s| s.is_ascii());
         let hex = |r| ascii(r).and_then(|s: &str| u32::from_str_radix(s.trim(), 16).ok());
-        let digit = |i: usize| char::from(raw[i]).to_digit(10).map(|d| d as u8);
+        let dec = |i: usize| {
+            ascii(i..i + digits)
+                .filter(|s| s.bytes().all(|b| b.is_ascii_digit()))
+                .and_then(|s| s.parse::<u8>().ok())
+        };
         let (Some(layer), Some(id), Some(x), Some(y), Some(status), Some(default)) = (
-            char::from(raw[7]).to_digit(16).map(|d| d as u8),
-            hex(8..12),
-            digit(13),
-            digit(15),
-            hex(51..53),
-            hex(72..74),
+            char::from(raw[head]).to_digit(16).map(|d| d as u8),
+            hex(head + 1..head + 5),
+            dec(head + 6),
+            dec(head + 7 + digits),
+            hex(t + 34..t + 36),
+            hex(t + 55..t + 57),
         ) else {
             return;
         };
-        let name = decode(&raw[19..50]).trim_end().to_string();
-        let gra = decode(&raw[54..69]).trim_end().to_string();
+        let name = decode(&raw[t + 2..t + 33]).trim_end().to_string();
+        let gra = decode(&raw[t + 37..t + 52]).trim_end().to_string();
 
         if self.chara_clear_pending {
             self.map_chars.clear();
@@ -779,11 +812,11 @@ impl Parser {
             id,
             x,
             y,
-            dir: char::from(raw[17]),
+            dir: char::from(raw[t]),
             name,
             gra,
             status,
-            gigant: char::from(raw[70]),
+            gigant: char::from(raw[t + 53]),
             layer,
             default,
             magnify,
@@ -791,17 +824,64 @@ impl Parser {
     }
 
     fn finish_map(&mut self) -> Vec<Event> {
-        let ev = Map {
-            size: self.map_size,
+        let cells = self.map_cells.clone().unwrap_or_default();
+        vec![Event::Map(self.build_map(self.map_size, self.map_size, cells, false))]
+    }
+
+    fn build_map(&mut self, width: u8, height: u8, cells: Vec<Cell>, v6: bool) -> Map {
+        // chars は次フレームの最初の O 行が来るまで残す
+        self.chara_clear_pending = true;
+        Map {
+            width,
+            height,
             dir: self.map_dir,
-            cells: self.map_cells.clone().unwrap_or_default(),
+            cells,
             chars: self.map_chars.clone(),
             style: self.map_style.clone(),
             pos: self.abs_pos.take(),
+            v6,
+        }
+    }
+
+    /// `#v6 M (方角) (HEX時刻) W H`。6バイト目が方角
+    fn parse_v6_m(&mut self, raw: &[u8], rest: &str) {
+        let mut it = rest.split_whitespace().skip(2);
+        let (Some(w), Some(h)) = (
+            it.next().and_then(|s| s.parse::<u8>().ok()),
+            it.next().and_then(|s| s.parse::<u8>().ok()),
+        ) else {
+            return;
         };
-        // chars は次フレームの最初の O 行が来るまで残す
-        self.chara_clear_pending = true;
-        vec![Event::Map(ev)]
+        self.map_dir = dir_to_num(raw[6]);
+        self.v6_size = (w, h);
+        self.v6_rows = vec![None; h as usize];
+    }
+
+    /// `#v6 R NN ` の9バイトの後に (chip, attr) が W 組並ぶ。NN は 10 進 2 桁の行番号で、0 が上の行
+    fn parse_v6_r(&mut self, raw: &[u8]) {
+        let w = self.v6_size.0 as usize;
+        let row = std::str::from_utf8(&raw[6.min(raw.len())..8.min(raw.len())])
+            .ok()
+            .and_then(ascii_uint);
+        let (Some(row), Some(chip)) = (row, raw.get(9..9 + w * 2)) else {
+            return;
+        };
+        if let Some(slot) = self.v6_rows.get_mut(row as usize) {
+            *slot = Some(chip.as_chunks::<2>().0.iter().map(|&[chip, attr]| Cell { chip, attr }).collect());
+        }
+    }
+
+    /// `#v6 .`。行が揃っていなければ地図を返さず、UI は前の地図のまま描く
+    fn finish_v6(&mut self) -> Vec<Event> {
+        let rows = std::mem::take(&mut self.v6_rows);
+        let (w, h) = self.v6_size;
+        if rows.is_empty() || rows.iter().any(Option::is_none) {
+            self.chara_clear_pending = true;
+            self.abs_pos = None;
+            return Vec::new();
+        }
+        let cells = rows.into_iter().flatten().flatten().collect();
+        vec![Event::Map(self.build_map(w, h, cells, true))]
     }
 }
 
@@ -952,5 +1032,73 @@ mod tests {
             p.feed(b"#ch-srv 192.0.2.1 9000").as_slice(),
             [Event::WorldTransfer { .. }]
         ));
+    }
+
+    /// v6 の地図の行(サーバの phi_dm の docs/dev/protocol-v6.md の書式)。マスは行番号をチップにする
+    fn v6_frame(w: u8, h: u8, rows: impl IntoIterator<Item = u8>, chars: &[(u8, u8, &str)]) -> Vec<Vec<u8>> {
+        let mut lines = vec![format!("#v6 M N 0000abcd {w} {h}").into_bytes()];
+        for y in rows {
+            let mut l = format!("#v6 R {y:02} ").into_bytes();
+            for _ in 0..w {
+                l.extend([b'0' + y, 0]);
+            }
+            lines.push(l);
+        }
+        for (i, &(x, y, name)) in chars.iter().enumerate() {
+            lines.push(format!("#v6 O C{i:04x}:{x:02} {y:02} F {name:<31} 00 {:<15} # 01 ", "t_man").into_bytes());
+        }
+        lines.push(b"#v6 .".to_vec());
+        lines
+    }
+
+    fn feed_all(p: &mut Parser, lines: Vec<Vec<u8>>) -> Vec<Event> {
+        lines.iter().flat_map(|l| p.feed(l)).collect()
+    }
+
+    fn only_map(evs: Vec<Event>) -> Map {
+        match evs.as_slice() {
+            [Event::Map(m)] => m.clone(),
+            _ => panic!("{evs:?}"),
+        }
+    }
+
+    #[test]
+    fn v6_solid_9x9() {
+        let mut p = Parser::new();
+        let m = only_map(feed_all(&mut p, v6_frame(9, 9, 0..9, &[(4, 4, "me")])));
+        assert_eq!((m.width, m.height, m.dir, m.v6), (9, 9, 0, true));
+        assert_eq!(m.cells.len(), 81);
+        assert_eq!(m.cells[0], Cell { chip: b'0', attr: 0 });
+        assert_eq!(m.cells[80], Cell { chip: b'8', attr: 0 });
+        let c = &m.chars[0];
+        assert_eq!((c.x, c.y, c.dir, c.name.as_str(), c.gra.as_str(), c.layer, c.default), (4, 4, 'F', "me", "t_man", 12, 1));
+        // UI は v6 の印で予想を使うか決める(#m57 の地図には付けない)
+        assert_eq!(serde_json::to_value(&m).unwrap()["v6"], true);
+    }
+
+    #[test]
+    fn v6_coordinates_of_10_or_more() {
+        let mut p = Parser::new();
+        let m = only_map(feed_all(&mut p, v6_frame(21, 21, 0..21, &[(10, 10, "me"), (20, 13, "far")])));
+        assert_eq!(m.chars.iter().map(|c| (c.x, c.y)).collect::<Vec<_>>(), [(10, 10), (20, 13)]);
+    }
+
+    #[test]
+    fn v6_missing_rows_keep_previous_map() {
+        let mut p = Parser::new();
+        assert!(feed_all(&mut p, v6_frame(9, 9, (0..9).filter(|&y| y != 5), &[(4, 4, "me")])).is_empty());
+        // 次の地図はまた揃えば届き、前の地図のキャラは残さない
+        let m = only_map(feed_all(&mut p, v6_frame(9, 9, 0..9, &[(3, 4, "next")])));
+        assert_eq!(m.chars.len(), 1);
+        assert_eq!(m.chars[0].name, "next");
+    }
+
+    #[test]
+    fn v6_wide_map() {
+        let mut p = Parser::new();
+        let m = only_map(feed_all(&mut p, v6_frame(11, 7, 0..7, &[(5, 3, "me")])));
+        assert_eq!((m.width, m.height, m.cells.len()), (11, 7, 77));
+        assert_eq!(m.cells[11], Cell { chip: b'1', attr: 0 });
+        assert_eq!((m.chars[0].x, m.chars[0].y), (5, 3));
     }
 }

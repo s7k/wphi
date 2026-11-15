@@ -33,6 +33,9 @@ const TRANSFER_TIMEOUT: Duration = Duration::from_secs(300);
 /// 世界移動の確かめへの UI の答え。送信キューで届き、サーバへは送らない(#51)
 pub const TRANSFER_YES: &str = "#wphi-transfer yes";
 pub const TRANSFER_NO: &str = "#wphi-transfer no";
+/// 地図の窓から決めた視界の大きさ(`#wphi-view W H`)。送信キューで届き、サーバへは送らない。
+/// セッションが覚え、型に合わせた `#ex-map view=` に直して送る
+pub const VIEW_PREFIX: &str = "#wphi-view ";
 
 /// UI へ送るイベント。ログの行は `Event::Message` の代わりに HTML にした `log` を送る。
 #[derive(Debug, Clone, Serialize)]
@@ -74,12 +77,16 @@ pub struct Login {
     pub host: String,
     pub port: u16,
     pub id: String,
+    /// 要求する視界の大きさ(v6)。地図の窓がまだ大きさを決めていなければ None
+    pub view: Option<(u8, u8)>,
 }
 
 /// Philly のログイン時の送信(CharacterCommon.cpp `LoginCommand`)。値は Philly の既定値。
 /// 世界移動の後は `#open` を送らない(移動先へは `#reserve` で ID を渡してある)。
-fn login_lines(id: Option<&str>) -> Vec<String> {
+/// サーバは世界移動のたびに v6 の大きさを消すので、移動の後も `#ex-map view=` を送り直す。型は北固定から始まる
+fn login_lines(id: Option<&str>, view: Option<(u8, u8)>) -> Vec<String> {
     let open = id.map(|id| format!("#open {id}"));
+    let view = view.map(|v| view_line(v, false));
     open.into_iter()
         .chain([
             "#version-cli 05107100".into(),
@@ -89,6 +96,9 @@ fn login_lines(id: Option<&str>) -> Vec<String> {
             "#ex-switch eagleeye=form".into(),
             "#ex-map size=57".into(),
             "#ex-map style=solid".into(),
+        ])
+        .chain(view)
+        .chain([
             "#ex-switch ex-move-recv=true".into(),
             "#ex-switch ex-list-mode-end=true".into(),
             "#ex-switch ex-disp-magic=false".into(),
@@ -96,6 +106,18 @@ fn login_lines(id: Option<&str>) -> Vec<String> {
             "#ex-switch ex-abspos=true".into(),
         ])
         .collect()
+}
+
+/// v6 の視界の要求。回転はサーバが正方形しか受け付けないので、小さい方に揃えて送る
+fn view_line((w, h): (u8, u8), turn: bool) -> String {
+    let (w, h) = if turn { (w.min(h), w.min(h)) } else { (w, h) };
+    format!("#ex-map view={w} {h}")
+}
+
+/// `#wphi-view W H` の大きさ
+fn parse_view(text: &str) -> Option<(u8, u8)> {
+    let (w, h) = text.strip_prefix(VIEW_PREFIX)?.split_once(' ')?;
+    Some((w.parse().ok()?, h.parse().ok()?))
 }
 
 fn line_bytes(text: &str) -> Vec<u8> {
@@ -170,7 +192,10 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
         Ok(Err(e)) => return emit(error(format!("接続出来ません: {e}"))),
         Err(_) => return emit(error("接続がタイムアウトしました".into())),
     };
-    let login_bytes: Vec<u8> = login_lines(Some(&login.id))
+    let mut view = login.view;
+    // 最後に送った `#ex-map view=`。型が変わった時(北固定から回転へなど)と、窓の大きさが変わった時に送り直す
+    let mut sent_view = view.map(|v| view_line(v, false));
+    let login_bytes: Vec<u8> = login_lines(Some(&login.id), view)
         .iter()
         .flat_map(|l| line_bytes(l))
         .collect();
@@ -280,7 +305,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     }
                     let mut skipped = Vec::new();
                     let moved = tokio::select! {
-                        r = transfer(&mut stream, &mut lines, &mut skipped, &server, &login.id, &mut emit) => Some(r),
+                        r = transfer(&mut stream, &mut lines, &mut skipped, &server, &login.id, view, &mut emit) => Some(r),
                         _ = async { while outgoing.recv().await.is_some() {} } => None,
                     };
                     match moved {
@@ -297,6 +322,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                             }
                             lines = LineBuffer::new();
                             parser = Parser::new();
+                            sent_view = view.map(|v| view_line(v, false));
                             while outgoing.try_recv().is_ok() {}
                             last_recv = Instant::now();
                             break;
@@ -312,9 +338,13 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     if text == "#ulist" {
                         parser.clear_users();
                     }
-                    match auto.start(&text, std::time::Instant::now()) {
-                        Some(unequip) => reply.push(unequip.into()),
-                        None => reply.push(text),
+                    if let Some(v) = parse_view(&text) {
+                        view = Some(v);
+                    } else {
+                        match auto.start(&text, std::time::Instant::now()) {
+                            Some(unequip) => reply.push(unequip.into()),
+                            None => reply.push(text),
+                        }
                     }
                 }
                 None => {
@@ -333,6 +363,11 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     emit(error("サーバから3分間応答がありません".into()));
                 }
             }
+        }
+        let want_view = view.map(|v| view_line(v, parser.map_style() == Some("turn")));
+        if want_view != sent_view {
+            reply.extend(want_view.clone());
+            sent_view = want_view;
         }
         let bytes: Vec<u8> = reply.iter().flat_map(|l| line_bytes(l)).collect();
         if !bytes.is_empty() {
@@ -380,6 +415,7 @@ async fn transfer(
     src_skipped: &mut Vec<Vec<u8>>,
     server: &str,
     id: &str,
+    view: Option<(u8, u8)>,
     emit: &mut impl FnMut(UiEvent),
 ) -> Option<TcpStream> {
     let deadline = || Instant::now() + TRANSFER_TIMEOUT;
@@ -436,7 +472,7 @@ async fn transfer(
     }
     let after: Vec<u8> = ["#ch-srv-ok".to_string()]
         .into_iter()
-        .chain(login_lines(None))
+        .chain(login_lines(None, view))
         .flat_map(|l| line_bytes(&l))
         .collect();
     if dst.write_all(&after).await.is_err() {
@@ -570,7 +606,7 @@ mod tests {
                 l
             };
             let mut got = Vec::new();
-            for _ in 0..login_lines(Some("ID")).len() {
+            for _ in 0..login_lines(Some("ID"), None).len() {
                 got.push(read_line().await);
             }
             // 2バイト文字の途中で分けて送る
@@ -594,6 +630,7 @@ mod tests {
                 host: "127.0.0.1".into(),
                 port,
                 id: "ID".into(),
+                view: None,
             },
             rx,
             |ev| events.push(serde_json::to_value(ev).unwrap()),
@@ -623,6 +660,51 @@ mod tests {
         String::from_utf8(l).unwrap()
     }
 
+    const VIEW: Option<(u8, u8)> = Some((11, 7));
+
+    /// 回転は正方形しか受け付けないので、サーバが回転にしたら小さい方に揃えて送り直す。
+    /// 窓の大きさが変わったら、今の型に合わせて送り直す
+    #[tokio::test]
+    async fn view_follows_style_and_window() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (tx, rx) = mpsc::channel(8);
+        let server = tokio::spawn(async move {
+            let (sock, _) = listener.accept().await.unwrap();
+            let (r, mut w) = sock.into_split();
+            let mut r = BufReader::new(r);
+            let mut got = Vec::new();
+            for _ in 0..login_lines(Some("ID"), VIEW).len() {
+                got.push(read_line(&mut r).await);
+            }
+            w.write_all(b"#ex-map style=turn\n").await.unwrap();
+            got.push(read_line(&mut r).await);
+            tx.send(format!("{VIEW_PREFIX}13 9")).await.unwrap();
+            got.push(read_line(&mut r).await);
+            w.write_all(b"#ex-map style=solid\n").await.unwrap();
+            got.push(read_line(&mut r).await);
+            w.write_all(b"#x\n").await.unwrap();
+            got
+        });
+        run(
+            Login {
+                host: "127.0.0.1".into(),
+                port,
+                id: "ID".into(),
+                view: VIEW,
+            },
+            rx,
+            |_| {},
+        )
+        .await;
+        let got = server.await.unwrap();
+        assert!(got.contains(&"#ex-map view=11 7\n".to_string()));
+        assert_eq!(
+            got[got.len() - 3..],
+            ["#ex-map view=7 7\n", "#ex-map view=9 9\n", "#ex-map view=13 9\n"]
+        );
+    }
+
     /// 移動元と移動先の偽サーバで、世界移動の手順を確かめる。
     /// `rsv` は移動先が #reserve に返す行。#rsv-ok なら成功、#rsv-no なら失敗の手順になる。
     async fn world_transfer(rsv: &'static str, trs: &'static str) -> (Vec<String>, Vec<String>, Vec<Value>) {
@@ -639,7 +721,7 @@ mod tests {
             w.write_all(format!("{rsv}\n").as_bytes()).await.unwrap();
             if rsv == "#rsv-ok" {
                 // #ch-srv-ok と、#open の無いログイン時の設定
-                for _ in 0..login_lines(None).len() + 1 {
+                for _ in 0..login_lines(None, VIEW).len() + 1 {
                     got.push(read_line(&mut r).await);
                 }
                 w.write_all(b"#x\n").await.unwrap();
@@ -650,7 +732,7 @@ mod tests {
             let (sock, _) = src_listener.accept().await.unwrap();
             let (r, mut w) = sock.into_split();
             let mut r = BufReader::new(r);
-            for _ in 0..login_lines(Some("ID")).len() {
+            for _ in 0..login_lines(Some("ID"), VIEW).len() {
                 read_line(&mut r).await;
             }
             w.write_all(format!("#ch-srv 127.0.0.1 {dst_port}\n#name after-ch-srv\n").as_bytes())
@@ -679,6 +761,7 @@ mod tests {
                 host: "127.0.0.1".into(),
                 port: src_port,
                 id: "ID".into(),
+                view: VIEW,
             },
             rx,
             |ev| events.push(serde_json::to_value(ev).unwrap()),
@@ -696,6 +779,8 @@ mod tests {
         assert_eq!(dst[1], "#ch-srv-ok\n");
         assert_eq!(dst[2], "#version-cli 05107100\n");
         assert!(!dst.iter().any(|l| l.starts_with("#open")));
+        // サーバは世界移動で v6 の大きさを消すので、移動先へも送り直す
+        assert!(dst.contains(&"#ex-map view=11 7\n".to_string()));
         // 移動元の #ch-srv の後の行は捨てる
         assert!(!events.iter().any(|e| e["name"] == "after-ch-srv"));
         assert!(
@@ -729,7 +814,7 @@ mod tests {
         let (sock, _) = listener.accept().await.unwrap();
         let (r, mut w) = sock.into_split();
         let mut r = BufReader::new(r);
-        for _ in 0..login_lines(Some("ID")).len() {
+        for _ in 0..login_lines(Some("ID"), None).len() {
             read_line(&mut r).await;
         }
         w.write_all(ch_srv.as_bytes()).await.unwrap();
@@ -743,6 +828,7 @@ mod tests {
             host: "127.0.0.1".into(),
             port,
             id: "ID".into(),
+            view: None,
         }
     }
 

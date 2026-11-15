@@ -11,6 +11,21 @@ fn unhex(s: &str) -> Vec<u8> {
         .collect()
 }
 
+/// Python 版の地図の `size` を、Rust 版の `width` と `height` に分ける。
+/// Python 版は正方形の地図しか知らないので、両方に同じ値を入れる
+fn split_size(events: &Value) -> Value {
+    let mut events = events.clone();
+    for ev in events.as_array_mut().into_iter().flatten() {
+        if ev["type"] == "map"
+            && let Some(size) = ev.as_object_mut().and_then(|m| m.remove("size"))
+        {
+            ev["width"] = size.clone();
+            ev["height"] = size;
+        }
+    }
+    events
+}
+
 #[test]
 fn matches_python_parser() {
     let golden: Value = serde_json::from_str(include_str!("golden/parser.json")).unwrap();
@@ -21,8 +36,9 @@ fn matches_python_parser() {
         for (i, step) in scenario["steps"].as_array().unwrap().iter().enumerate() {
             let line = unhex(step["line"].as_str().unwrap());
             let got = serde_json::to_value(parser.feed(&line)).unwrap();
-            if got != step["events"] {
-                failures.push(format!("{name}[{i}]\n  want {}\n  got  {got}", step["events"]));
+            let want = split_size(&step["events"]);
+            if got != want {
+                failures.push(format!("{name}[{i}]\n  want {want}\n  got  {got}"));
             }
         }
     }

@@ -34,6 +34,8 @@ struct Sessions {
     senders: Mutex<HashMap<u32, mpsc::Sender<String>>>,
     /// 接続のタスク。強制切断で止める(#77)
     tasks: Mutex<HashMap<u32, tauri::async_runtime::JoinHandle<()>>>,
+    /// 地図の窓から決めた視界の大きさ(v6)。地図の窓は1つなので、全部のセッションで同じ大きさを要求する
+    view: Mutex<Option<(u8, u8)>>,
 }
 
 /// 設定フォルダ(characters.json・settings.json と、キャラの .phirc の置き場)。
@@ -494,13 +496,14 @@ fn connect(
         .clone();
     let id = characters::get_id(&config_dir(&app)?, &ch)?;
     let (host, port) = (ch.host, ch.port);
+    let view = *sessions.view.lock().unwrap();
     let no = sessions.next.fetch_add(1, Ordering::Relaxed);
     let (tx, rx) = mpsc::channel(64);
     sessions.senders.lock().unwrap().insert(no, tx);
     let store = store_path(&app)?;
     let cleanup = app.clone();
     let task = tauri::async_runtime::spawn(async move {
-        session::run(Login { host, port, id }, rx, move |ev| {
+        session::run(Login { host, port, id, view }, rx, move |ev| {
             // 世界移動したら、登録したキャラの接続先を書き換える(Philly の RewriteSaveData)
             if let UiEvent::Ui(session::UiOnly::WorldMoved { host, port }) = &ev {
                 let r = Store::update(&store, |s| {
@@ -550,6 +553,21 @@ async fn send_line(session: u32, text: String, sessions: State<'_, Sessions>) ->
 #[tauri::command]
 async fn send_lines(session: u32, lines: Vec<String>, sessions: State<'_, Sessions>) -> Result<(), String> {
     send(&sessions, session, lines).await
+}
+
+/// 地図の窓に入るマス数(v6 の視界)を全部のセッションへ知らせる。各セッションが型に合わせて `#ex-map view=` を送る
+#[tauri::command]
+async fn set_map_view(width: u8, height: u8, sessions: State<'_, Sessions>) -> Result<(), String> {
+    if ![width, height].iter().all(|v| (3..=99).contains(v) && v % 2 == 1) {
+        return Err(format!("視界の大きさは 3〜99 の奇数にする({width}x{height})"));
+    }
+    *sessions.view.lock().unwrap() = Some((width, height));
+    let txs: Vec<_> = sessions.senders.lock().unwrap().values().cloned().collect();
+    for tx in txs {
+        // 切れたセッションは送れないだけ
+        let _ = tx.send(format!("{}{width} {height}", session::VIEW_PREFIX)).await;
+    }
+    Ok(())
 }
 
 async fn send(sessions: &Sessions, session: u32, lines: Vec<String>) -> Result<(), String> {
@@ -1123,6 +1141,7 @@ fn main() {
             register_character,
             connect,
             send_line,
+            set_map_view,
             send_lines,
             open_log_dir,
             open_config_dir,
