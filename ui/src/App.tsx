@@ -657,7 +657,7 @@ export function App() {
       case "map":
         s.map = ev;
         trace("main map");
-        if (session === activeRef.current && ev.pos) predictor.current.onMap(`${ev.pos.x},${ev.pos.y}`);
+        if (session === activeRef.current && ev.pos) predictor.current.onMap(`${ev.pos.x},${ev.pos.y}`, ev);
         break;
       case "status": {
         // 裏のタブで HP か MP が減ったら、タブに印を付ける

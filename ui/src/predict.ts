@@ -1,7 +1,9 @@
 // 位置の予想。v6 の北固定で、#ex-pos の届く世界の時だけ使う。
 // サーバは見え方が変わらないと、進んでも地図を送らない(phi_m57.rs の print_m57)。NPC のいない一様な所では、
 // 地図が止まって見える。送った go に地図も「進めません」も来なければ、進んだとみなして最後の地図をずらす。
-// サーバへは何も足さない。黙って進めなかった時(鍵の掛かった扉など)は、次に地図が来た時に本当の位置へ戻る。
+// サーバへは何も足さない。黙って進めなかった時は、次に地図が来た時に本当の位置へ戻る。
+// 鍵の掛かった箱と扉は、サーバが音だけ鳴らして何も送らない(phi_dm/view.rs の move_chr)。地図も来ないので、
+// 箱の上に乗って見え、その先へも進んで見える(#85)。なので行き先がこの2つなら進んだとみなさない。
 import type { MapEvent } from "./protocol";
 import { selfPos, UNKNOWN } from "./mapRender.ts";
 
@@ -30,6 +32,9 @@ const LATE_MAP_MS = 400;
 export const PREDICT_TICK_MS = 20;
 
 type Move = { dx: number; dy: number; at: number };
+/** 黙って進めない地形。鍵の掛かった箱('%')と扉('{')。パスウォールなら進めるが、その時は地図が来て戻る */
+const LOCKED = new Set(["%", "{"].map((c) => c.charCodeAt(0)));
+
 const sum = (ms: Move[]) => ms.reduce((o, m) => ({ dx: o.dx + m.dx, dy: o.dy + m.dy }), { dx: 0, dy: 0 });
 
 export class Predictor {
@@ -39,6 +44,8 @@ export class Predictor {
   private guessed: Move[] = [];
   /** 最後に届いた地図の位置 */
   private base: { x: number; y: number } | null = null;
+  /** 最後に届いた地図 */
+  private map: MapEvent | null = null;
   /** 移動を送ってから地図か「進めません」が届くまでの時間(ms)。新しい方の SAMPLES 個 */
   private samples: number[] = [];
   private lastGuess = -Infinity;
@@ -79,7 +86,8 @@ export class Predictor {
    * 前の地図からのずれと、古い方から足した移動のずれが合う所までを、返事の来た移動とみなす。
    * 一様な所では進んでも地図が来ないので、地図は「進んだとみなした移動」と「待っている移動」のどちらへの返事にもなる
    */
-  onMap(pos: string) {
+  onMap(pos: string, map: MapEvent | null = null) {
+    this.map = map;
     const [x, y] = pos.split(",").map(Number);
     const prev = this.base;
     this.base = { x, y };
@@ -125,14 +133,29 @@ export class Predictor {
     const now = this.now();
     if (!head || now - head.at < this.wait || now - this.lastGuess < SERVER_TICK_MS) return false;
     this.lastGuess = now;
-    this.guessed.push(this.queue.shift()!);
+    const m = this.queue.shift()!;
+    if (this.locked(m)) return false;
+    this.guessed.push(m);
     return true;
+  }
+
+  /** 進んだとみなした分の先へ m で進む先が、最後の地図で鍵の掛かった箱か扉か */
+  private locked(m: Move): boolean {
+    const map = this.map;
+    if (!map) return false;
+    const me = selfPos(map.width, map.height, false);
+    const o = this.offset;
+    const x = me.x + o.dx + m.dx;
+    const y = me.y + o.dy + m.dy;
+    if (x < 0 || x >= map.width || y < 0 || y >= map.height) return false;
+    return LOCKED.has(map.cells[y * map.width + x].chip);
   }
 
   reset() {
     this.queue = [];
     this.guessed = [];
     this.base = null;
+    this.map = null;
     this.lastGuess = -Infinity;
   }
 }

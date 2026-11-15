@@ -145,6 +145,26 @@ test("待つ時間は、最近の返事の時間の最大より少し長い", ()
   assert.equal(p.wait, 143);
 });
 
+test("鍵の掛かった箱や扉へは進んだとみなさない(#85)", () => {
+  const { p, advance } = setup();
+  // 5x5 の中央 (2,2) が自キャラ。2つ北 (2,0) が鍵の掛かった箱
+  const cells = Array.from({ length: 25 }, (_, i) => ({ chip: i === 2 ? "%".charCodeAt(0) : 32, attr: 0 }));
+  const map = { type: "map", width: 5, height: 5, v6: true, dir: 0, style: "solid", cells, chars: [] } as MapEvent;
+  p.onMap("5,5,0", map);
+  p.sent("go N");
+  p.sent("go N");
+  p.sent("go N");
+  advance(200);
+  assert.equal(p.tick(), true);
+  advance(100);
+  // 箱の手前で止まり、箱へ進む移動は捨てる。後の移動も同じ箱へ向かうので捨てる
+  assert.equal(p.tick(), false);
+  advance(100);
+  assert.equal(p.tick(), false);
+  assert.deepEqual(p.offset, { dx: 0, dy: -1 });
+  assert.equal(p.waiting, false);
+});
+
 test("予想した位置の地図は、v6 の北固定の地図を1マスずらし、入る端を '?' にする", () => {
   // 5x3。マスのチップは列と行の番号
   const cell = (x: number, y: number) => ({ chip: x * 10 + y, attr: 0 });
