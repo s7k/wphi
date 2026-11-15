@@ -495,6 +495,14 @@ export function gridDim(size: number): number {
   return size === 5 ? 5 : 7;
 }
 
+/**
+ * 自キャラのマス(左上を 0 とする列と行)。北固定は中央。
+ * 回転は前が上で、後ろに ⌊h/3⌋ 行見える(サーバの phi_m57.rs の set_view7 の SP。7x7 は前 4 行、後ろ 2 行)
+ */
+export function selfPos(w: number, h: number, turn: boolean): { x: number; y: number } {
+  return { x: (w - 1) >> 1, y: turn ? h - 1 - Math.floor(h / 3) : (h - 1) >> 1 };
+}
+
 /** (x,y) → cells配列index(行優先, index=y*size+x)。 */
 export function cellIndex(x: number, y: number, size: number): number {
   return y * size + x;

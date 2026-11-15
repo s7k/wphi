@@ -126,16 +126,20 @@ export function popsFromLine(raw: string, state = newPopState()): Pop[] {
 }
 
 /**
- * name のキャラのうち、中央(自分)に一番近い物。同じ名前のキャラが複数いる時に、どれか分からない為。
- * name が "" なら中央の自分
+ * name のキャラのうち、自分(me のマス)に一番近い物。同じ名前のキャラが複数いる時に、どれか分からない為。
+ * name が "" なら自分
  */
-export function findChar<C extends { x: number; y: number; name: string }>(chars: C[], name: string, center: number): C | undefined {
-  if (!name) return chars.find((c) => c.x === center && c.y === center);
+export function findChar<C extends { x: number; y: number; name: string }>(
+  chars: C[],
+  name: string,
+  me: { x: number; y: number },
+): C | undefined {
+  if (!name) return chars.find((c) => c.x === me.x && c.y === me.y);
   let best: C | undefined;
   let bestD = Infinity;
   for (const c of chars) {
     if (stripTags(c.name) !== name) continue;
-    const d = Math.abs(c.x - center) + Math.abs(c.y - center);
+    const d = Math.abs(c.x - me.x) + Math.abs(c.y - me.y);
     if (d < bestD) [best, bestD] = [c, d];
   }
   return best;

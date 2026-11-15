@@ -60,9 +60,11 @@ export interface DrawMapInput {
    * 人はマスの床の上端に描く(Philly は YPos+16。通常のマップのキャラのように上げない)
    */
   eagleEye?: boolean;
+  /** 自キャラのマス(mapRender.ts の selfPos)。省略時は中央 */
+  self?: { x: number; y: number };
   /**
-   * 実験的: 中心のマス以外をずらして描く量(px)。自分が進んだ時に、前の位置から滑らかに動いて見せる。
-   * 中心のマスのキャラ(自キャラ)と中心の印はずらさない
+   * 実験的: 自キャラのマス以外をずらして描く量(px)。自分が進んだ時に、前の位置から滑らかに動いて見せる。
+   * 自キャラはずらさない
    */
   slide?: { x: number; y: number };
 }
@@ -109,10 +111,9 @@ export function drawMap(
   // 水有無グリッド(水縁エフェクト用)。チップ画像があれば1回構築。
   const water = chipImg ? buildWaterGrid(input.cells, dim) : null;
 
-  const cx = Math.floor(dim / 2);
-  const cy = Math.floor(dim / 2);
+  const me = input.self ?? { x: Math.floor(dim / 2), y: Math.floor(dim / 2) };
   const slide = input.slide && (input.slide.x || input.slide.y) ? input.slide : null;
-  const atCenter = (c: MapChar) => c.x === cx && c.y === cy;
+  const atCenter = (c: MapChar) => c.x === me.x && c.y === me.y;
   ctx.save();
   if (slide) ctx.translate(slide.x, slide.y);
 
@@ -189,11 +190,11 @@ export function drawMap(
     }
   }
 
-  // 5. キャラ名ラベル(中心=自キャラは除外)。
-  drawCharaNames(ctx, input.chars, cs, scale, dim);
+  // 5. キャラ名ラベル(自キャラは除外)。
+  drawCharaNames(ctx, input.chars.filter((c) => !atCenter(c)), cs, scale, dim);
   ctx.restore();
 
-  // ずらしている間は、中心のマスのキャラを最後にずらさずに描く
+  // ずらしている間は、自キャラを最後にずらさずに描く
   if (slide) {
     for (const { ch, dx } of arrangeRow(input.chars.filter(atCenter))) {
       drawChara(ctx, ch, cs, scale, imgs, animFrame, dx * scale, input.eagleEye ? 0 : CHARA_Y_ABOVE_FLOOR * scale);
@@ -298,7 +299,7 @@ function drawChara(
   ctx.drawImage(img, r.sx, r.sy, r.sw, r.sh, baseX, baseY, r.sw, r.sh);
 }
 
-/** キャラ名ラベル描画(自キャラ=中心セル除外、(x,y)重複は後勝ち)。 */
+/** キャラ名ラベル描画((x,y)重複は後勝ち)。 */
 function drawCharaNames(
   ctx: CanvasRenderingContext2D,
   chars: MapChar[],
@@ -306,12 +307,9 @@ function drawCharaNames(
   scale: number,
   dim: number,
 ): void {
-  const cx = Math.floor(dim / 2);
-  const cy = Math.floor(dim / 2);
   const perCell = new Map<string, { x: number; y: number; name: string }>();
   for (const c of chars) {
     if (c.x < 0 || c.x >= dim || c.y < 0 || c.y >= dim) continue;
-    if (c.x === cx && c.y === cy) continue;
     const name = c.name.replace(/\/\*.*?\*\//g, '').trim();
     if (!name) continue;
     perCell.set(`${c.x},${c.y}`, { x: c.x, y: c.y, name });

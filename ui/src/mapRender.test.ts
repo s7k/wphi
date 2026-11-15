@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { arrangeRow, itemDrawRect, slideStep } from "./mapRender.ts";
+import { arrangeRow, itemDrawRect, selfPos, slideStep } from "./mapRender.ts";
 
 test("アイテムは Philly と同じく床の上端の8px上に描く(#41)", () => {
   const r = itemDrawRect(1, " ".charCodeAt(0), 32, 64);
@@ -31,4 +31,11 @@ test("滑らかにずらすのは、同じ世界で1〜2マス動いた時だけ
   assert.equal(slideStep({ world: "A", x: 5, y: 5 }, { world: "B", x: 6, y: 5 }), null);
   assert.equal(slideStep({ world: "A", x: 5, y: 5 }, { world: "A", x: 5, y: 5 }), null);
   assert.equal(slideStep({ world: "A", x: 5, y: 5 }, { world: "A", x: 8, y: 5 }), null);
+});
+
+test("自キャラのマスは、北固定は中央、回転は後ろに 1/3", () => {
+  assert.deepEqual(selfPos(7, 7, false), { x: 3, y: 3 });
+  assert.deepEqual(selfPos(7, 7, true), { x: 3, y: 4 });
+  assert.deepEqual(selfPos(11, 7, false), { x: 5, y: 3 });
+  assert.deepEqual(selfPos(21, 21, true), { x: 10, y: 13 });
 });

@@ -14,7 +14,7 @@ import { drawMap, type ImageRefs } from "./drawMap";
 import { trace } from "./trace.ts";
 import { KEY_EVENT, MOUSE_EVENT, sendLine, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
-import { CHIP_SIZE, MAP_TOP, SLIDE_MS, gridDim, slideStep } from "./mapRender";
+import { CHIP_SIZE, MAP_TOP, SLIDE_MS, gridDim, selfPos, slideStep } from "./mapRender";
 import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
 import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapChar, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
@@ -168,15 +168,15 @@ export function MapView(props: { embedded?: boolean }) {
   // キャラの上に出す吹き出しと増減の数字(ui/src/mapPop.ts)。キャラが動いても付いて行くよう、位置は描く時に名前で探す
   const [pops, setPops] = useState<(Pop & { id: number; at?: { x: number; y: number } })[]>([]);
   // 倒されたキャラはすぐ地図から消えるので、届いた時の位置を覚えて出す
-  const popCharsRef = useRef<{ chars: MapChar[]; center: number }>({ chars: [], center: 0 });
+  const popCharsRef = useRef<{ chars: MapChar[]; me: { x: number; y: number } }>({ chars: [], me: { x: 0, y: 0 } });
   useEffect(() => {
     let id = 0;
     const unlisten = listen<{ pops: Pop[]; to: MapPlace }>(MAP_POP_EVENT, (e) => {
       if (e.payload.to !== place) return;
-      const { chars, center } = popCharsRef.current;
+      const { chars, me } = popCharsRef.current;
       const added = e.payload.pops.flatMap((p) => {
         if (p.kind !== "dead") return [{ ...p, id: ++id }];
-        const c = findChar(chars, p.name, center);
+        const c = findChar(chars, p.name, me);
         return c ? [{ ...p, id: ++id, at: { x: c.x, y: c.y } }] : [];
       });
       // 吹き出しは1人に1つ。新しい発言で置き換える
@@ -199,6 +199,8 @@ export function MapView(props: { embedded?: boolean }) {
   const automap = useMemo(() => (map ? compose(map, tiles, ring) : null), [mapKey, world, tilesVer, ring]);
   const dim = automap?.dim ?? (map ? gridDim(map.size) : 7);
   const northFix = !map || (map.size === 7 && map.style !== "turn");
+  // 自キャラのマス。7x7 の回転は中央より1つ下(5x5 は中央のまま)
+  const me = selfPos(dim, dim, map?.size === 7 && !northFix);
 
   // マップのマウス操作。左ボタンでその向きへ1歩進み、右ボタンで hit(Philly の MapForm.cpp)。押し続けても繰り返さない
   const [cursor, setCursor] = useState("default");
@@ -313,7 +315,7 @@ export function MapView(props: { embedded?: boolean }) {
       chara: image,
     };
     if (!automap) {
-      drawMap(ctx, { size: map.size, mapset: state.mapset, cells: map.cells, chars: map.chars, slide: slide ?? undefined }, imgs, frame);
+      drawMap(ctx, { size: map.size, mapset: state.mapset, cells: map.cells, chars: map.chars, self: me, slide: slide ?? undefined }, imgs, frame);
       return;
     }
     drawMap(
@@ -334,11 +336,11 @@ export function MapView(props: { embedded?: boolean }) {
   const canvasLeft = Math.floor((area.w - dim * CHIP_SIZE * zoom) / 2);
   const canvasTop = Math.floor((area.h - (dim * CHIP_SIZE + MAP_TOP) * zoom) / 2);
   const popChars = automap?.chars ?? map?.chars ?? [];
-  popCharsRef.current = { chars: popChars, center: Math.floor(dim / 2) };
+  popCharsRef.current = { chars: popChars, me };
   // 同じキャラに続けて出た数字は、上へずらして重ねない
   const stack = new Map<string, number>();
   const popEls = pops.flatMap((p) => {
-    const c = p.at ?? findChar(popChars, p.name, Math.floor(dim / 2));
+    const c = p.at ?? findChar(popChars, p.name, me);
     if (!c) return [];
     if (p.kind === "dead")
       return [
@@ -376,7 +378,7 @@ export function MapView(props: { embedded?: boolean }) {
           }}
         />,
       );
-    const by = p.by ? findChar(popChars, p.by, Math.floor(dim / 2)) : undefined;
+    const by = p.by ? findChar(popChars, p.by, me) : undefined;
     if (by && by !== c && n === 0) {
       const dx = (c.x - by.x) * CHIP_SIZE * zoom;
       const dy = (c.y - by.y) * CHIP_SIZE * zoom;

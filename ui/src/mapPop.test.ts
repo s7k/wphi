@@ -108,7 +108,8 @@ test("同じ名前なら中央に近いキャラ", () => {
     { x: 4, y: 3, name: "/*color=red*/スライム" },
     { x: 3, y: 3, name: "太郎" },
   ];
-  assert.equal(findChar(chars, "スライム", 3), chars[1]);
-  assert.equal(findChar(chars, "花子", 3), undefined);
-  assert.equal(findChar(chars, "", 3), chars[2]);
+  const me = { x: 3, y: 3 };
+  assert.equal(findChar(chars, "スライム", me), chars[1]);
+  assert.equal(findChar(chars, "花子", me), undefined);
+  assert.equal(findChar(chars, "", me), chars[2]);
 });
