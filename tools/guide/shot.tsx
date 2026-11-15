@@ -10,7 +10,7 @@ import "../../ui/src/style.css";
 
 const SERVER = "http://127.0.0.1:5180";
 const text = (path: string) => fetch(SERVER + path).then((r) => r.text());
-const settings = { ...DEFAULT_SETTINGS, singleWindow: true, automap: true };
+const settings = { ...DEFAULT_SETTINGS, singleWindow: true };
 
 mockIPC(
   async (cmd, args: any) => {
@@ -32,7 +32,7 @@ mockIPC(
           for (const ev of JSON.parse(await text(`/effects?scene=${scene}`))) ch.onmessage(ev);
         };
         const events: unknown[] = JSON.parse(await text("/events"));
-        // 地図は1歩ずつ届くように少し間を置く(拡張マップが通った所を覚える)
+        // 地図は1歩ずつ届くように少し間を置く
         setTimeout(async () => {
           for (const ev of events) {
             ch.onmessage(ev);

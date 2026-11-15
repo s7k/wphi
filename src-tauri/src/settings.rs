@@ -46,13 +46,10 @@ pub struct Settings {
     /// 超魔法メニューを、マスターでなくても出す(Philly の隠しコマンドの MasterMagicMenu)。
     /// サーバの権限ファイルでマスターになった人は、クライアントからは見分けられない為(#83)
     pub master_magic_menu: bool,
-    /// マップの拡大率(%)。マップの画像を拡大縮小する。拡張マップの外周は、拡大した大きさで欄に収まる分だけ(Philly に無い)
+    /// マップの拡大率(%)。マップの画像を拡大縮小する。v6 の視界は、拡大した大きさで欄に収まる分だけ(Philly に無い)
     pub map_zoom: u32,
     /// 実験的: 自分が1マス進んだ時に、地図を滑らかにずらして描く。表示のメニューで切り替える(Philly に無い)
     pub smooth_move: bool,
-    /// 拡張マップ(Philly に無い)。表示のメニューで切り替える。付属して、送った go に地図も「進めません」も来なければ
-    /// 進んだとみなして位置を予想し、長押しのリピートは前の移動の返事を待つ。off なら 7x7 だけで、リピートは OS 任せ
-    pub automap: bool,
     /// 実験的: マップの窓を使わず、main 窓のログの左にマップを出す。表示のメニューで切り替える(Philly に無い)
     pub single_window: bool,
     /// マップのキャラの上に、発言の吹き出しと HP・MP の増減を出す。表示のメニューで切り替える(Philly に無い)
@@ -83,7 +80,6 @@ impl Default for Settings {
             map_zoom: 100,
             smooth_move: false,
             single_window: false,
-            automap: true,
             map_effects: true,
         }
     }

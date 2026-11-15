@@ -122,7 +122,7 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
             value={s.mapZoom}
             onChange={(e) => set("mapZoom", Number(e.target.value))}
           />{" "}
-          %(拡大すると、拡張マップの外周は狭くなる)
+          %(拡大すると、v6 のサーバで見える範囲は狭くなる)
         </label>
         {message && <p>{message}</p>}
       </div>

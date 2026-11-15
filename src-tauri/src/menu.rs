@@ -13,7 +13,6 @@ use tauri::{
 pub const MENU_EVENT: &str = "phi-menu";
 /// 設定を切り替える、チェックの付く項目。main.rs が設定に書き、EXPERIMENT_EVENT で設定の全体を全部の窓へ知らせる
 pub const SMOOTH_MOVE: &str = "smooth-move";
-pub const AUTOMAP: &str = "automap";
 pub const SINGLE_WINDOW: &str = "single-window";
 pub const MAP_EFFECTS: &str = "map-effects";
 pub const EXPERIMENT_EVENT: &str = "phi-experiment";
@@ -22,7 +21,6 @@ pub const EXPERIMENT_EVENT: &str = "phi-experiment";
 pub fn experiment<'a>(s: &'a mut crate::settings::Settings, id: &str) -> Option<&'a mut bool> {
     match id {
         SMOOTH_MOVE => Some(&mut s.smooth_move),
-        AUTOMAP => Some(&mut s.automap),
         SINGLE_WINDOW => Some(&mut s.single_window),
         MAP_EFFECTS => Some(&mut s.map_effects),
         _ => None,
@@ -139,8 +137,6 @@ const MENUS: Table = &[
             ("map-57", "7x7 マップ (Shift+7)"),
             ("map-40", "5x5 マップ (Shift+5)"),
             ("-", ""),
-            (AUTOMAP, "拡張マップ(位置の予想付き)"),
-            ("automap-clear", "この世界の拡張マップを消す..."),
             (MAP_EFFECTS, "吹き出しと HP・MP の増減をマップに出す"),
             ("-", ""),
             (SMOOTH_MOVE, "マップを滑らかに動かす(試験中)"),
@@ -411,7 +407,7 @@ mod tests {
         assert!(!m.iter().any(|s| s.name == "魔法"));
         let view = m.iter().find(|s| s.name == "表示").unwrap();
         let check = |id: &str| view.items.iter().find(|i| i.id == id).unwrap().check;
-        assert!(check("map-turn") && check(AUTOMAP) && check(SMOOTH_MOVE));
+        assert!(check("map-turn") && check(MAP_EFFECTS) && check(SMOOTH_MOVE));
         assert!(!check("map"));
     }
 

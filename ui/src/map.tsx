@@ -9,12 +9,12 @@ import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { assetUrl } from "./asset";
-import { AUTOMAP_EVENT, compose, predictedMap, ringFor, loadTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { drawMap, type ImageRefs } from "./drawMap";
 import { trace } from "./trace.ts";
-import { KEY_EVENT, MOUSE_EVENT, sendLine, type ForwardedKey, type ForwardedMouse } from "./keyInput";
+import { isNorthFix, KEY_EVENT, MOUSE_EVENT, sendLine, type ForwardedKey, type ForwardedMouse } from "./keyInput";
+import { predictedMap } from "./predict.ts";
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
-import { CHIP_SIZE, MAP_TOP, SLIDE_MS, gridDim, selfPos, slideStep } from "./mapRender";
+import { CHIP_SIZE, MAP_TOP, SLIDE_MS, fitBoard, slideStep, viewFor } from "./mapRender";
 import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
 import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapChar, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
@@ -73,7 +73,7 @@ export function MapView(props: { embedded?: boolean }) {
   const image = useImages(() => setLoaded((n) => n + 1));
   const mapCanvas = useRef<HTMLCanvasElement>(null);
   useScreenshot("map", mapCanvas, place);
-  // マップの欄。外周の幅はこの枠の大きさで決める(canvas の大きさは外周の幅で変わるので測らない)
+  // マップの欄。v6 の視界の大きさはこの枠の大きさで決める(canvas の大きさは視界で変わるので測らない)
   const mapArea = useRef<HTMLDivElement>(null);
   // HP・MP の減った分を出す為の、1つ前の #status(Philly の OldStatus)
   const prevStatus = useRef<{ session?: number; now?: StatusEvent; old?: StatusEvent }>({});
@@ -85,11 +85,6 @@ export function MapView(props: { embedded?: boolean }) {
       const s = e.payload;
       if ((s.to ?? "map") !== place) return;
       trace("map recv");
-      // 拡張マップの差分は MapState と一緒に届く。同じ処理の中で足し、1回で描く
-      if (s.diffs?.length) {
-        for (const d of s.diffs) Object.assign(automapOf(d.world), d.diff);
-        setTilesVer((v) => v + 1);
-      }
       const p = prevStatus.current;
       // イベントのたびに別のオブジェクトで届くので、中身で比べる。#status が届くたびに1つ前の値になる。
       // タブを切り替えた時は、前のタブのキャラとの差を減った分にしない(#67)
@@ -129,31 +124,8 @@ export function MapView(props: { embedded?: boolean }) {
     };
   }, []);
 
-  // 拡張マップ。main 窓が localStorage に貯めた地形を、通常マップの外周に暗くして敷く。
-  // 拡大縮小はしないので、外周の幅はマップの欄に等倍で収まる分だけ(最大 AUTOMAP_RING)
   const world = state?.world;
-  // 世界ごとの地形。初めて使う時に localStorage から読み、以後は main 窓から届く変わったマスを足す。
-  // 世界が変わった直後に届いた分も失わないよう、届いた世界の分に足す
-  const automaps = useRef(new Map<string, Tiles>());
-  const automapOf = (w: string) => {
-    let t = automaps.current.get(w);
-    if (!t) automaps.current.set(w, (t = loadTiles(w)));
-    return t;
-  };
-  const [tilesVer, setTilesVer] = useState(0);
-  useEffect(() => {
-    const unlisten = listen<AutomapDiff & { to?: MapPlace }>(AUTOMAP_EVENT, (e) => {
-      if ((e.payload.to ?? "map") !== place) return;
-      if (e.payload.clear) automaps.current.set(e.payload.world, {});
-      Object.assign(automapOf(e.payload.world), e.payload.diff);
-      setTilesVer((v) => v + 1);
-    });
-    return () => {
-      unlisten.then((f) => f());
-    };
-  }, []);
-  const tiles = world ? automapOf(world) : {};
-  // 拡張マップの付属: main 窓が位置を予想していれば(ui/src/predict.ts)、予想した位置の地図を記録地図から作って描く
+  // main 窓が位置を予想していれば(ui/src/predict.ts)、最後の v6 の地図を予想した位置へずらして描く
   const raw = state?.map;
   const pred = state?.predict;
   const map = raw && pred && (pred.dx || pred.dy) ? predictedMap(raw, pred.dx, pred.dy) : raw;
@@ -190,17 +162,29 @@ export function MapView(props: { embedded?: boolean }) {
     };
   }, []);
   const [smooth, setSmooth] = useState(false);
-  const [automapOn, setAutomapOn] = useState(true);
-  // マップの拡大率。canvas は等倍で描き、CSS で拡大縮小する。外周の幅は、拡大した大きさで欄に収まる分だけ
+  // マップの拡大率。canvas は等倍で描き、CSS で拡大縮小する。v6 の視界は、拡大した大きさで欄に収まる分だけ
   const [zoom, setZoom] = useState(1);
-  const ring = automapOn ? ringFor(area.w / zoom, area.h / zoom - MAP_TOP, CHIP_SIZE) : 0;
+  // 地図を出しているのがこの窓か。もう一方の窓(隠した map 窓など)の大きさで視界を要求しない
+  const [shown, setShown] = useState(false);
+  const northFix = isNorthFix(map);
+  // v6 の視界(docs/05-protocol-v6.md の 4.1)。欄に入るマス数を奇数に切り下げる。回転は正方形
+  const cell = CHIP_SIZE * zoom;
+  const viewW = viewFor(area.w, cell);
+  const viewH = viewFor(area.h - MAP_TOP * zoom, cell);
+  useEffect(() => {
+    if (!shown || area.w === 0 || area.h === 0) return;
+    // 窓の端を引きずっている間は送らず、最後に変わってから 300ms 後に送る
+    const t = setTimeout(() => invoke("set_map_view", { width: viewW, height: viewH }).catch(console.error), 300);
+    return () => clearTimeout(t);
+  }, [shown, viewW, viewH]);
   // MapState は status などが変わっただけでも新しいオブジェクトで届くので、マップは中身で比べる
   const mapKey = JSON.stringify(map ?? null);
-  const automap = useMemo(() => (map ? compose(map, tiles, ring) : null), [mapKey, world, tilesVer, ring]);
-  const dim = automap?.dim ?? (map ? gridDim(map.size) : 7);
-  const northFix = !map || (map.size === 7 && map.style !== "turn");
-  // 自キャラのマス。7x7 の回転は中央より1つ下(5x5 は中央のまま)
-  const me = selfPos(dim, dim, map?.size === 7 && !northFix);
+  const view = northFix ? { w: viewW, h: viewH } : { w: Math.min(viewW, viewH), h: Math.min(viewW, viewH) };
+  // サーバが要求より小さい v6 の地図を返した時は、中央に置いて外側を '?' で埋める
+  const board = useMemo(() => (map ? fitBoard(map, view.w, view.h) : null), [mapKey, view.w, view.h]);
+  const boardW = board?.width ?? 7;
+  const boardH = board?.height ?? 7;
+  const me = board?.self ?? { x: 3, y: 3 };
 
   // マップのマウス操作。左ボタンでその向きへ1歩進み、右ボタンで hit(Philly の MapForm.cpp)。押し続けても繰り返さない
   const [cursor, setCursor] = useState("default");
@@ -208,12 +192,13 @@ export function MapView(props: { embedded?: boolean }) {
   const sendList = (a: MapListAction) => emitTo("main", MAP_LIST_EVENT, a).catch(console.error);
   const sendMouse = (m: ForwardedMouse) => emitTo("main", MOUSE_EVENT, m).catch(console.error);
   const dirAt = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // canvas の座標に戻す。マップは上の余白(MAP_TOP)の下から描いている
+    // canvas の座標に戻す。マップは上の余白(MAP_TOP)の下から描いている。
+    // 向きは自キャラのマスから見て決める(回転の自キャラは中央より下)
     const r = e.currentTarget.getBoundingClientRect();
-    const size = dim * CHIP_SIZE;
-    const x = (e.clientX - r.left) / zoom;
-    const y = (e.clientY - r.top) / zoom - MAP_TOP;
-    return mouseDir(x, y, size, size, northFix, e.shiftKey || e.ctrlKey);
+    const [w, h] = [boardW * CHIP_SIZE, boardH * CHIP_SIZE];
+    const x = (e.clientX - r.left) / zoom - (me.x + 0.5) * CHIP_SIZE + w / 2;
+    const y = (e.clientY - r.top) / zoom - MAP_TOP - (me.y + 0.5) * CHIP_SIZE + h / 2;
+    return mouseDir(x, y, w, h, northFix, e.shiftKey || e.ctrlKey);
   };
   // 北固定で Shift か Ctrl を押しながら動かすと、マウスの方を向く(#6)。同じ向きは続けて送らない。
   // 送った向きは今の向きと組で覚え、キーで向きが変わったら同じ向きへもまた送る(#68)
@@ -221,10 +206,9 @@ export function MapView(props: { embedded?: boolean }) {
   const turnTo = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!northFix || !(e.shiftKey || e.ctrlKey) || mouseDown.current || !map || !state) return;
     const r = e.currentTarget.getBoundingClientRect();
-    const size = dim * CHIP_SIZE;
-    const to = northFixTurn((e.clientX - r.left) / zoom, (e.clientY - r.top) / zoom - MAP_TOP, size, size);
-    const c = Math.floor(map.size / 2);
-    const now = FACING[map.chars.find((ch) => ch.x === c && ch.y === c)?.dir ?? ""];
+    const [w, h] = [boardW * CHIP_SIZE, boardH * CHIP_SIZE];
+    const to = northFixTurn((e.clientX - r.left) / zoom, (e.clientY - r.top) / zoom - MAP_TOP, w, h);
+    const now = FACING[board?.chars.find((ch) => ch.x === me.x && ch.y === me.y)?.dir ?? ""];
     if (!to || to === now || `${to}:${now}` === lastTurn.current) return;
     lastTurn.current = `${to}:${now}`;
     sendLine(state.session, `turn ${to}`);
@@ -263,7 +247,7 @@ export function MapView(props: { embedded?: boolean }) {
   useEffect(() => {
     const apply = (s: Settings) => {
       setSmooth(s.smoothMove);
-      setAutomapOn(s.automap);
+      setShown(s.singleWindow === !!props.embedded);
       setZoom(clampZoom(s.mapZoom) / 100);
     };
     invoke<Settings>("get_settings").then(apply).catch(console.error);
@@ -299,7 +283,7 @@ export function MapView(props: { embedded?: boolean }) {
 
   useEffect(() => {
     const ctx = mapCanvas.current?.getContext("2d");
-    if (!ctx || !map || !state) return;
+    if (!ctx || !board || !state) return;
     trace("map draw");
     // 上の余白は透明にし、マップはその下から描く(一番上の行のはみ出しは余白に出る)。
     // 余白と地図の外は欄の灰色にして、地図の中の何も無い黒いマスと見分けられるようにする
@@ -314,28 +298,13 @@ export function MapView(props: { embedded?: boolean }) {
       items: image(assetUrl("items")),
       chara: image,
     };
-    if (!automap) {
-      drawMap(ctx, { size: map.size, mapset: state.mapset, cells: map.cells, chars: map.chars, self: me, slide: slide ?? undefined }, imgs, frame);
-      return;
-    }
-    drawMap(
-      ctx,
-      { size: map.size, dim: automap.dim, mapset: state.mapset, cells: automap.cells, chars: automap.chars, slide: slide ?? undefined },
-      imgs,
-      frame,
-    );
-    // 記録地図から描いたマスを暗くし、今見えているマスと見分ける
-    ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
-    if (slide) ctx.translate(slide.x, slide.y);
-    automap.recalled.forEach((on, i) => {
-      if (on) ctx.fillRect((i % automap.dim) * CHIP_SIZE, Math.floor(i / automap.dim) * CHIP_SIZE, CHIP_SIZE, CHIP_SIZE);
-    });
+    drawMap(ctx, { ...board, mapset: state.mapset, slide: slide ?? undefined }, imgs, frame);
     // 描き直すのはマップ・地形・アニメ・画像の読み込み・大きさ・ずらす量が変わった時だけ。#status だけの変化では描かない
-  }, [mapKey, automap, frame, loaded, state?.mapset, state?.defines?.join(), dim, slide]);
+  }, [board, frame, loaded, state?.mapset, state?.defines?.join(), slide]);
 
-  const canvasLeft = Math.floor((area.w - dim * CHIP_SIZE * zoom) / 2);
-  const canvasTop = Math.floor((area.h - (dim * CHIP_SIZE + MAP_TOP) * zoom) / 2);
-  const popChars = automap?.chars ?? map?.chars ?? [];
+  const canvasLeft = Math.floor((area.w - boardW * CHIP_SIZE * zoom) / 2);
+  const canvasTop = Math.floor((area.h - (boardH * CHIP_SIZE + MAP_TOP) * zoom) / 2);
+  const popChars = board?.chars ?? [];
   popCharsRef.current = { chars: popChars, me };
   // 同じキャラに続けて出た数字は、上へずらして重ねない
   const stack = new Map<string, number>();
@@ -414,13 +383,13 @@ export function MapView(props: { embedded?: boolean }) {
         <div className="map-area" ref={mapArea}>
           <canvas
             ref={mapCanvas}
-            width={dim * CHIP_SIZE}
-            height={dim * CHIP_SIZE + MAP_TOP}
+            width={boardW * CHIP_SIZE}
+            height={boardH * CHIP_SIZE + MAP_TOP}
             // 中央に置く。位置を整数にして、半ピクセルずれて画像がにじまないようにする
             style={{
               cursor,
-              width: Math.round(dim * CHIP_SIZE * zoom),
-              height: Math.round((dim * CHIP_SIZE + MAP_TOP) * zoom),
+              width: Math.round(boardW * CHIP_SIZE * zoom),
+              height: Math.round((boardH * CHIP_SIZE + MAP_TOP) * zoom),
               imageRendering: zoom === 1 ? undefined : "pixelated",
               left: canvasLeft,
               top: canvasTop,

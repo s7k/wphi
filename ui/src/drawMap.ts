@@ -20,7 +20,6 @@ import {
   chipIndices,
   chipSrcRect,
   cellIndex,
-  gridDim,
   hasBoard,
   hasItem,
   itemNo,
@@ -48,13 +47,13 @@ export interface ImageRefs {
 }
 
 export interface DrawMapInput {
-  size: number;
+  /** 盤面の幅と高さ(マス) */
+  width: number;
+  height: number;
   mapset: string;
   cells: MapCell[];
   chars: MapChar[];
   cells0Based?: boolean;
-  /** 盤面の一辺(マス)。省略時は size から決める。マッピングの外周付き表示で使う。 */
-  dim?: number;
   /**
    * EagleEye の盤面(Philly の EagleEye.cpp classEagleEye::Draw)。アイテムはマップチップの 19 番で描き(#14)、
    * 人はマスの床の上端に描く(Philly は YPos+16。通常のマップのキャラのように上げない)
@@ -94,13 +93,13 @@ export function drawMap(
   animFrame = 0,
   cellSize: number = CHIP_SIZE,
 ): void {
-  const dim = input.dim ?? gridDim(input.size);
+  const { width, height } = input;
   const cs = cellSize;
   const scale = cs / CHIP_SIZE; // 1 or 2
 
-  ctx.clearRect(0, 0, dim * cs, dim * cs);
+  ctx.clearRect(0, 0, width * cs, height * cs);
   ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, dim * cs, dim * cs);
+  ctx.fillRect(0, 0, width * cs, height * cs);
 
   const chipImg = imgs.chip;
   // マスのチップシート(Philly の DefineNo = Attribute & 0x03)
@@ -109,20 +108,20 @@ export function drawMap(
   const chipFor = (cell: MapCell) => chips[cell.attr & 0x03];
   const half = cs / 2; // 16(等倍) / 32(拡大)
   // 水有無グリッド(水縁エフェクト用)。チップ画像があれば1回構築。
-  const water = chipImg ? buildWaterGrid(input.cells, dim) : null;
+  const water = chipImg ? buildWaterGrid(input.cells, width, height) : null;
 
-  const me = input.self ?? { x: Math.floor(dim / 2), y: Math.floor(dim / 2) };
+  const me = input.self ?? { x: (width - 1) >> 1, y: (height - 1) >> 1 };
   const slide = input.slide && (input.slide.x || input.slide.y) ? input.slide : null;
   const atCenter = (c: MapChar) => c.x === me.x && c.y === me.y;
   ctx.save();
   if (slide) ctx.translate(slide.x, slide.y);
 
   // 行ごとに チップ → 水縁 → 看板 → アイテム → キャラ の順で重ね描画。
-  for (let row = 0; row < dim; row++) {
+  for (let row = 0; row < height; row++) {
     // 1. ベースチップ
     if (chipImg) {
-      for (let col = 0; col < dim; col++) {
-        const cell = input.cells[cellIndex(col, row, dim)];
+      for (let col = 0; col < width; col++) {
+        const cell = input.cells[cellIndex(col, row, width)];
         const img = cell && chipFor(cell);
         if (!cell || !img) continue;
         for (const idx of chipIndices(cell.chip)) {
@@ -133,8 +132,8 @@ export function drawMap(
 
     // 1.5 水縁overlay(隣接チップに応じた四分割境界描画)
     if (chipImg && water) {
-      for (let col = 0; col < dim; col++) {
-        const cell = input.cells[cellIndex(col, row, dim)];
+      for (let col = 0; col < width; col++) {
+        const cell = input.cells[cellIndex(col, row, width)];
         const img = cell && chipFor(cell);
         if (!cell || !img || cell.chip !== WATER_BYTE) continue;
         // water配列はgrid座標(row,col)を左上に [row..row+2][col..col+2] 参照。
@@ -155,8 +154,8 @@ export function drawMap(
 
     // 2. 看板overlay(attribute bit 0x08)。看板チップは段差ありのため stretch 描画。
     if (chipImg) {
-      for (let col = 0; col < dim; col++) {
-        const cell = input.cells[cellIndex(col, row, dim)];
+      for (let col = 0; col < width; col++) {
+        const cell = input.cells[cellIndex(col, row, width)];
         const img = cell && hasBoard(cell.attr) && chipFor(cell);
         if (img) drawChip(ctx, img, boardChipIndex(cell!.chip), col, row, cs, scale, 'stretch');
       }
@@ -164,14 +163,14 @@ export function drawMap(
 
     // 3. アイテムoverlay(attribute bits 0x70)
     if (input.eagleEye && chipImg) {
-      for (let col = 0; col < dim; col++) {
-        const cell = input.cells[cellIndex(col, row, dim)];
+      for (let col = 0; col < width; col++) {
+        const cell = input.cells[cellIndex(col, row, width)];
         const img = cell && hasItem(cell.attr) && chipFor(cell);
         if (img) drawChip(ctx, img, EAGLE_EYE_ITEM_CHIP, col, row, cs, scale, 'stretch');
       }
     } else if (imgs.items) {
-      for (let col = 0; col < dim; col++) {
-        const cell = input.cells[cellIndex(col, row, dim)];
+      for (let col = 0; col < width; col++) {
+        const cell = input.cells[cellIndex(col, row, width)];
         if (!cell || !hasItem(cell.attr)) continue;
         // 防御円('x'/'%')上は上11pxクリップで円内に収める(itemDrawRect)。scale で拡大。
         const r = itemDrawRect(itemNo(cell.attr), cell.chip, col * cs, row * cs, scale);
@@ -184,14 +183,14 @@ export function drawMap(
     }
 
     // 4. キャラ(この行)。同じマスに2人いれば横にずらす(arrangeRow)
-    const rowChars = input.chars.filter((c) => c.y === row && c.x >= 0 && c.x < dim && !(slide && atCenter(c)));
+    const rowChars = input.chars.filter((c) => c.y === row && c.x >= 0 && c.x < width && !(slide && atCenter(c)));
     for (const { ch, dx } of arrangeRow(rowChars)) {
       drawChara(ctx, ch, cs, scale, imgs, animFrame, dx * scale, input.eagleEye ? 0 : CHARA_Y_ABOVE_FLOOR * scale);
     }
   }
 
   // 5. キャラ名ラベル(自キャラは除外)。
-  drawCharaNames(ctx, input.chars.filter((c) => !atCenter(c)), cs, scale, dim);
+  drawCharaNames(ctx, input.chars.filter((c) => !atCenter(c)), cs, scale, width, height);
   ctx.restore();
 
   // ずらしている間は、自キャラを最後にずらさずに描く
@@ -305,11 +304,12 @@ function drawCharaNames(
   chars: MapChar[],
   cs: number,
   scale: number,
-  dim: number,
+  width: number,
+  height: number,
 ): void {
   const perCell = new Map<string, { x: number; y: number; name: string }>();
   for (const c of chars) {
-    if (c.x < 0 || c.x >= dim || c.y < 0 || c.y >= dim) continue;
+    if (c.x < 0 || c.x >= width || c.y < 0 || c.y >= height) continue;
     const name = c.name.replace(/\/\*.*?\*\//g, '').trim();
     if (!name) continue;
     perCell.set(`${c.x},${c.y}`, { x: c.x, y: c.y, name });

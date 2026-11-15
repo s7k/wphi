@@ -13,7 +13,7 @@
  *   既に透過PNG化済(512×96, 32×48セル/16列×2行)を配信前提([06])。
  */
 
-import type { MapCell } from './protocol';
+import type { MapCell, MapChar, MapEvent } from './protocol';
 
 // ── チップ ────────────────────────────────────────────────
 
@@ -473,15 +473,15 @@ export function chipQuarterSrcRect(
 }
 
 /**
- * cells配列から水有無の (dim+2)×(dim+2) 配列を構築(枠=0)。
+ * cells配列から水有無の (height+2)×(width+2) 配列を構築(枠=0)。
  * water[r+1][c+1] = (cells[idx].chip == '_') ? 1 : 0。
  */
-export function buildWaterGrid(cells: ReadonlyArray<MapCell>, dim: number): number[][] {
+export function buildWaterGrid(cells: ReadonlyArray<MapCell>, width: number, height: number): number[][] {
   const w: number[][] = [];
-  for (let r = 0; r < dim + 2; r++) w.push(new Array(dim + 2).fill(0));
-  for (let r = 0; r < dim; r++) {
-    for (let c = 0; c < dim; c++) {
-      const cell = cells[cellIndex(c, r, dim)];
+  for (let r = 0; r < height + 2; r++) w.push(new Array(width + 2).fill(0));
+  for (let r = 0; r < height; r++) {
+    for (let c = 0; c < width; c++) {
+      const cell = cells[cellIndex(c, r, width)];
       if (cell && cell.chip === WATER_BYTE) w[r + 1][c + 1] = 1;
     }
   }
@@ -490,9 +490,43 @@ export function buildWaterGrid(cells: ReadonlyArray<MapCell>, dim: number): numb
 
 // ── グリッド ────────────────────────────────────────────────
 
-/** map.size(7|5) → グリッド辺長(セル数)。 */
-export function gridDim(size: number): number {
-  return size === 5 ? 5 : 7;
+/** '?'(見えない所)のチップ */
+export const UNKNOWN = '?'.charCodeAt(0);
+
+/**
+ * 地図の欄の長さ(px)に入るマス数を、奇数に切り下げた物。v6 で要求する視界の幅か高さ(3〜99)
+ */
+export function viewFor(px: number, cell: number): number {
+  const n = Math.floor(px / cell);
+  return Math.max(3, Math.min(99, n % 2 ? n : n - 1));
+}
+
+/** 自キャラを前寄りに置く回転の地図か。7x7 の回転と v6 の回転(5x5 の #map は中央) */
+const turnLayout = (map: MapEvent) => (map.v6 || map.width === 7) && map.style === 'turn';
+
+/**
+ * 描く盤面。v6 の地図がサーバの返した大きさで要求(w×h)より小さい時は、中央に置いて外側を '?' で埋める。
+ * v6 でない地図(7x7 と 5x5)はそのまま
+ */
+export function fitBoard(
+  map: MapEvent,
+  w: number,
+  h: number,
+): { width: number; height: number; cells: MapCell[]; chars: MapChar[]; self: { x: number; y: number } } {
+  const me = selfPos(map.width, map.height, turnLayout(map));
+  const bw = map.v6 ? Math.max(w, map.width) : map.width;
+  const bh = map.v6 ? Math.max(h, map.height) : map.height;
+  if (bw === map.width && bh === map.height) return { width: bw, height: bh, cells: map.cells, chars: map.chars, self: me };
+  const ox = (bw - map.width) >> 1;
+  const oy = (bh - map.height) >> 1;
+  const cells = Array.from({ length: bw * bh }, (_, i) => {
+    const x = (i % bw) - ox;
+    const y = Math.floor(i / bw) - oy;
+    const inside = x >= 0 && x < map.width && y >= 0 && y < map.height;
+    return (inside && map.cells[y * map.width + x]) || { chip: UNKNOWN, attr: 0 };
+  });
+  const chars = map.chars.map((c) => ({ ...c, x: c.x + ox, y: c.y + oy }));
+  return { width: bw, height: bh, cells, chars, self: { x: me.x + ox, y: me.y + oy } };
 }
 
 /**

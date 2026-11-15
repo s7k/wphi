@@ -23,8 +23,11 @@ export type MapChar = {
 
 export type MapEvent = {
   type: "map";
-  /** 7 か 5 */
-  size: number;
+  /** 幅と高さ。#m57 は 7、#map は 5、#v6 はサーバが返した大きさ */
+  width: number;
+  height: number;
+  /** #v6 で届いた地図(docs/05-protocol-v6.md) */
+  v6?: boolean;
   dir: number;
   cells: MapCell[];
   chars: MapChar[];
@@ -120,8 +123,6 @@ export type MapState = {
   list?: string[];
   /** リストのチェック(main 窓のリストと同じ) */
   listChecked?: boolean[];
-  /** 前に送った後に変わった拡張マップのマス。MapState と同じ送信で送り、map 窓が1回で描く(#75) */
-  diffs?: { world: string; diff: Record<string, MapCell> }[];
   /** 実験的: 最後に届いた地図の位置から、main 窓が予想したずれ(ui/src/predict.ts) */
   predict?: { dx: number; dy: number };
 };

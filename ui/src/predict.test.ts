@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { PREDICT_WAIT_MS, Predictor } from "./predict.ts";
+import { PREDICT_WAIT_MS, Predictor, predictedMap } from "./predict.ts";
+import type { MapEvent } from "./protocol";
 
 function setup() {
   let t = 0;
@@ -141,4 +142,30 @@ test("待つ時間は、最近の返事の時間の最大より少し長い", ()
     p.onMap(`5,${i + 1},0`);
   }
   assert.equal(p.wait, 143);
+});
+
+test("予想した位置の地図は、v6 の北固定の地図を1マスずらし、入る端を '?' にする", () => {
+  // 5x3。マスのチップは列と行の番号
+  const cell = (x: number, y: number) => ({ chip: x * 10 + y, attr: 0 });
+  const chara = (x: number, y: number, name: string) =>
+    ({ id: 0, x, y, dir: "F", name, gra: "", status: 0, gigant: "#", layer: 12, default: 0 });
+  const map: MapEvent = {
+    type: "map",
+    width: 5,
+    height: 3,
+    v6: true,
+    dir: 0,
+    style: "solid",
+    cells: Array.from({ length: 15 }, (_, i) => cell(i % 5, Math.floor(i / 5))),
+    chars: [chara(2, 1, "me"), chara(3, 1, "east"), chara(0, 0, "west")],
+    pos: { x: 10, y: 20 },
+  };
+  const m = predictedMap(map, 1, 0);
+  assert.deepEqual(m.pos, { x: 11, y: 20 });
+  assert.deepEqual(m.cells.slice(0, 5), [cell(1, 0), cell(2, 0), cell(3, 0), cell(4, 0), { chip: 63, attr: 0 }]);
+  // 自キャラは中央のまま、東のキャラは1つ近づき、西の端のキャラは外に出る
+  assert.deepEqual(m.chars.map((c) => [c.name, c.x, c.y]), [["me", 2, 1], ["east", 2, 1]]);
+  // #m57 の地図はずらさない
+  const m57 = { ...map, v6: undefined };
+  assert.equal(predictedMap(m57, 1, 0), m57);
 });

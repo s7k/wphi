@@ -1,7 +1,9 @@
-// 拡張マップの付属: 位置の予想(表示のメニューの「拡張マップ」で切り替える)。
-// v5y は見え方が変わらないと、進んでも地図を送らない(phi_m57.rs の print_m57)。NPC のいない一様な所では、
-// 拡張マップが止まって見える。送った go に地図も「進めません」も来なければ、進んだとみなして表示だけをずらす。
+// 位置の予想。v6 の北固定で、#ex-pos の届く世界の時だけ使う。
+// サーバは見え方が変わらないと、進んでも地図を送らない(phi_m57.rs の print_m57)。NPC のいない一様な所では、
+// 地図が止まって見える。送った go に地図も「進めません」も来なければ、進んだとみなして最後の地図をずらす。
 // サーバへは何も足さない。黙って進めなかった時(鍵の掛かった扉など)は、次に地図が来た時に本当の位置へ戻る。
+import type { MapEvent } from "./protocol";
+import { selfPos, UNKNOWN } from "./mapRender.ts";
 
 /** 北固定の go の向き(go N は向きも変える、go n は向きを変えない。どちらも同じだけ進む) */
 const STEP: Record<string, { dx: number; dy: number }> = {
@@ -133,4 +135,27 @@ export class Predictor {
     this.base = null;
     this.lastGuess = -Infinity;
   }
+}
+
+/**
+ * 予想した位置の地図。最後に届いた v6 の北固定の地図を (dx, dy) ずらし、新しく入る端を '?' で埋める。
+ * 自キャラは中央に残し、他のキャラは地形と一緒にずらす。v6 の北固定でなければそのまま
+ */
+export function predictedMap(map: MapEvent, dx: number, dy: number): MapEvent {
+  if (!map.v6 || map.style === "turn" || (dx === 0 && dy === 0)) return map;
+  const { width: w, height: h } = map;
+  const me = selfPos(w, h, false);
+  const inside = (x: number, y: number) => x >= 0 && x < w && y >= 0 && y < h;
+  const cells = Array.from({ length: w * h }, (_, i) => {
+    const x = (i % w) + dx;
+    const y = Math.floor(i / w) + dy;
+    return inside(x, y) ? map.cells[y * w + x] : { chip: UNKNOWN, attr: 0 };
+  });
+  const chars = map.chars.flatMap((c) => {
+    if (c.x === me.x && c.y === me.y) return [c];
+    const x = c.x - dx;
+    const y = c.y - dy;
+    return inside(x, y) ? [{ ...c, x, y }] : [];
+  });
+  return { ...map, cells, chars, pos: map.pos && { x: map.pos.x + dx, y: map.pos.y + dy } };
 }

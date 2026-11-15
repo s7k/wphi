@@ -12,14 +12,13 @@ import { selectedLines } from "./logCopy.ts";
 import { MASTER_EXP, parseMasterMagic, runMasterItem, type MasterMenu } from "./masterMagic.ts";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { SENT_EVENT, type Sent } from "./keyInput";
-import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
+import { isNorthFix, isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskOptions } from "./keys.ts";
 import { AskDialog } from "./AskDialog";
 import { alertBox, confirmBox, MessageDialogHost } from "./MessageDialog";
 import { popupTagMenu } from "./TagMenuPopup";
 import { assetUrl } from "./asset";
 import { MAP_POP_EVENT, newPopState, popsFromLine } from "./mapPop.ts";
-import { absorb, AUTOMAP_EVENT, blockOf, loadTiles, removeTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, EXPERIMENT_EVENT, shortcutText, type Settings } from "./settings.ts";
 import { DownloadPanel } from "./DownloadPanel";
@@ -183,7 +182,7 @@ export function App() {
     invoke<Settings>("get_settings").then(setSettings).catch(console.error);
     // 表示のメニューで切り替えた分を覚える。覚えないと、設定の画面で保存した時に元に戻す
     const smooth = listen<Settings>(EXPERIMENT_EVENT, (e) =>
-      setSettings((s) => ({ ...s, smoothMove: e.payload.smoothMove, automap: e.payload.automap, singleWindow: e.payload.singleWindow, mapEffects: e.payload.mapEffects })),
+      setSettings((s) => ({ ...s, smoothMove: e.payload.smoothMove, singleWindow: e.payload.singleWindow, mapEffects: e.payload.mapEffects })),
     );
     return () => {
       smooth.then((f) => f());
@@ -224,6 +223,12 @@ export function App() {
   useEffect(() => {
     if (started.current) return;
     started.current = true;
+    // v0.1.71 までの拡張マップが localStorage に世界ごとに書いた地形を消す(拡張マップは v6 で取りやめた)
+    try {
+      for (const k of Object.keys(localStorage)) if (k.startsWith("phi_automap")) localStorage.removeItem(k);
+    } catch {
+      // 読めない時は消す物も無い
+    }
     invoke<string>("log_css")
       .then((css) => setLogCss(scopeLogCss(css)))
       .catch((e) => console.error(e));
@@ -245,12 +250,16 @@ export function App() {
   // map 窓へは、続けて届いた分を次のタスクでまとめて送る。#m57 と #status がそれぞれ 0.2 秒ごとに届き、1つ届くたびに MapState 全体を送っていた。
   // setTimeout を使わない。map 窓にフォーカスがある間 main 窓は裏の窓になり、WebView2 がタイマーを 1 秒ごとに間引くと地図が止まって見える(#44)
   const mapStatePort = useRef<MessageChannel | null>(null);
-  const pendingDiffs = useRef<AutomapDiff[]>([]);
-  // 拡張マップの付属: 表のタブの位置の予想。返事を待ちきった移動を進んだとみなす
+  // 表のタブの位置の予想。返事を待ちきった移動を進んだとみなす
   const predictor = useRef(new Predictor());
+  /** 予想を使うか。v6 の北固定で、#ex-pos の届く世界の時だけ(docs/05-protocol-v6.md の 4.4) */
+  const predicting = (session: number) => {
+    const map = mapStates.current.get(session)?.map;
+    return session === activeRef.current && !!map?.v6 && !!map.pos && isNorthFix(map);
+  };
   useEffect(() => {
     predictor.current.reset();
-    if (!settings.automap || active === null) return;
+    if (active === null) return;
     const timer = setInterval(() => {
       if (predictor.current.tick()) sendMapState(activeRef.current);
     }, PREDICT_TICK_MS);
@@ -259,10 +268,10 @@ export function App() {
       predictor.current.reset();
       sendMapState(activeRef.current);
     };
-  }, [active, settings.automap]);
+  }, [active]);
   /** 移動を送る。位置を予想している時は数える */
   const sendMove = (session: number, text: string) => {
-    if (settingsRef.current.automap && session === activeRef.current) predictor.current.sent(text);
+    if (predicting(session)) predictor.current.sent(text);
     sendLine(session, text);
   };
   // 実験的: マップをログと同じ窓に出す(settings.singleWindow)。mapPane は main 窓の中の地図を出しているか
@@ -310,16 +319,15 @@ export function App() {
       mapStatePort.current = new MessageChannel();
       mapStatePort.current.port1.onmessage = () => {
         mapStateQueued.current = false;
-        // 隠した map 窓には送らない。拡張マップの差分は貯めておき、表示した時にまとめて送る(#75)
+        // 隠した map 窓には送らない。表示した時に送り直す(#75)
         const to = mapPlace();
         if (to === "map" ? !mapShown.current : !mapPaneRef.current) return;
         const s = mapStateSession.current;
         const state = s === null ? undefined : mapStates.current.get(s);
-        const diffs = pendingDiffs.current.splice(0);
         const predict = predictor.current.offset;
         trace("main emit");
         // 宛先は to で見分ける(map.tsx)。main 窓の中の地図にも届くよう、全部の窓へ送る
-        emit(MAP_STATE_EVENT, { ...(state ?? { session: -1, mapset: "" }), diffs, predict, to }).catch((e) => console.error(e));
+        emit(MAP_STATE_EVENT, { ...(state ?? { session: -1, mapset: "" }), predict, to }).catch((e) => console.error(e));
       };
     }
     mapStatePort.current.port2.postMessage(null);
@@ -375,14 +383,13 @@ export function App() {
       "map-57": viewMode?.size57,
       "map-40": viewMode && !viewMode.size57,
       "smooth-move": settings.smoothMove,
-      automap: settings.automap,
       "map-effects": settings.mapEffects,
     })[id] ?? false;
   const syncViewChecks = (force = false) => {
     const s = activeRef.current === null ? undefined : mapStates.current.get(activeRef.current);
     if (!s?.map) return;
     const turn = !keyContext(s, true).northFix;
-    const size57 = s.map.size === 7;
+    const size57 = !!s.map.v6 || s.map.width === 7;
     const key = `${turn},${size57}`;
     if (!force && key === viewChecks.current) return;
     viewChecks.current = key;
@@ -409,15 +416,9 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    // 開いたばかりの map 窓は localStorage から地形を読むので、先に書いておく
-    const unlisten = listen("phi-map-ready", () => {
-      flushAutomaps();
-      sendMapState(activeRef.current);
-    });
-    window.addEventListener("beforeunload", flushAutomaps);
+    const unlisten = listen("phi-map-ready", () => sendMapState(activeRef.current));
     return () => {
       unlisten.then((f) => f());
-      window.removeEventListener("beforeunload", flushAutomaps);
     };
   }, []);
 
@@ -491,12 +492,12 @@ export function App() {
       const move = moveInput(e, ctx);
       // 押し続けた時は OS のキーリピートに任せ、keydown のたびに1歩送る(Philly より前のクライアントと同じ)。
       // サーバは1ティックに1行ずつ処理するので、リピートが速いと離した後も少し歩く。
-      // 拡張マップの時だけは Philly と同じく、リピートは前の移動の返事(地図・「進めません」・予想)を待つ。
-      // 待たないと予想がサーバより何歩も先へ進み、まだ記録していない所(真っ暗)を描く
+      // 位置を予想する時だけは Philly と同じく、リピートは前の移動の返事(地図・「進めません」・予想)を待つ。
+      // 待たないと予想がサーバより何歩も先へ進み、地図の外('?')ばかりを描く
       if (move) {
         trace(`main ${e.type} ${e.code}${e.repeat ? " repeat" : ""}`);
         const blocked =
-          e.repeat && settingsRef.current.automap && session === activeRef.current && predictor.current.waiting;
+          e.repeat && predicting(session) && predictor.current.waiting;
         if (e.type === "keydown" && !blocked) sendMove(session, moveCommand(move.key, move.mods, ctx.northFix));
         return true;
       }
@@ -613,7 +614,6 @@ export function App() {
       if (id === "force-close") return cur?.closed ? undefined : forceClose(session);
       if (id === "close-tab") return close(session);
       if (id.startsWith("mm:")) return runMaster(id, session);
-      if (id === "automap-clear") return clearAutomap(mapStates.current.get(session)?.world);
       // 選んだ項目はチェックが勝手に切り替わるので、今のモードに付け直す。サーバが切り替えたら地図を受けた時にまた付け直す
       if (["map-turn", "map-solid", "map-57", "map-40"].includes(id)) syncViewChecks(true);
       const action = menuAction(id);
@@ -655,48 +655,12 @@ export function App() {
     };
   }, []);
 
-  // 拡張マップの記録(世界名 → 地形)。変わったマスは map 窓へ送り、localStorage へは5秒ごとにまとめて書く
-  const automaps = useRef(new Map<string, Tiles>());
-  // 世界 → まだ書いていない区画
-  const unsavedWorlds = useRef(new Map<string, Set<string>>());
-  const saveTimer = useRef<number | undefined>(undefined);
-  function flushAutomaps() {
-    window.clearTimeout(saveTimer.current);
-    saveTimer.current = undefined;
-    for (const [w, blocks] of unsavedWorlds.current) saveTiles(w, automaps.current.get(w)!, blocks);
-    unsavedWorlds.current.clear();
-  }
-  /** その世界の貯めた地形を消す(#15) */
-  async function clearAutomap(world: string | undefined) {
-    if (!world || !(await confirmBox(`${world} の拡張マップを消します。\nよろしいですか？`))) return;
-    automaps.current.set(world, {});
-    unsavedWorlds.current.delete(world);
-    pendingDiffs.current = pendingDiffs.current.filter((d) => d.world !== world);
-    removeTiles(world);
-    emit(AUTOMAP_EVENT, { world, diff: {}, clear: true, to: mapPlace() }).catch(console.error);
-  }
-  function recordAutomap(world: string, ev: Extract<UiEvent, { type: "map" }>) {
-    let tiles = automaps.current.get(world);
-    if (!tiles) automaps.current.set(world, (tiles = loadTiles(world)));
-    const diff = absorb(tiles, ev);
-    if (!diff) return;
-    Object.assign(tiles, diff);
-    pendingDiffs.current.push({ world, diff });
-    let blocks = unsavedWorlds.current.get(world);
-    if (!blocks) unsavedWorlds.current.set(world, (blocks = new Set()));
-    for (const k of Object.keys(diff)) blocks.add(blockOf(k));
-    // ponytail: 落ちると最大5秒分の地形を失う。困るなら間隔を縮める
-    saveTimer.current ??= window.setTimeout(flushAutomaps, 5000);
-  }
-
   function onMapEvent(session: number, ev: UiEvent) {
     const s = mapStates.current.get(session) ?? { session, mapset: "" };
     switch (ev.type) {
       case "map":
         s.map = ev;
         trace("main map");
-        // 拡張マップ。世界ごとに見えた地形を貯める。盲目中は視界が霧で埋まるので貯めない
-        if (s.world && s.world !== "???" && !s.cond?.blind) recordAutomap(s.world, ev);
         if (session === activeRef.current && ev.pos) predictor.current.onMap(`${ev.pos.x},${ev.pos.y}`);
         break;
       case "status": {

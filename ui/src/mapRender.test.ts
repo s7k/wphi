@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { arrangeRow, itemDrawRect, selfPos, slideStep } from "./mapRender.ts";
+import { arrangeRow, fitBoard, itemDrawRect, selfPos, slideStep, viewFor } from "./mapRender.ts";
 
 test("アイテムは Philly と同じく床の上端の8px上に描く(#41)", () => {
   const r = itemDrawRect(1, " ".charCodeAt(0), 32, 64);
@@ -38,4 +38,34 @@ test("自キャラのマスは、北固定は中央、回転は後ろに 1/3", (
   assert.deepEqual(selfPos(7, 7, true), { x: 3, y: 4 });
   assert.deepEqual(selfPos(11, 7, false), { x: 5, y: 3 });
   assert.deepEqual(selfPos(21, 21, true), { x: 10, y: 13 });
+});
+
+test("v6 で要求するマス数は、欄に入る数を奇数に切り下げる", () => {
+  assert.equal(viewFor(320, 32), 9);
+  assert.equal(viewFor(351, 32), 9);
+  assert.equal(viewFor(352, 32), 11);
+  assert.equal(viewFor(0, 32), 3);
+  assert.equal(viewFor(10000, 32), 99);
+});
+
+test("サーバが要求より小さい v6 の地図を返したら、中央に置いて外側を '?' で埋める", () => {
+  const map = {
+    type: "map" as const,
+    width: 3,
+    height: 3,
+    v6: true,
+    dir: 0,
+    style: "turn",
+    cells: Array.from({ length: 9 }, () => ({ chip: 1, attr: 0 })),
+    chars: [{ id: 0, x: 1, y: 1, dir: "F", name: "me", gra: "", status: 0, gigant: "#", layer: 12, default: 0 }],
+  };
+  const b = fitBoard(map, 7, 5);
+  assert.deepEqual([b.width, b.height], [7, 5]);
+  assert.deepEqual(b.cells[0], { chip: 63, attr: 0 });
+  assert.deepEqual(b.cells[1 * 7 + 2], { chip: 1, attr: 0 });
+  assert.deepEqual([b.chars[0].x, b.chars[0].y], [3, 2]);
+  // 回転の 3x3 の自キャラは (1, 1)。盤面では2マス右、1マス下
+  assert.deepEqual(b.self, { x: 3, y: 2 });
+  // v6 でない地図はそのまま
+  assert.equal(fitBoard({ ...map, v6: undefined }, 7, 5).cells, map.cells);
 });

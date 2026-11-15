@@ -35,8 +35,6 @@ export type Settings = {
   mapZoom: number;
   /** 実験的: 自分が進んだ時に地図を滑らかにずらす(表示のメニューで切り替える) */
   smoothMove: boolean;
-  /** 拡張マップ。付属して位置を予想し、長押しのリピートを制御する。off なら 7x7 だけでリピートは OS 任せ(表示のメニュー) */
-  automap: boolean;
   singleWindow: boolean;
   /** マップのキャラの上に、発言の吹き出しと HP・MP の増減を出す(表示のメニュー) */
   mapEffects: boolean;

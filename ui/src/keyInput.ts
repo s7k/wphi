@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { emitTo } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { AskOptions, KeyAction, KeyContext, MoveKey } from "./keys.ts";
-import type { MapState } from "./protocol";
+import type { MapEvent, MapState } from "./protocol";
 
 
 /** map 窓から main 窓へ転送するキー入力(main 窓が移動とキー操作をまとめて処理する) */
@@ -16,12 +16,12 @@ export type ForwardedKey = Pick<KeyboardEvent, "code" | "shiftKey" | "ctrlKey" |
 export const MOUSE_EVENT = "phi-mouse";
 export type ForwardedMouse = { type: "down"; keys: MoveKey[] } | { type: "hit" };
 
+/** 北固定で方角で進む地図か。Philly は 7x7 の北固定(ExMapSize57 && !ExMapStyleTurn)の時だけ方角で進む。v6 も 7x7 と同じ */
+export const isNorthFix = (map: MapEvent | undefined) => !map || ((!!map.v6 || map.width === 7) && map.style !== "turn");
+
 /** フルキー移動は設定から(既定は on。Philly の既定は off だが、無いと 7・8・9 が番号として送られ発言になる) */
 export function keyContext(state: MapState | undefined, fullKeyMove: boolean): KeyContext {
-  const map = state?.map;
-  // Philly は 7x7 の北固定(ExMapSize57 && !ExMapStyleTurn)の時だけ方角で進む
-  const northFix = !map || (map.size === 7 && map.style !== "turn");
-  return { northFix, fullKeyMove };
+  return { northFix: isNorthFix(state?.map), fullKeyMove };
 }
 
 /** 送った行を main 窓へ SENT_EVENT で知らせる(リストを閉じる為。App が受ける)。
