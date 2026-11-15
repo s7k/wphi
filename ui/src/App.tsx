@@ -34,6 +34,7 @@ import { PREDICT_TICK_MS, Predictor } from "./predict.ts";
 import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, TRANSFER_NO, TRANSFER_YES, type MapListAction, type MapState, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
+import { LogFind } from "./LogFind";
 import { pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
 import { ArrowDownToLine, Check, FolderOpen, Import, Megaphone, MessageSquare, Layers, Plug, Plus, Save, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
 
@@ -203,6 +204,7 @@ export function App() {
   }, []);
   // ログ欄の右クリックメニュー(#81)
   const [logMenu, setLogMenu] = useState<LogMenuAt | null>(null);
+  const [findOpen, setFindOpen] = useState(false);
 
   const reload = () =>
     invoke<Store>("list_characters")
@@ -512,6 +514,13 @@ export function App() {
       return true;
     };
     const onDom = (e: globalThis.KeyboardEvent) => {
+      // ログの検索(Ctrl+F、macOS は Cmd+F)。入力欄にいても開く
+      if (e.type === "keydown" && e.code === "KeyF" && (isMac() ? e.metaKey : e.ctrlKey) && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        setFindOpen(true);
+        document.querySelector<HTMLInputElement>(".log-find input")?.select();
+        return;
+      }
       if (e.isComposing || isTextTarget(e)) return;
       if (onKey({ ...pick(e), type: e.type as "keydown" | "keyup" })) e.preventDefault();
     };
@@ -573,6 +582,7 @@ export function App() {
       // 入力欄のツールバーと同じ切り替え。状態は InputEditor が持つ
       if (INPUT_MENU.includes(id)) return void window.dispatchEvent(new CustomEvent(INPUT_MENU_EVENT, { detail: id }));
       if (id === "priv") return togglePriv(session);
+      if (id === "log-find") return setFindOpen(true);
       const label = tabsRef.current.find((t) => t.session === session)?.label ?? "";
       if (id === "open-char-dir") return void invoke("open_character_dir", { label }).catch((e) => setError(String(e)));
       if (id === "ss-map" || id === "ss-eagleeye")
@@ -1124,8 +1134,20 @@ export function App() {
               setLogMenu({ x: e.clientX, y: e.clientY, lines: linesAt(tab.lines, e.target as Element) });
             }}
           >
-            <LogView key={tab.session} lines={tab.lines} follow={logFollow} />
+            {/* 検索中は最下行へ戻さない。戻すと、見つけた行が新しいログで流れる */}
+            <LogView key={tab.session} lines={tab.lines} follow={logFollow && !findOpen} />
           </div>
+          {findOpen && (
+            <LogFind
+              key={tab.session}
+              log={() => document.querySelector(".log-area .phi-log")}
+              lines={tab.lines}
+              onClose={() => {
+                setFindOpen(false);
+                document.querySelector<HTMLElement>(".log-area .phi-log")?.focus();
+              }}
+            />
+          )}
           {logMenu && (
             <LogMenu
               at={logMenu}

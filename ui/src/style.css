@@ -944,3 +944,38 @@ button > svg:only-child,
 .toggle > svg:only-child {
   margin-right: 0;
 }
+
+/* ログの検索(Ctrl+F) */
+.log-find {
+  position: absolute;
+  top: 4px;
+  right: 20px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  background: #f0f0f0;
+  border: 1px solid #a0a0a0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.log-find input {
+  width: 12em;
+}
+
+.log-find-count {
+  min-width: 3.5em;
+  text-align: center;
+  color: #606060;
+  font-variant-numeric: tabular-nums;
+}
+
+.phi-log .find-hit {
+  background: rgba(255, 230, 0, 0.3);
+}
+
+.phi-log .find-current {
+  background: rgba(255, 150, 0, 0.5);
+  outline: 1px solid #d08000;
+}

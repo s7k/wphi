@@ -70,6 +70,7 @@ const MENUS: Table = &[
             ("log-buffer-save", "ログ欄の内容を保存"),
             ("talk-add", "発言の前に付ける言葉..."),
             ("log-follow", "ログを最下行に固定(オン・オフ)"),
+            ("log-find", "ログを検索 (Ctrl+F)"),
             ("open-log-dir", "ログのフォルダを開く"),
         ],
     ),
