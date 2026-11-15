@@ -36,6 +36,21 @@ test("攻撃と回復の増減", () => {
   assert.deepEqual(popsFromLine(`${DM} > Taro is cured by Cure. [/*color=+hp*/14/*.*/ hp] `), [{ name: "Taro", kind: "+hp", text: "14" }]);
 });
 
+test("唱えた呪文で攻撃したら魔法", () => {
+  const spoken = new Map<string, string>();
+  popsFromLine("Wilt > Fire ball", spoken);
+  assert.deepEqual(popsFromLine("DM > Wilt は スライム を Fire ball で攻撃した. [30 hp]", spoken), [
+    { name: "スライム", kind: "-hp", text: "30", by: "Wilt", magic: true },
+  ]);
+  // 唱えた後でも、武器で攻撃したら斬撃
+  assert.deepEqual(popsFromLine("DM > Wilt は スライム を ロングソード で攻撃した. [12 hp]", spoken), [
+    { name: "スライム", kind: "-hp", text: "12", by: "Wilt" },
+  ]);
+  assert.deepEqual(popsFromLine("DM > Wilt attacked Slime by Fire ball. [30 hp]", spoken), [
+    { name: "Slime", kind: "-hp", text: "30", by: "Wilt", magic: true },
+  ]);
+});
+
 test("増減ではない色付きの数字は出さない", () => {
   assert.deepEqual(popsFromLine(`${DM} > 太郎 は Fighter level が /*color=+mp*/1/*color=gray*/ 上昇した.`), []);
   assert.deepEqual(popsFromLine(`${DM} > /*color=-hp*/12/*color=gray*//100 hp left. `), []);

@@ -938,15 +938,19 @@ export function App() {
       setError(`${label}: ${e}`);
       return;
     }
+    // 吹き出しと増減(ui/src/mapPop.ts)の為に、キャラごとに最後に唱えた発言
+    const spoken = new Map<string, string>();
     handle = (ev) => {
       switch (ev.type) {
         case "log":
           append(session, ev.html, ev.raw);
           notifyTalk(session, ev.channel, ev.html, !!ev.noFlash);
           if (ev.channel === "priv" && ev.from) addPriv(session, ev.from, ev.html);
-          if (session === activeRef.current && settingsRef.current.mapEffects && ev.raw) {
-            const pops = popsFromLine(ev.raw);
-            if (pops.length) emit(MAP_POP_EVENT, { pops, to: mapPlace() }).catch(console.error);
+          if (ev.raw) {
+            // 唱えた呪文を覚える為、表でないタブの行も通す
+            const pops = popsFromLine(ev.raw, spoken);
+            if (pops.length && session === activeRef.current && settingsRef.current.mapEffects)
+              emit(MAP_POP_EVENT, { pops, to: mapPlace() }).catch(console.error);
           }
           if (session === activeRef.current && /DM<\/font> &gt; (進めません\.|Can not go\.)/.test(ev.html))
             predictor.current.onCannotGo();
