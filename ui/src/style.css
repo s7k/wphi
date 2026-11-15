@@ -883,7 +883,7 @@ body {
   color: #d00;
 }
 
-/* 右クリックのタグメニュー(TagMenu)。グループに乗せると項目を右に出す */
+/* 右クリックのメニュー(LogMenu.tsx)。グループに乗せると項目を右に出す */
 .tag-menu,
 .tag-menu ul {
   position: fixed;

@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { boardText } from "./boardText.ts";
 import { TAG_MENU, type TagItem } from "./tagMenu.ts";
-import { TagMenu, applyTag, type TagMenuAt } from "./TagMenuPopup";
+import { applyTag, popupTagMenu } from "./TagMenuPopup";
 import { AArrowDown, AArrowUp, Bold, Italic, Send, Strikethrough, Subscript, Superscript, Underline, X } from "lucide-react";
 
 // 読む人の OS に無いフォントは、読む人の既定のフォントで出る
@@ -119,7 +119,6 @@ export function BoardEditor(props: {
   const [text, setText] = useState("");
   const [preview, setPreview] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
-  const [tagMenu, setTagMenu] = useState<TagMenuAt | null>(null);
 
   useEffect(() => ref.current?.focus(), []);
   // プレビューはログと同じ HTML とスキンの Log.css で出す
@@ -150,17 +149,10 @@ export function BoardEditor(props: {
           onKeyDown={onKeyDown}
           onContextMenu={(e) => {
             e.preventDefault();
-            setTagMenu({ x: e.clientX, y: e.clientY, ta: e.currentTarget });
+            popupTagMenu(e.currentTarget, setText).catch(console.error);
           }}
           spellCheck={false}
         />
-        {tagMenu && (
-          <TagMenu
-            at={tagMenu}
-            onInsert={setText}
-            onClose={() => setTagMenu(null)}
-          />
-        )}
         {/* tag_to_html がエスケープしてから作った HTML */}
         <div
           className="phi-log board-preview"

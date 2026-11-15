@@ -16,7 +16,7 @@ import { isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, 
 import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskOptions } from "./keys.ts";
 import { AskDialog } from "./AskDialog";
 import { alertBox, confirmBox, MessageDialogHost } from "./MessageDialog";
-import { TagMenu, type TagMenuAt } from "./TagMenuPopup";
+import { popupTagMenu } from "./TagMenuPopup";
 import { assetUrl } from "./asset";
 import { MAP_POP_EVENT, popsFromLine } from "./mapPop.ts";
 import { absorb, AUTOMAP_EVENT, blockOf, loadTiles, removeTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
@@ -1381,7 +1381,6 @@ function InputEditor(props: {
   const [loudAsk, setLoudAsk] = useState<{ deliver: () => void; ta: HTMLTextAreaElement } | null>(null);
   const [allTab, setAllTab] = useState(false);
   // 右クリックのタグメニュー(Philly の InputEdit の PopupMenu)
-  const [tagMenu, setTagMenu] = useState<TagMenuAt | null>(null);
   // 連続送信を 100ms 空ける(Philly の SendFromInputEdit)
   const lastSend = useRef(0);
 
@@ -1539,22 +1538,14 @@ function InputEditor(props: {
           priv
         </button>
       </div>
-      {tagMenu && (
-        <TagMenu
-          at={tagMenu}
-          onInsert={(v) => {
-            tagMenu.ta.value = v;
-          }}
-          onClose={() => setTagMenu(null)}
-        />
-      )}
       <textarea
         className={loud ? "input-line loud" : "input-line"}
         disabled={props.disabled}
         onKeyDown={onKeyDown}
         onContextMenu={(e) => {
           e.preventDefault();
-          setTagMenu({ x: e.clientX, y: e.clientY, ta: e.currentTarget });
+          const ta = e.currentTarget;
+          popupTagMenu(ta, (v) => (ta.value = v)).catch(console.error);
         }}
         rows={3}
         spellCheck={false}
