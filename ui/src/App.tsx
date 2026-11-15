@@ -570,6 +570,7 @@ export function App() {
         return void confirmBox("窓の位置と大きさを初期化します。\nよろしいですか？").then(
           (ok) => ok && invoke("reset_windows").catch(console.error),
         );
+      if (id === "guide") return void openUrl("https://s7k.github.io/wphi/guide/").catch((e) => setError(String(e)));
       if (id === "update-check")
         return void getVersion()
           .then(async (v) => {

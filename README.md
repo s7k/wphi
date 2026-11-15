@@ -25,6 +25,8 @@ Linux の AppImage は FUSE(Ubuntu では `libfuse2`)が要る。無い時は `A
 
 ## 始め方
 
+画像付きの使い方は[利用者ガイド](https://s7k.github.io/wphi/guide/)にある。
+
 起動すると、キャラを選ぶ画面になる。
 
 - Philly を使っていたなら、「Philly から取り込む」で Philly のフォルダを指定する。登録したキャラと設定(`Config/Philly.ini`)を取り込み、Philly のキャラグラとマップチップも使う
