@@ -977,7 +977,8 @@ fn reset_windows(app: tauri::AppHandle) {
     for (label, w, h) in [
         ("main", 800.0, 600.0),
         ("map", 437.0, 481.0),
-        ("eagleeye", 496.0, 520.0),
+        // v6 の 65x29 が 1マス 16px で収まる大きさ
+        ("eagleeye", 1040.0, 464.0),
     ] {
         if let Some(win) = app.get_webview_window(label) {
             let _ = win.unmaximize();

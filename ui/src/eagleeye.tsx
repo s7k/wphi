@@ -33,16 +33,16 @@ function EagleEyeWindow() {
     const mapset = ev.mapset ?? "";
     drawMap(
       ctx,
-      { width: board.dim, height: board.dim, mapset, cells: board.cells, chars: board.chars, eagleEye: true },
+      { width: ev.width, height: ev.height, mapset, cells: board.cells, chars: board.chars, eagleEye: true },
       { chip: image(assetUrl("chip", { mapset })), items: image(assetUrl("items")), chara: image },
       0,
     );
   });
 
-  const px = (board?.dim ?? 15) * CHIP_SIZE;
+  // 1マス 32px で描き、窓への収め方は CSS(object-fit)に任せる
   return (
     <div className="eagleeye-window">
-      <canvas ref={canvas} width={px} height={px} />
+      <canvas ref={canvas} width={(ev?.width ?? 15) * CHIP_SIZE} height={(ev?.height ?? 15) * CHIP_SIZE} />
     </div>
   );
 }

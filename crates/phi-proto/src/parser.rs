@@ -15,7 +15,9 @@ const MAP_CELLS: usize = 49;
 const M57_DIRECTION_OFFSET: usize = 7;
 const M57_CHIP_OFFSET: usize = 18;
 const MAP_CHIP_BYTE: usize = MAP_CELLS * 2;
-const MAX_EAGLE_EYE_COUNT: usize = 15;
+/// EagleEye の幅と高さの上限。行の頭の幅と行番号は 10 進 2 桁なので 99 まで。
+/// v6 の接続は 65x29 で届く(docs/05-protocol-v6.md)
+const MAX_EAGLE_EYE_COUNT: usize = 99;
 
 /// `#status` の名前以降の10項目。
 const STATUS_KEYS: usize = 10;
@@ -247,19 +249,21 @@ pub enum WorldTransferState {
 
 /// `#ex-eagleeye start` から `end` までの行を溜める。
 struct EagleEyeAccum {
-    grid: [[Cell; MAX_EAGLE_EYE_COUNT]; MAX_EAGLE_EYE_COUNT],
+    /// `MAX_EAGLE_EYE_COUNT` 四方を行優先で並べる
+    grid: Vec<Cell>,
     size_x: i64,
     size_y: i64,
-    pos: Pos,
+    /// `#ex-eagleeye pos` の位置。サーバは送らないので、無ければ盤面の中央にする
+    pos: Option<Pos>,
 }
 
 impl Default for EagleEyeAccum {
     fn default() -> Self {
         Self {
-            grid: [[Cell::default(); MAX_EAGLE_EYE_COUNT]; MAX_EAGLE_EYE_COUNT],
+            grid: vec![Cell::default(); MAX_EAGLE_EYE_COUNT * MAX_EAGLE_EYE_COUNT],
             size_x: 0,
             size_y: 0,
-            pos: Pos { x: 0, y: 0 },
+            pos: None,
         }
     }
 }
@@ -305,7 +309,7 @@ impl EagleEyeAccum {
             if i + 1 >= raw.len() {
                 break;
             }
-            self.grid[y as usize][x] = Cell {
+            self.grid[y as usize * MAX_EAGLE_EYE_COUNT + x] = Cell {
                 chip: raw[i],
                 attr: raw[i + 1],
             };
@@ -323,21 +327,26 @@ impl EagleEyeAccum {
         }
         // Python 版と同じく、x だけ読めて y で失敗した時も x は更新する
         let Some(x) = py_int(parts[2]) else { return };
-        self.pos.x = x;
+        let pos = self.pos.get_or_insert(Pos { x: 0, y: 0 });
+        pos.x = x;
         let Some(y) = py_int(parts[3]) else { return };
-        self.pos.y = y;
+        pos.y = y;
     }
 
     fn build(&self, mapset: Option<String>) -> EagleEye {
         let (w, h) = (self.size_x.max(0) as usize, self.size_y.max(0) as usize);
         let cells = (0..h)
             .flat_map(|y| (0..w).map(move |x| (y, x)))
-            .map(|(y, x)| self.grid[y][x])
+            .map(|(y, x)| self.grid[y * MAX_EAGLE_EYE_COUNT + x])
             .collect();
         EagleEye {
             width: self.size_x,
             height: self.size_y,
-            self_pos: self.pos,
+            // サーバは自キャラを中央 (幅/2, 高さ/2) に置く
+            self_pos: self.pos.unwrap_or(Pos {
+                x: self.size_x / 2,
+                y: self.size_y / 2,
+            }),
             cells,
             mapset,
         }
@@ -1051,5 +1060,44 @@ mod tests {
         assert_eq!((m.width, m.height, m.cells.len()), (11, 7, 77));
         assert_eq!(m.cells[11], Cell { chip: b'1', attr: 0 });
         assert_eq!((m.chars[0].x, m.chars[0].y), (5, 3));
+    }
+
+    /// サーバの eagleeye_m57 と同じ形の行(チップに x、属性に y を入れる)
+    fn eagle_frame(w: u8, h: u8) -> Vec<Vec<u8>> {
+        let mut lines = vec![b"#ex-eagleeye start".to_vec()];
+        for y in 0..h {
+            let mut l = format!("#ex-eagleeye M {:02} {y:02} ", w - 1).into_bytes();
+            for x in 0..w {
+                l.extend([x, y]);
+            }
+            l.push(b' ');
+            lines.push(l);
+        }
+        lines.push(b"#ex-eagleeye end".to_vec());
+        lines
+    }
+
+    fn eagle(w: u8, h: u8) -> EagleEye {
+        let mut p = Parser::new();
+        let mut evs: Vec<Event> = eagle_frame(w, h).iter().flat_map(|l| p.feed(l)).collect();
+        let Some(Event::EagleEye(e)) = evs.pop() else {
+            panic!("{evs:?}")
+        };
+        e
+    }
+
+    /// v6 の接続には 65x29、それ以外は 15x15 と 11x11 で届く。自キャラは中央
+    #[test]
+    fn eagleeye_sizes() {
+        for (w, h, me) in [(65, 29, (32, 14)), (15, 15, (7, 7)), (11, 11, (5, 5))] {
+            let e = eagle(w, h);
+            assert_eq!((e.width, e.height), (w as i64, h as i64));
+            assert_eq!((e.self_pos.x, e.self_pos.y), me);
+            assert_eq!(e.cells.len(), w as usize * h as usize);
+            // 行優先で、右下のマスが最後に来る
+            let last = e.cells[e.cells.len() - 1];
+            assert_eq!((last.chip, last.attr), (w - 1, h - 1));
+            assert_eq!(e.cells[w as usize], Cell { chip: 0, attr: 1 });
+        }
     }
 }

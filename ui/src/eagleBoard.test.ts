@@ -14,14 +14,13 @@ test("EagleEye の盤面", () => {
       { chip: 3, attr: 0x08 },
       { chip: 4, attr: 0 },
       { chip: 5, attr: 0 },
-      { chip: 6, attr: 0 },
     ],
   });
-  assert.equal(b.dim, 3);
+  assert.equal(b.cells.length, 6);
   // 人のマスは属性を消して、既定グラの人を置く
   assert.deepEqual(b.cells[1], { chip: 2, attr: 0 });
   assert.deepEqual(b.chars.map((c) => [c.x, c.y, c.gigant]), [[1, 0, "*"]]);
   assert.deepEqual(b.cells[2], { chip: 3, attr: 0x08 });
-  // 盤面の外は ? で埋める
-  assert.deepEqual(b.cells[6], { chip: 63, attr: 0 });
+  // 届かなかったマスは ? で埋める
+  assert.deepEqual(b.cells[5], { chip: 63, attr: 0 });
 });

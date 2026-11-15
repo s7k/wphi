@@ -11,23 +11,26 @@ const PERSON = 0x58;
  */
 const PERSON_GRA = "t_man";
 
-/** EagleEye のマスを正方形の盤面にする。人のマスは属性を消して、既定グラの人を置く */
-export function eagleBoard(ev: EagleEyeEvent): { dim: number; cells: MapCell[]; chars: MapChar[] } {
-  const dim = Math.max(ev.width, ev.height, 1);
-  // 盤面の外は「不明な場所」のチップ(? = 31)で埋める
-  const cells: MapCell[] = Array.from({ length: dim * dim }, () => ({ chip: UNKNOWN, attr: 0 }));
+/**
+ * EagleEye のマスを盤面にする。幅と高さはサーバが送った通り(v6 の接続は 65x29 で正方形でない)。
+ * 人のマスは属性を消して、既定グラの人を置く
+ */
+export function eagleBoard(ev: EagleEyeEvent): { cells: MapCell[]; chars: MapChar[] } {
+  const { width, height } = ev;
+  // 届かなかったマスは「不明な場所」のチップ(?)で埋める
+  const cells: MapCell[] = Array.from({ length: width * height }, () => ({ chip: UNKNOWN, attr: 0 }));
   const chars: MapChar[] = [];
-  for (let y = 0; y < ev.height; y++) {
-    for (let x = 0; x < ev.width; x++) {
-      const c = ev.cells[y * ev.width + x];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const c = ev.cells[y * width + x];
       if (!c) continue;
       if (c.attr === PERSON) {
-        cells[y * dim + x] = { chip: c.chip, attr: 0 };
+        cells[y * width + x] = { chip: c.chip, attr: 0 };
         // 巨大・正面で描く(Philly の DrawEagleEye)。種別 0x40 はグラ名を先に探す
         chars.push({ id: 0, x, y, dir: "F", name: "", gra: PERSON_GRA, status: 0, gigant: "*", layer: 0, default: 0x40 });
-      } else cells[y * dim + x] = c;
+      } else cells[y * width + x] = c;
     }
   }
-  return { dim, cells, chars };
+  return { cells, chars };
 }
 

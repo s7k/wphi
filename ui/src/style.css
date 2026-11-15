@@ -797,12 +797,16 @@ body {
 
 .eagleeye-window {
   height: 100%;
-  overflow: auto;
+  overflow: hidden;
   background: #000;
 }
 
+/* 縦横比を保って窓いっぱいに合わせる(v6 の 65x29 は 1マス 32px だと 2080x928 になる) */
 .eagleeye-window canvas {
   display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 /* 新規キャラ作成の初期グラ */
