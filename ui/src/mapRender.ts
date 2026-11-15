@@ -501,19 +501,16 @@ export function viewFor(px: number, cell: number): number {
   return Math.max(3, Math.min(99, n % 2 ? n : n - 1));
 }
 
-/** 自キャラを前寄りに置く回転の地図か。7x7 の回転と v6 の回転(5x5 の #map は中央) */
-const turnLayout = (map: MapEvent) => (map.v6 || map.width === 7) && map.style === 'turn';
-
 /**
  * 描く盤面。v6 の地図がサーバの返した大きさで要求(w×h)より小さい時は、中央に置いて外側を '?' で埋める。
- * v6 でない地図(7x7 と 5x5)はそのまま
+ * v6 でない地図(7x7)はそのまま
  */
 export function fitBoard(
   map: MapEvent,
   w: number,
   h: number,
 ): { width: number; height: number; cells: MapCell[]; chars: MapChar[]; self: { x: number; y: number } } {
-  const me = selfPos(map.width, map.height, turnLayout(map));
+  const me = selfPos(map.width, map.height, map.style === 'turn');
   const bw = map.v6 ? Math.max(w, map.width) : map.width;
   const bh = map.v6 ? Math.max(h, map.height) : map.height;
   if (bw === map.width && bh === map.height) return { width: bw, height: bh, cells: map.cells, chars: map.chars, self: me };

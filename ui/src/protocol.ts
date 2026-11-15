@@ -23,7 +23,7 @@ export type MapChar = {
 
 export type MapEvent = {
   type: "map";
-  /** 幅と高さ。#m57 は 7、#map は 5、#v6 はサーバが返した大きさ */
+  /** 幅と高さ。#m57 は 7、#v6 はサーバが返した大きさ */
   width: number;
   height: number;
   /** #v6 で届いた地図(docs/05-protocol-v6.md) */

@@ -82,7 +82,7 @@ phi-client-web にあった FastAPI のゲートウェイは使わない。
 
 | 種類 | 行 | 扱い |
 |---|---|---|
-| バイナリ | `#m57 M`、`#map M`、`#ex-eagleeye M` | 変換しない。固定位置のバイトを読む(`#m57 M` は `raw[18..116]` が chip と attr の組×49) |
+| バイナリ | `#m57 M`、`#v6 R`、`#ex-eagleeye M` | 変換しない。固定位置のバイトを読む(`#m57 M` は `raw[18..116]` が chip と attr の組×49) |
 | 一部だけ cp932 | `#m57 O`、`#m57 W`、`#user` | 固定位置の名前欄だけ cp932 で読む(`#m57 O` は name=`raw[19..50]`、gra=`raw[54..69]`) |
 | 全体を cp932 | 上記以外(チャット、`#status`、`#ex-notice` など) | 行全体を cp932 で読む |
 
@@ -117,16 +117,19 @@ P0 で Windows 上の `WideCharToMultiByte` の結果と照合する。
 `#lag`(`#end-lag` で応答)や `#remap`(`#map` で応答)のように、サーバへ自動で返す行は `Event::Internal` にする。
 セッション層がこれを受けて応答し、UI には渡さない。
 
-`#ex-map size=40/57` でマップの大きさが切り替わる(`Command.cpp:1105-1108`)ので、5×5 の `#map` と 7×7 の `#m57` の両方を解析する。
+`#ex-map size=40/57` でマップの大きさが切り替わる(`Command.cpp:1105-1108`)が、WPHI は 7×7 の `#m57` と v6 だけを解析する。
+5×5 の `#map` で遊ぶ世界はもう無いので、`#map` の行は無視する。
 
 ### 3.5 Python 版との出力比較テスト
 
 phi-client-web の `backend/tests/fixtures/synthetic/` に、受信行のバイナリ(`m57_M.bin`、`m57_O_jp.bin` など)と期待値の `expected.json` がある。
 これを `phi-proto` のテストにそのまま読み込み、Rust 版の出力と比べる。
-Python 版と意図的に変えた所が1つある。
+Python 版と意図的に変えた所が2つある。
 `#more` 〜 `#end-more`(看板の本文など)の間は、Philly と同じく `#end-more` 以外の行をすべてログにし、コマンドとして解析しない。
 Python 版はこの間もコマンドを解析するので、看板に `#ch-srv 外部のホスト ポート` と書かれると、読んだ人が世界移動を始めてキャラ ID を外部のサーバへ送ってしまう。
 正解データには `#more` の中に `#` で始まる行を入れない。
+もう1つは 5×5 の `#map` の行で、Rust 版は解析せず無視する。
+正解データの `map_5x5` は Python 版の出力のまま残し、`golden.rs` で飛ばす。
 
 実サーバの受信を記録した fixtures(`recorded/`)はまだ空なので、P0 で実機の受信を記録して追加する。
 

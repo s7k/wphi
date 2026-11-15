@@ -209,7 +209,7 @@ pub struct Chara {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Map {
-    /// 幅と高さのマス数。`#m57` は 7、`#map` は 5、`#v6` は `#v6 M` の W と H
+    /// 幅と高さのマス数。`#m57` は 7、`#v6` は `#v6 M` の W と H
     pub width: u8,
     pub height: u8,
     /// 自キャラの向き。N=0 から時計回りに45度刻み。
@@ -357,7 +357,6 @@ pub struct Parser {
     in_list: bool,
     list_lines: Vec<String>,
 
-    map_size: u8,
     map_dir: u8,
     map_cells: Option<Vec<Cell>>,
     map_chars: Vec<Chara>,
@@ -380,10 +379,7 @@ pub struct Parser {
 
 impl Parser {
     pub fn new() -> Self {
-        Self {
-            map_size: 7,
-            ..Self::default()
-        }
+        Self::default()
     }
 
     /// `#more` 〜 `#end-more` の中か。この間の行は看板などの本文で、サーバの通知ではない。
@@ -426,10 +422,6 @@ impl Parser {
             // 地形はバイナリなのでデコードしない
             if raw.starts_with(b"#m57 M") {
                 self.parse_m57_m(raw);
-                return Vec::new();
-            }
-            if raw.starts_with(b"#map M") {
-                self.parse_map_m(raw);
                 return Vec::new();
             }
             if raw.starts_with(b"#v6 R ") {
@@ -532,14 +524,7 @@ impl Parser {
             "#magic" => return self.set_mode(|m| m.magic = true),
             "#end-mg" => return self.set_mode(|m| m.magic = false),
             "#ex-list-mode-end" => return self.end_list(),
-            "#m57 ." => {
-                self.map_size = 7;
-                return self.finish_map();
-            }
-            "#map ." => {
-                self.map_size = 5;
-                return self.finish_map();
-            }
+            "#m57 ." => return self.finish_map(),
             "#v6 ." => return self.finish_v6(),
             "#ex-eagleeye end" => {
                 return vec![Event::EagleEye(self.eagle.build(self.mapset.clone()))];
@@ -719,7 +704,6 @@ impl Parser {
 
     /// `#m57 M <向き> <時刻>:` の後、raw[18..116] に (chip, attr) が49組並ぶ。
     fn parse_m57_m(&mut self, raw: &[u8]) {
-        self.map_size = 7;
         if raw.len() > M57_DIRECTION_OFFSET {
             self.map_dir = dir_to_num(raw[M57_DIRECTION_OFFSET]);
         }
@@ -734,39 +718,6 @@ impl Parser {
                 .map(|&[chip, attr]| Cell { chip, attr })
                 .collect(),
         );
-    }
-
-    /// `#map M`(5x5)。本体が `-` なら前フレームのまま。
-    fn parse_map_m(&mut self, raw: &[u8]) {
-        self.map_size = 5;
-        let body = &raw[7.min(raw.len())..];
-        let body_end = body
-            .iter()
-            .rposition(|&b| b != b'\r' && b != b'\n')
-            .map_or(0, |i| i + 1);
-        if &body[..body_end] == b"-" {
-            return;
-        }
-        if raw.len() > M57_DIRECTION_OFFSET {
-            self.map_dir = dir_to_num(raw[M57_DIRECTION_OFFSET]);
-        }
-        let cells = (0..25)
-            .map(|i| {
-                let chip_idx = 18 + i * 2;
-                let Some(&chip) = raw.get(chip_idx) else {
-                    return Cell::default();
-                };
-                let mut attr = 0;
-                if raw.get(chip_idx + 50) == Some(&b'.') {
-                    attr |= 0x60; // アイテム
-                }
-                if raw.get(chip_idx + 51) == Some(&b'-') {
-                    attr |= 0x08; // 看板
-                }
-                Cell { chip, attr }
-            })
-            .collect();
-        self.map_cells = Some(cells);
     }
 
     /// `#m57 O` と `#v6 O` の固定位置の欄を読む。`head` は層の位置、`digits` は座標の桁数。
@@ -825,7 +776,7 @@ impl Parser {
 
     fn finish_map(&mut self) -> Vec<Event> {
         let cells = self.map_cells.clone().unwrap_or_default();
-        vec![Event::Map(self.build_map(self.map_size, self.map_size, cells, false))]
+        vec![Event::Map(self.build_map(7, 7, cells, false))]
     }
 
     fn build_map(&mut self, width: u8, height: u8, cells: Vec<Cell>, v6: bool) -> Map {

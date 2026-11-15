@@ -34,7 +34,8 @@ test("行動キーと修飾キー", () => {
   assert.deepEqual(act(key("KeyQ"), north), { send: "equip" });
   assert.deepEqual(act(key("KeyP"), north), { ask: { title: "支払い金額", label: "支払う金額", numeric: true }, send: "pay {}" });
   assert.deepEqual(act(key("KeyT", { shift: true }), north), { send: "#ex-map style=solid" });
-  assert.deepEqual(act(key("Digit5", { shift: true }), north), { send: "#ex-map size=40" });
+  // 5x5 の地図は無いので、Shift のテンキー5 も移動キー
+  assert.deepEqual(act(key("Numpad5", { shift: true }), north), { send: "turn b" });
   assert.deepEqual(act(key("Tab", { ctrl: true }), north), { nextTab: true });
   assert.deepEqual(act(key("KeyW", { alt: true }), north), { send: "cast\nwizard eye", cancelList: 1, systemMagic: "reequip" });
   assert.deepEqual(act(key("Digit3", { alt: true }), north), { send: "cast\n3", cancelList: 1 });

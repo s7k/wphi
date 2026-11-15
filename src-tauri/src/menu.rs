@@ -27,7 +27,7 @@ pub fn experiment<'a>(s: &'a mut crate::settings::Settings, id: &str) -> Option<
     }
 }
 /// 今の表示のモードにチェックを付ける項目。モードはサーバが決めるので、UI が地図を受けるたびに set_view_checks で付け直す
-const VIEW_CHECKS: [&str; 4] = ["map-turn", "map-solid", "map-57", "map-40"];
+const VIEW_CHECKS: [&str; 2] = ["map-turn", "map-solid"];
 
 /// (メニュー名, 項目)。項目の id が "-" なら区切り線。
 type Table = &'static [(&'static str, &'static [(&'static str, &'static str)])];
@@ -134,9 +134,6 @@ const MENUS: Table = &[
             ("map-turn", "回転マップ (T)"),
             ("map-solid", "北固定マップ (Shift+T)"),
             ("-", ""),
-            ("map-57", "7x7 マップ (Shift+7)"),
-            ("map-40", "5x5 マップ (Shift+5)"),
-            ("-", ""),
             (MAP_EFFECTS, "吹き出しと HP・MP の増減をマップに出す"),
             ("-", ""),
             (SMOOTH_MOVE, "マップを滑らかに動かす(試験中)"),
@@ -164,14 +161,9 @@ const MENUS: Table = &[
     ),
 ];
 
-/// 表示のモードのチェックを付け直す。turn は回転マップ、size57 は 7x7
-pub fn set_view_checks<R: Runtime>(menu: &Menu<R>, turn: bool, size57: bool) {
-    let want = [
-        ("map-turn", turn),
-        ("map-solid", !turn),
-        ("map-57", size57),
-        ("map-40", !size57),
-    ];
+/// 表示のモードのチェックを付け直す。turn は回転マップ
+pub fn set_view_checks<R: Runtime>(menu: &Menu<R>, turn: bool) {
+    let want = [("map-turn", turn), ("map-solid", !turn)];
     for item in menu.items().unwrap_or_default() {
         let Some(sub) = item.as_submenu() else { continue };
         for (id, on) in want {

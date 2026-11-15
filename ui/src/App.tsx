@@ -333,9 +333,9 @@ export function App() {
     mapStatePort.current.port2.postMessage(null);
   };
   useEffect(() => sendMapState(active), [active]);
-  // メニューの表示のモード(回転か北固定か、7x7 か 5x5 か)に、今のタブのモードのチェックを付ける。
+  // メニューの表示のモード(回転か北固定か)に、今のタブのモードのチェックを付ける。
   // モードはサーバが決めるので、地図を受けるたびに見る。変わった時だけ Rust へ送る
-  const viewChecks = useRef("");
+  const viewChecks = useRef<boolean | null>(null);
   // 超魔法メニュー(#83)。表のタブのキャラがマスター(経験値 99999999)か、設定で出す時だけ出す
   const [masterMenu, setMasterMenu] = useState<MasterMenu | null>(null);
   const masterMenuRef = useRef<MasterMenu | null>(null);
@@ -375,13 +375,11 @@ export function App() {
     }).catch(console.error);
   };
   // macOS の窓の中のメニューのチェック(MenuBar)。OS のメニューは set_view_checks で付ける
-  const [viewMode, setViewMode] = useState<{ turn: boolean; size57: boolean } | null>(null);
+  const [viewMode, setViewMode] = useState<{ turn: boolean } | null>(null);
   const menuChecked = (id: string): boolean =>
     ({
       "map-turn": viewMode?.turn,
       "map-solid": viewMode && !viewMode.turn,
-      "map-57": viewMode?.size57,
-      "map-40": viewMode && !viewMode.size57,
       "smooth-move": settings.smoothMove,
       "map-effects": settings.mapEffects,
     })[id] ?? false;
@@ -389,12 +387,10 @@ export function App() {
     const s = activeRef.current === null ? undefined : mapStates.current.get(activeRef.current);
     if (!s?.map) return;
     const turn = !keyContext(s, true).northFix;
-    const size57 = !!s.map.v6 || s.map.width === 7;
-    const key = `${turn},${size57}`;
-    if (!force && key === viewChecks.current) return;
-    viewChecks.current = key;
-    setViewMode({ turn, size57 });
-    invoke("set_view_checks", { turn, size57 }).catch(console.error);
+    if (!force && turn === viewChecks.current) return;
+    viewChecks.current = turn;
+    setViewMode({ turn });
+    invoke("set_view_checks", { turn }).catch(console.error);
   };
   useEffect(() => syncViewChecks(true), [active]);
   // 前に出したタブの未読の印を消す
@@ -615,7 +611,7 @@ export function App() {
       if (id === "close-tab") return close(session);
       if (id.startsWith("mm:")) return runMaster(id, session);
       // 選んだ項目はチェックが勝手に切り替わるので、今のモードに付け直す。サーバが切り替えたら地図を受けた時にまた付け直す
-      if (["map-turn", "map-solid", "map-57", "map-40"].includes(id)) syncViewChecks(true);
+      if (["map-turn", "map-solid"].includes(id)) syncViewChecks(true);
       const action = menuAction(id);
       const openBoard = () => update(session, (t) => ({ ...t, board: true }));
       const cancelList = (n: number) => (listFlow(session).cancel += n);

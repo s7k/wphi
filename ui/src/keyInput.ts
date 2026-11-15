@@ -16,8 +16,8 @@ export type ForwardedKey = Pick<KeyboardEvent, "code" | "shiftKey" | "ctrlKey" |
 export const MOUSE_EVENT = "phi-mouse";
 export type ForwardedMouse = { type: "down"; keys: MoveKey[] } | { type: "hit" };
 
-/** 北固定で方角で進む地図か。Philly は 7x7 の北固定(ExMapSize57 && !ExMapStyleTurn)の時だけ方角で進む。v6 も 7x7 と同じ */
-export const isNorthFix = (map: MapEvent | undefined) => !map || ((!!map.v6 || map.width === 7) && map.style !== "turn");
+/** 北固定で方角で進む地図か(Philly の ExMapSize57 && !ExMapStyleTurn)。WPHI の地図は 7x7 か v6 なので、向きだけで決まる */
+export const isNorthFix = (map: MapEvent | undefined) => !map || map.style !== "turn";
 
 /** フルキー移動は設定から(既定は on。Philly の既定は off だが、無いと 7・8・9 が番号として送られ発言になる) */
 export function keyContext(state: MapState | undefined, fullKeyMove: boolean): KeyContext {

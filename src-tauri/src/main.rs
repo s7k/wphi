@@ -904,9 +904,9 @@ fn main_menu(app: &tauri::AppHandle) -> Option<tauri::menu::Menu<tauri::Wry>> {
 }
 
 #[tauri::command]
-fn set_view_checks(app: tauri::AppHandle, turn: bool, size57: bool) {
+fn set_view_checks(app: tauri::AppHandle, turn: bool) {
     if let Some(menu) = main_menu(&app) {
-        menu::set_view_checks(&menu, turn, size57);
+        menu::set_view_checks(&menu, turn);
     }
 }
 

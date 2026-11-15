@@ -36,7 +36,7 @@ export type AskOptions = { title: string; label: string; numeric?: boolean; init
 
 /** キーを押した時の状態。 */
 export type KeyContext = {
-  /** 7x7 の北固定マップか。Philly は `ExMapSize57 && !ExMapStyleTurn` の時に北固定の移動にする */
+  /** 北固定マップか。Philly は `ExMapSize57 && !ExMapStyleTurn` の時に北固定の移動にする */
   northFix: boolean;
   /** フルキーの 789 uio jkl m をテンキーとして使う(Philly.ini の FullKeyMove。Philly の既定は off、WPHI は on) */
   fullKeyMove: boolean;
@@ -169,8 +169,6 @@ const SHIFT: Record<string, KeyAction> = {
   F1: { menu: "force-close" },
   Space: { send: "hit" },
   KeyT: { send: "#ex-map style=solid" },
-  Digit5: { send: "#ex-map size=40" },
-  Numpad5: { send: "#ex-map size=40" },
   Digit7: { send: "#ex-map size=57" },
   Numpad7: { send: "#ex-map size=57" },
 };
@@ -233,7 +231,7 @@ function normalize(e: KeyInput, ctx: KeyContext): { code: string; mods: ActionMo
   return { code, mods };
 }
 
-/** 移動キーなら、そのキーと修飾キーを返す。Shift の 5 と 7 はマップの大きさを変えるので移動ではない */
+/** 移動キーなら、そのキーと修飾キーを返す。Shift の 7 はマップの大きさを変えるので移動ではない */
 export function moveInput(e: KeyInput, ctx: KeyContext): { key: MoveKey; mods: Mods } | null {
   const n = normalize(e, ctx);
   if (!n || n.mods === "alt" || n.mods === "shiftAlt" || (n.mods === "shift" && SHIFT[n.code])) return null;
@@ -336,8 +334,6 @@ export function menuAction(id: string): KeyAction | null {
     map: SHIFT.F5,
     "map-turn": NONE.KeyT,
     "map-solid": SHIFT.KeyT,
-    "map-57": SHIFT.Digit7,
-    "map-40": SHIFT.Digit5,
   };
   return table[id] ?? null;
 }
