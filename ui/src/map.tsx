@@ -19,6 +19,7 @@ import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
 import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
 import { hideOnClose, useImages, useScreenshot } from "./windowUtil";
+import { findChar, MAP_POP_EVENT, type Pop } from "./mapPop.ts";
 
 /** Philly のキャラのアニメ周期(PersonalThread.h の ANIMATION_INTERVAL = 500ms) */
 const ANIMATION_MS = 500;
@@ -43,6 +44,10 @@ const SKIN_CURSOR: Record<string, string> = {
 const FACING: Record<string, string> = { B: "n", R: "e", F: "s", L: "w" };
 
 const stripTags = (s: string) => s.replace(/\/\*.*?\*\//g, "").trim();
+
+/** 吹き出しと増減の数字を出す時間 */
+const TALK_MS = 4000;
+const AMOUNT_MS = 1200;
 
 /** MAP_STATE_EVENT などの宛先。main 窓の中に置いた地図なら "main" */
 export type MapPlace = "map" | "main";
@@ -146,6 +151,23 @@ export function MapView(props: { embedded?: boolean }) {
     const ro = new ResizeObserver(() => setArea({ w: el.clientWidth, h: el.clientHeight }));
     ro.observe(el);
     return () => ro.disconnect();
+  }, []);
+  // キャラの上に出す吹き出しと増減の数字(ui/src/mapPop.ts)。キャラが動いても付いて行くよう、位置は描く時に名前で探す
+  const [pops, setPops] = useState<(Pop & { id: number })[]>([]);
+  useEffect(() => {
+    let id = 0;
+    const unlisten = listen<{ pops: Pop[]; to: MapPlace }>(MAP_POP_EVENT, (e) => {
+      if (e.payload.to !== place) return;
+      const added = e.payload.pops.map((p) => ({ ...p, id: ++id }));
+      // 吹き出しは1人に1つ。新しい発言で置き換える
+      const talkers = new Set(added.filter((p) => p.kind === "talk").map((p) => p.name));
+      setPops((ps) => [...ps.filter((p) => !(p.kind === "talk" && talkers.has(p.name))), ...added]);
+      for (const p of added)
+        setTimeout(() => setPops((ps) => ps.filter((q) => q.id !== p.id)), p.kind === "talk" ? TALK_MS : AMOUNT_MS);
+    });
+    return () => {
+      unlisten.then((f) => f());
+    };
   }, []);
   const [smooth, setSmooth] = useState(false);
   const [automapOn, setAutomapOn] = useState(true);
@@ -289,6 +311,28 @@ export function MapView(props: { embedded?: boolean }) {
     // 描き直すのはマップ・地形・アニメ・画像の読み込み・大きさ・ずらす量が変わった時だけ。#status だけの変化では描かない
   }, [mapKey, automap, frame, loaded, state?.mapset, state?.defines?.join(), dim, slide]);
 
+  const canvasLeft = Math.floor((area.w - dim * CHIP_SIZE * zoom) / 2);
+  const canvasTop = Math.floor((area.h - (dim * CHIP_SIZE + MAP_TOP) * zoom) / 2);
+  const popChars = automap?.chars ?? map?.chars ?? [];
+  // 同じキャラに続けて出た数字は、上へずらして重ねない
+  const stack = new Map<string, number>();
+  const popEls = pops.flatMap((p) => {
+    const c = findChar(popChars, p.name, Math.floor(dim / 2));
+    if (!c) return [];
+    const n = p.kind === "talk" ? 0 : (stack.get(p.name) ?? 0);
+    if (p.kind !== "talk") stack.set(p.name, n + 1);
+    const style = {
+      left: canvasLeft + (c.x * CHIP_SIZE + CHIP_SIZE / 2) * zoom,
+      // 吹き出しは頭の上、数字は胴から浮かせる
+      top: canvasTop + (MAP_TOP + c.y * CHIP_SIZE + (p.kind === "talk" ? 0 : CHIP_SIZE / 2)) * zoom - n * 14,
+    };
+    return [
+      <div key={p.id} className={p.kind === "talk" ? "map-talk" : `map-amount ${p.kind[1]}${p.kind[0] === "+" ? "-up" : "-down"}`} style={style}>
+        {p.kind === "talk" ? p.text : `${p.kind[0] === "+" ? "+" : ""}${p.text}`}
+      </div>,
+    ];
+  });
+
   // 名前の一覧は上の行から順に並べる(CharacterNameList.cpp の SetNameList)
   const names = (map?.chars ?? [])
     .map((c, i) => ({ c, i }))
@@ -309,8 +353,8 @@ export function MapView(props: { embedded?: boolean }) {
               width: Math.round(dim * CHIP_SIZE * zoom),
               height: Math.round((dim * CHIP_SIZE + MAP_TOP) * zoom),
               imageRendering: zoom === 1 ? undefined : "pixelated",
-              left: Math.floor((area.w - dim * CHIP_SIZE * zoom) / 2),
-              top: Math.floor((area.h - (dim * CHIP_SIZE + MAP_TOP) * zoom) / 2),
+              left: canvasLeft,
+              top: canvasTop,
             }}
             onMouseMove={onMouseMove}
             onMouseDown={onMouseDown}
@@ -318,6 +362,7 @@ export function MapView(props: { embedded?: boolean }) {
             onMouseLeave={onMouseUp}
             onContextMenu={(e) => e.preventDefault()}
           />
+          {popEls}
         </div>
         <div className="map-side">
           <Compass dir={direction} northFix={northFix} />

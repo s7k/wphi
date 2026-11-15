@@ -32,5 +32,6 @@
   "mapZoom": 100,
   "smoothMove": false,
   "automap": true,
-  "singleWindow": false
+  "singleWindow": false,
+  "mapEffects": true
 }

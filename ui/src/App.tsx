@@ -18,6 +18,7 @@ import { AskDialog } from "./AskDialog";
 import { alertBox, confirmBox, MessageDialogHost } from "./MessageDialog";
 import { TagMenu, type TagMenuAt } from "./TagMenuPopup";
 import { assetUrl } from "./asset";
+import { MAP_POP_EVENT, popsFromLine } from "./mapPop.ts";
 import { absorb, AUTOMAP_EVENT, blockOf, loadTiles, removeTiles, saveTiles, type AutomapDiff, type Tiles } from "./automap.ts";
 import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, EXPERIMENT_EVENT, shortcutText, type Settings } from "./settings.ts";
@@ -182,7 +183,7 @@ export function App() {
     invoke<Settings>("get_settings").then(setSettings).catch(console.error);
     // 表示のメニューで切り替えた分を覚える。覚えないと、設定の画面で保存した時に元に戻す
     const smooth = listen<Settings>(EXPERIMENT_EVENT, (e) =>
-      setSettings((s) => ({ ...s, smoothMove: e.payload.smoothMove, automap: e.payload.automap, singleWindow: e.payload.singleWindow })),
+      setSettings((s) => ({ ...s, smoothMove: e.payload.smoothMove, automap: e.payload.automap, singleWindow: e.payload.singleWindow, mapEffects: e.payload.mapEffects })),
     );
     return () => {
       smooth.then((f) => f());
@@ -375,6 +376,7 @@ export function App() {
       "map-40": viewMode && !viewMode.size57,
       "smooth-move": settings.smoothMove,
       automap: settings.automap,
+      "map-effects": settings.mapEffects,
     })[id] ?? false;
   const syncViewChecks = (force = false) => {
     const s = activeRef.current === null ? undefined : mapStates.current.get(activeRef.current);
@@ -942,6 +944,10 @@ export function App() {
           append(session, ev.html, ev.raw);
           notifyTalk(session, ev.channel, ev.html, !!ev.noFlash);
           if (ev.channel === "priv" && ev.from) addPriv(session, ev.from, ev.html);
+          if (session === activeRef.current && settingsRef.current.mapEffects && ev.raw) {
+            const pops = popsFromLine(ev.raw);
+            if (pops.length) emit(MAP_POP_EVENT, { pops, to: mapPlace() }).catch(console.error);
+          }
           if (session === activeRef.current && /DM<\/font> &gt; (進めません\.|Can not go\.)/.test(ev.html))
             predictor.current.onCannotGo();
           break;

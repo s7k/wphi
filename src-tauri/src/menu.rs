@@ -15,6 +15,7 @@ pub const MENU_EVENT: &str = "phi-menu";
 pub const SMOOTH_MOVE: &str = "smooth-move";
 pub const AUTOMAP: &str = "automap";
 pub const SINGLE_WINDOW: &str = "single-window";
+pub const MAP_EFFECTS: &str = "map-effects";
 pub const EXPERIMENT_EVENT: &str = "phi-experiment";
 
 /// 切り替える項目の、設定の値
@@ -23,6 +24,7 @@ pub fn experiment<'a>(s: &'a mut crate::settings::Settings, id: &str) -> Option<
         SMOOTH_MOVE => Some(&mut s.smooth_move),
         AUTOMAP => Some(&mut s.automap),
         SINGLE_WINDOW => Some(&mut s.single_window),
+        MAP_EFFECTS => Some(&mut s.map_effects),
         _ => None,
     }
 }
@@ -139,6 +141,7 @@ const MENUS: Table = &[
             ("-", ""),
             (AUTOMAP, "拡張マップ(位置の予想付き)"),
             ("automap-clear", "この世界の拡張マップを消す..."),
+            (MAP_EFFECTS, "吹き出しと HP・MP の増減をマップに出す"),
             ("-", ""),
             (SMOOTH_MOVE, "マップを滑らかに動かす(試験中)"),
             (SINGLE_WINDOW, "マップをログと同じ窓に出す(試験中)"),

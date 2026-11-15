@@ -55,6 +55,8 @@ pub struct Settings {
     pub automap: bool,
     /// 実験的: マップの窓を使わず、main 窓のログの左にマップを出す。表示のメニューで切り替える(Philly に無い)
     pub single_window: bool,
+    /// マップのキャラの上に、発言の吹き出しと HP・MP の増減を出す。表示のメニューで切り替える(Philly に無い)
+    pub map_effects: bool,
 }
 
 impl Default for Settings {
@@ -82,6 +84,7 @@ impl Default for Settings {
             smooth_move: false,
             single_window: false,
             automap: true,
+            map_effects: true,
         }
     }
 }

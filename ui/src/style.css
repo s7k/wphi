@@ -212,6 +212,53 @@ body {
   position: absolute;
 }
 
+/* キャラの上の吹き出しと HP・MP の増減(ui/src/mapPop.ts)。left・top はキャラのマスの上辺の中央 */
+.map-talk,
+.map-amount {
+  position: absolute;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.map-talk {
+  /* 数字はすぐ消えるので、吹き出しを上に重ねる */
+  z-index: 1;
+  transform: translate(-50%, calc(-100% - 8px));
+  max-width: 14em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 8px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #fff;
+  color: #000;
+  font-size: 12px;
+}
+.map-talk::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  margin-left: -5px;
+  border: 5px solid transparent;
+  border-top-color: #fff;
+  border-bottom: 0;
+}
+.map-amount {
+  font-weight: bold;
+  font-size: 15px;
+  text-shadow: 0 0 2px #000, 0 0 2px #000;
+  animation: map-amount 1.2s ease-out forwards;
+}
+.map-amount.h-down { color: #ffd23f; }
+.map-amount.h-up { color: #7dff9a; }
+.map-amount.m-down { color: #c890ff; }
+.map-amount.m-up { color: #6fd0ff; }
+@keyframes map-amount {
+  from { transform: translate(-50%, -40%); opacity: 1; }
+  70% { opacity: 1; }
+  to { transform: translate(-50%, -160%); opacity: 0; }
+}
+
 /*
  * ImageMapSide。Philly は 70px だが、名前が読めるよう 150px にする。
  * 幅は中身に関係なく決めておく。中身(名前の一覧とリスト)に合わせて広げると、リストが出た時に
