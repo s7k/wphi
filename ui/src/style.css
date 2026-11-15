@@ -207,6 +207,16 @@ body {
   background: #404040;
 }
 
+/* main 窓の中に置いた地図の、地名(map 窓ならタイトルに出す物) */
+.map-title {
+  padding: 1px 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid #c0c0c0;
+}
+
 /* 位置は map.tsx が欄の大きさから整数で決める */
 .map-area canvas {
   position: absolute;

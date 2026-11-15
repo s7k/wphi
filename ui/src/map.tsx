@@ -406,6 +406,8 @@ export function MapView(props: { embedded?: boolean }) {
     .filter((n) => n);
   return (
     <div className="map-window">
+      {/* main 窓の中では窓のタイトルに出せないので、地図の上に出す */}
+      {props.embedded && <div className="map-title">{title}</div>}
       <div className="map-row">
         <div className="map-area" ref={mapArea}>
           <canvas
