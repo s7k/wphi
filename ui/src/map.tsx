@@ -171,15 +171,19 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
   // 地図を出しているのがこの窓か。もう一方の窓(隠した map 窓など)の大きさで視界を要求しない
   const [shown, setShown] = useState(false);
   const northFix = isNorthFix(map);
-  // モダンは、サーバの上限のマス数で窓を覆えるまで拡大する。拡大率の設定より小さくはしない。
-  // 覆うマス数は奇数へ切り上げるので、上限より1マス少ない数で割る
+  // モダンは、サーバの上限のマス数で窓を覆えるまで拡大する。覆うマス数は奇数へ切り上げるので、上限より1マス少ない数で割る。
+  // 拡大率は画面の実際のピクセル(devicePixelRatio)で整数倍に限る。半端な倍率ではドットの幅が揃わず、名前の文字が崩れる。
+  // 整数倍で覆えない窓では、地図の周りが空く
+  const dpr = window.devicePixelRatio || 1;
+  const fit = Math.max(
+    area.w / (((northFix ? MODERN_MAX.w : MODERN_MAX.h) - 1) * CHIP_SIZE),
+    area.h / ((MODERN_MAX.h - 1) * CHIP_SIZE + MAP_TOP),
+  );
   const zoom = props.modern
-    ? Math.max(
-        zoomSetting,
-        area.w / (((northFix ? MODERN_MAX.w : MODERN_MAX.h) - 1) * CHIP_SIZE),
-        area.h / ((MODERN_MAX.h - 1) * CHIP_SIZE + MAP_TOP),
-      )
+    ? Math.max(Math.max(1, Math.round(dpr * zoomSetting)), Math.floor(fit * dpr)) / dpr
     : zoomSetting;
+  // 画面のピクセルの境目に揃える(モダンだけ。クラシックは今まで通り CSS の px に揃える)
+  const snap = (v: number) => (props.modern ? Math.floor(v * dpr) / dpr : Math.floor(v));
   const count = props.modern ? viewCover : viewFor;
   // v6 の視界(docs/05-protocol-v6.md の 4.1)。欄に入るマス数を奇数に切り下げる。回転は正方形
   const cell = CHIP_SIZE * zoom;
@@ -325,8 +329,8 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     // 描き直すのはマップ・地形・アニメ・画像の読み込み・大きさ・ずらす量が変わった時だけ。#status だけの変化では描かない
   }, [board, frame, loaded, state?.mapset, state?.defines?.join(), slide]);
 
-  const canvasLeft = Math.floor((area.w - boardW * CHIP_SIZE * zoom) / 2);
-  const canvasTop = Math.floor((area.h - (boardH * CHIP_SIZE + MAP_TOP) * zoom) / 2);
+  const canvasLeft = snap((area.w - boardW * CHIP_SIZE * zoom) / 2);
+  const canvasTop = snap((area.h - (boardH * CHIP_SIZE + MAP_TOP) * zoom) / 2);
   popCharsRef.current = { chars, me };
   // 同じキャラに続けて出た数字は、上へずらして重ねない
   const stack = new Map<string, number>();
@@ -411,8 +415,8 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
             // 中央に置く。位置を整数にして、半ピクセルずれて画像がにじまないようにする
             style={{
               cursor,
-              width: Math.round(boardW * CHIP_SIZE * zoom),
-              height: Math.round((boardH * CHIP_SIZE + MAP_TOP) * zoom),
+              width: props.modern ? boardW * CHIP_SIZE * zoom : Math.round(boardW * CHIP_SIZE * zoom),
+              height: props.modern ? (boardH * CHIP_SIZE + MAP_TOP) * zoom : Math.round((boardH * CHIP_SIZE + MAP_TOP) * zoom),
               imageRendering: zoom === 1 ? undefined : "pixelated",
               left: canvasLeft,
               top: canvasTop,
