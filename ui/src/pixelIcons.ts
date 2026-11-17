@@ -431,3 +431,23 @@ export const ITEM_PIXELS: Record<string, string[]> = {
     "................",
   ]),
 };
+
+/** カバンを開くボタンのドット絵(リュック) */
+export const BAG_PIXELS: string[] = [
+  "................",
+  "......oooo......",
+  ".....ohooho.....",
+  "...oooHooHooo...",
+  "..ohhhhhhhhhho..",
+  ".ohhwhhhhhhhhHo.",
+  ".ohwhhhhhhhhhHo.",
+  ".ohhoooooooohHo.",
+  ".ohoHhhhhhhHoHo.",
+  ".ohoHhhgghhHoHo.",
+  ".ohoHhhGGhhHoHo.",
+  ".ohoHhhhhhhHoHo.",
+  ".oHooooooooooHo.",
+  ".oHHHHHHHHHHHHo.",
+  "..oooooooooooo..",
+  "................",
+];

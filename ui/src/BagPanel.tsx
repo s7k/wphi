@@ -26,7 +26,7 @@ const pixelsOf = (it: ItemInfo) =>
   it.it === IT.weapon ? (WEAPON_PIXELS[it.wt] ?? WEAPON_PIXELS[1]) : ITEM_PIXELS[ITEM_PIXEL_NAME[it.it] ?? "other"];
 
 /** 16x16 のドット絵を、横に続く同じ色のドットを 1 つの四角にまとめた SVG で描く。ぼやけないよう crispEdges にする */
-function Pixels(props: { rows: string[]; size: number }) {
+export function Pixels(props: { rows: string[]; size: number }) {
   const rects: React.ReactElement[] = [];
   props.rows.forEach((row, y) => {
     let x = 0;

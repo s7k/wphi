@@ -1473,8 +1473,9 @@ button > svg:only-child,
   top: 60px;
   right: 16px;
   z-index: 5;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   display: grid;
   place-items: center;
   color: #fff;
@@ -1482,6 +1483,13 @@ button > svg:only-child,
   border: 1.5px solid rgb(255 255 255 / 55%);
   border-radius: 50%;
   cursor: pointer;
+}
+
+/* ボタンのアイコンの大きさ(button > svg)を使わず、ドット絵の大きさのまま描く */
+.bag-button > svg {
+  width: 32px;
+  height: 32px;
+  margin: 0;
 }
 
 .bag-button:hover {

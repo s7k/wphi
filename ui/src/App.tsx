@@ -15,7 +15,8 @@ import { SENT_EVENT, type Sent } from "./keyInput";
 import { isNorthFix, isTextTarget, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskOptions, type Mods } from "./keys.ts";
 import { MAX_UNCONFIRMED, walkable, Walker } from "./walker.ts";
-import { BagPanel } from "./BagPanel.tsx";
+import { BagPanel, Pixels } from "./BagPanel.tsx";
+import { BAG_PIXELS } from "./pixelIcons.ts";
 import { AskDialog } from "./AskDialog";
 import { alertBox, confirmBox, MessageDialogHost } from "./MessageDialog";
 import { popupTagMenu } from "./TagMenuPopup";
@@ -38,7 +39,7 @@ import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
 import { LogFind } from "./LogFind";
 import { lightenColors, pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
-import { ArrowDownToLine, Backpack, Check, FolderOpen, Import, Megaphone, MessageSquare, Layers, Plug, Plus, Save, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
+import { ArrowDownToLine, Check, FolderOpen, Import, Megaphone, MessageSquare, Layers, Plug, Plus, Save, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
 
 // src-tauri/src/characters.rs の Store
 type Character = { label: string; host: string; port: number };
@@ -1234,7 +1235,7 @@ export function App() {
         {tab.sign && <SignCard lines={tab.sign} onClose={() => closeSign(tab.session)} />}
         {tab.items && !tab.bagOpen && (
           <button type="button" className="bag-button" title="カバン(持ち物とインベントリ)" onClick={() => openBag(tab.session)}>
-            <Backpack />
+            <Pixels rows={BAG_PIXELS} size={32} />
           </button>
         )}
         {tab.bagOpen && (
