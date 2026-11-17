@@ -1453,8 +1453,13 @@ button > svg:only-child,
   overflow-wrap: anywhere;
 }
 
-.sign-body p {
-  margin: 0;
+.sign-body {
+  text-shadow: 0 1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, 0 -1px 0 #000;
+}
+
+/* 色の付いた文字は白へ寄せた色(App.tsx の lightenColors) */
+.sign-body [data-lc] {
+  color: var(--lc) !important;
 }
 
 .main-body {

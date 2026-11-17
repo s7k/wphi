@@ -19,7 +19,7 @@ import { AskDialog } from "./AskDialog";
 import { alertBox, confirmBox, MessageDialogHost } from "./MessageDialog";
 import { popupTagMenu } from "./TagMenuPopup";
 import { assetUrl } from "./asset";
-import { MAP_POP_EVENT, newPopState, popsFromLine, stripTags } from "./mapPop.ts";
+import { MAP_POP_EVENT, newPopState, popsFromLine } from "./mapPop.ts";
 import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, EXPERIMENT_EVENT, shortcutText, type Settings } from "./settings.ts";
 import { DownloadPanel } from "./DownloadPanel";
@@ -75,7 +75,7 @@ type Tab = {
   hurt: boolean;
   /** 追加発言(Philly の TalkAdd。キャラごと。#80) */
   talkAdd?: string;
-  /** 看板などの本文(#more 〜 #end-more)の札。タグを除いた行。閉じたら null */
+  /** 看板などの本文(#more 〜 #end-more)の札。ログと同じ HTML の行。閉じたら null */
   sign?: string[] | null;
 };
 
@@ -993,7 +993,7 @@ export function App() {
       switch (ev.type) {
         case "log":
           append(session, ev.html, ev.raw);
-          signLines.current.get(session)?.push(stripTags(ev.raw ?? ""));
+          signLines.current.get(session)?.push(ev.html);
           notifyTalk(session, ev.channel, ev.html, !!ev.noFlash);
           if (ev.channel === "priv" && ev.from) addPriv(session, ev.from, ev.html);
           if (ev.raw) {
@@ -1056,7 +1056,7 @@ export function App() {
           if (ev.more && !reading) signLines.current.set(session, []);
           else if (!ev.more && reading) {
             signLines.current.delete(session);
-            if (reading.some((l) => l)) update(session, (t) => ({ ...t, sign: reading }));
+            if (reading.length) update(session, (t) => ({ ...t, sign: reading }));
           }
           onMapEvent(session, ev);
           break;
@@ -1759,8 +1759,15 @@ function lightenColors(root: HTMLElement) {
 /** 追尾移動で、続けて送る間隔の下限(ms)。サーバは 0.1 秒に1行ずつ処理する */
 const FOLLOW_MS = 110;
 
-/** 看板などの本文の札(試験中)。タグを除いた文字だけを出す。× か Esc か、歩くと閉じる。本文はログにも残る */
+/**
+ * 看板などの本文の札(試験中)。ログと同じ HTML で、タグの色と大きさを反映する。札は暗い地なので、色の付いた文字は
+ * モダンのログと同じく白へ寄せる(lightenColors)。× か Esc か、歩くと閉じる。本文はログにも残る
+ */
 function SignCard(props: { lines: string[]; onClose: () => void }) {
+  const body = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (body.current) lightenColors(body.current);
+  }, [props.lines]);
   return (
     <div className="sign-card" role="dialog" aria-label="看板・お知らせ">
       <div className="sign-head">
@@ -1769,9 +1776,10 @@ function SignCard(props: { lines: string[]; onClose: () => void }) {
           <X />
         </button>
       </div>
-      <div className="sign-body">
+      <div className="sign-body" ref={body}>
         {props.lines.map((l, i) => (
-          <p key={i}>{l || "\u00a0"}</p>
+          // html は phi-proto の tag_to_html がエスケープ済みで作ったもの(LogLineList.tsx と同じ)
+          <div key={i} data-line={i} dangerouslySetInnerHTML={{ __html: l }} />
         ))}
       </div>
     </div>
