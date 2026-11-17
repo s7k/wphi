@@ -91,7 +91,8 @@ export interface DrawMapInput {
   origin?: { x: number; y: number };
   /**
    * 見えないマス('?')の描き方。black はチップのまま(真っ黒)、fog は暗い霧にして境目をぼかし、
-   * roof は壁で囲まれた所に屋根を乗せて残りを霧にする(mapRender.ts の unknownKinds、roofCells)。map.tsx は v6 の地図で roof にする。
+   * roof は壁で囲まれた所に屋根を乗せて残りはチップのまま描く(mapRender.ts の unknownKinds、roofCells)。map.tsx は v6 の地図で roof にする。
+   * roof で霧を使わないのは、境目のぼかしが隣の壁(レンガ)にはみ出してノイズに見えた為
    * 真っ黒の四角は穴に見え、壁の内側に平らに描いた屋根は壁より低く凹んで見えた為、屋根は壁の高さだけ持ち上げて壁の上に乗せる
    */
   unknown?: 'black' | 'fog' | 'roof';
@@ -264,7 +265,7 @@ export function drawMap(
         const img = cell && chipFor(cell);
         if (!cell || !img) continue;
         const k = kindAt(col, row);
-        if (k === 1) {
+        if (k === 1 && unknownStyle === 'fog') {
           drawFog(ctx, col, row, cs);
           continue;
         }
@@ -282,8 +283,8 @@ export function drawMap(
         const cell = input.cells[cellIndex(col, row, width)];
         const img = cell && chipFor(cell);
         if (!cell || !img) continue;
-        if (kinds && !kindAt(col, row)) {
-          // 霧に接する辺はぼかす。屋根の下のマスには軒の影を落とす
+        if (unknownStyle === 'fog' && !kindAt(col, row)) {
+          // 霧に接する辺はぼかす
           [kindAt(col, row - 1), kindAt(col + 1, row), kindAt(col, row + 1), kindAt(col - 1, row)].forEach((k, side) => {
             if (k === 1) drawFogEdge(ctx, col, row, side, cs, scale);
           });
