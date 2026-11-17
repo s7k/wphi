@@ -559,12 +559,34 @@ export function cellIndex(x: number, y: number, size: number): number {
   return y * size + x;
 }
 
-/** 実験的: 地図を滑らかにずらす時間(ms)。サーバは0.1秒に1歩なので、それより短くする */
-export const SLIDE_MS = 90;
+/**
+ * スムーズ移動で1歩を滑らせる時間(ms)の下限と上限と、止まっていた後の最初の値。
+ * 長押しで歩く間は、歩いた間隔に合わせて滑らせ、次の1歩までの間に止まらないようにする。
+ * サーバは 0.1 秒に1行しか処理しないので、歩く間隔は 100ms に回線の揺れを足した物になる
+ */
+export const SLIDE_MIN_MS = 80;
+export const SLIDE_MAX_MS = 250;
+export const SLIDE_FIRST_MS = 110;
+
+/** 次の1歩を滑らせる時間。前の1歩から間が空いた時(止まっていた)は最初の値。続けて歩く間は、間隔と前の値の中間 */
+export function nextSlideMs(prev: number, sinceLast: number | null): number {
+  if (sinceLast === null || sinceLast > SLIDE_MAX_MS * 2) return SLIDE_FIRST_MS;
+  const t = Math.min(SLIDE_MAX_MS, Math.max(SLIDE_MIN_MS, sinceLast));
+  return (prev + t) / 2;
+}
+
+/** 残りのずれ rem(px)を、0 に向かって speed(px/ms)で dt ms 分減らす。行き過ぎない */
+export function stepSlide(rem: { x: number; y: number }, speed: number, dt: number): { x: number; y: number } {
+  const len = Math.hypot(rem.x, rem.y);
+  const move = speed * dt;
+  if (len <= move || len === 0) return { x: 0, y: 0 };
+  const k = (len - move) / len;
+  return { x: rem.x * k, y: rem.y * k };
+}
 
 /**
- * 実験的: 自分の位置が前の地図から何マス動いたか。ずらして見せる時だけ返す。
- * 世界が違う時、動いていない時、3マス以上飛んだ時(テレポートや一様な床の後)は null
+ * 自分の位置が前から何マス動いたか。ずらして見せる時だけ返す。
+ * 世界が違う時(world に epoch を含めると、テレポートやタブの切り替えも)、動いていない時、3マス以上飛んだ時は null
  */
 export function slideStep(
   last: { world?: string; x: number; y: number } | null,

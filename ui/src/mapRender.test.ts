@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { arrangeRow, drawRange, itemDrawRect, selfPos, slideStep, viewArea, viewFor } from "./mapRender.ts";
+import { arrangeRow, drawRange, itemDrawRect, nextSlideMs, selfPos, SLIDE_FIRST_MS, slideStep, stepSlide, viewArea, viewFor } from "./mapRender.ts";
 
 test("アイテムは Philly と同じく床の上端の8px上に描く(#41)", () => {
   const r = itemDrawRect(1, " ".charCodeAt(0), 32, 64);
@@ -85,4 +85,15 @@ test("ずらして描く時は、ずらした向きの反対側の外周の列�
   assert.deepEqual(drawRange(view, { x: -64, y: 64 }, 13, 9, 32), { c0: 1, c1: 12, r0: 0, r1: 7 });
   // 7x7 は全部見せるので、ずらしても全部描く
   assert.deepEqual(drawRange({ x: 0, y: 0, w: 7, h: 7 }, { x: 20, y: -20 }, 7, 7, 32), { c0: 0, c1: 6, r0: 0, r1: 6 });
+});
+
+test("スムーズ移動は、続けて歩く間は歩いた間隔に合わせ、残りを等速で減らす", () => {
+  // 止まっていた後は最初の値、続けて歩く間は間隔へ寄せる
+  assert.equal(nextSlideMs(0, null), SLIDE_FIRST_MS);
+  assert.equal(nextSlideMs(110, 1000), SLIDE_FIRST_MS);
+  assert.equal(nextSlideMs(110, 130), 120);
+  assert.equal(nextSlideMs(110, 10), 95);
+  // 32px を 0.32px/ms で 50ms 進めると残り 16px、もう 100ms で 0(行き過ぎない)
+  assert.deepEqual(stepSlide({ x: 32, y: 0 }, 0.32, 50), { x: 16, y: 0 });
+  assert.deepEqual(stepSlide({ x: 16, y: 0 }, 0.32, 100), { x: 0, y: 0 });
 });

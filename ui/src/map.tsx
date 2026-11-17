@@ -14,7 +14,7 @@ import { trace } from "./trace.ts";
 import { isNorthFix, KEY_EVENT, MOUSE_EVENT, sendLine, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { predictedMap } from "./predict.ts";
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
-import { CHIP_SIZE, MAP_TOP, SLIDE_MS, selfPos, slideStep, viewArea, viewCover, viewFor } from "./mapRender";
+import { CHIP_SIZE, MAP_TOP, nextSlideMs, selfPos, slideStep, stepSlide, viewArea, viewCover, viewFor } from "./mapRender";
 import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
 import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type CondEvent, type MapChar, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
@@ -269,8 +269,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     if (!props.embedded) getCurrentWindow().setTitle(title).catch(console.error);
   }, [title]);
 
-  // 実験的: 自分が進んだ時に、地図を前の位置から滑らかにずらす(表示のメニューで切り替える)。
-  // 北固定で、#ex-pos の届く世界だけ。ずらす間は最大 SLIDE_MS、画面の位置がサーバの位置より遅れる
+  // 実験的: 自分が進んだ時に、地図を前の位置から滑らかにずらす(表示のメニューで切り替える)。北固定の時だけ
   useEffect(() => {
     const apply = (s: Settings) => {
       setSmooth(s.smoothMove);
@@ -283,30 +282,49 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
       unlisten.then((f) => f());
     };
   }, []);
+  // 自分の位置は、#v6 G を送るサーバでは main 窓が数えた歩いた分(walk)、他は #ex-pos(map.pos)。
+  // walk は #v6 G が届いた時点(地図より先)で変わるので、地図を待たずに滑らせ始める。
+  // 滑らせている途中で次の1歩が来たら、残りに足して続ける。速さは、残りを歩く間隔で滑りきる速さにする
   const [slide, setSlide] = useState<{ x: number; y: number } | null>(null);
   const lastPos = useRef<{ world?: string; x: number; y: number } | null>(null);
+  const anim = useRef({ rem: { x: 0, y: 0 }, speed: 0, ms: 0, last: null as number | null, raf: 0, t: 0 });
+  const walk = state?.walk;
+  const here = walk
+    ? { world: `${world}#${walk.epoch}`, x: walk.x, y: walk.y }
+    : map?.pos && { world, x: map.pos.x, y: map.pos.y };
   useEffect(() => {
-    const p = map?.pos;
-    if (!p) return;
-    const now = { world, x: p.x, y: p.y };
-    const step = smooth && northFix ? slideStep(lastPos.current, now) : null;
-    lastPos.current = now;
-    if (!step) return;
-    const start = performance.now();
-    let raf = 0;
-    const tick = () => {
-      const t = Math.min(1, (performance.now() - start) / SLIDE_MS);
-      const k = (1 - t) * CHIP_SIZE;
-      // 整数の px にする。端数の位置に描くと、チップの境目が隣と混ざって線に見える
-      setSlide(t >= 1 ? null : { x: Math.round(step.dx * k), y: Math.round(step.dy * k) });
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    tick();
-    return () => {
-      cancelAnimationFrame(raf);
+    if (!here) return;
+    const step = smooth && northFix ? slideStep(lastPos.current, here) : null;
+    lastPos.current = here;
+    const a = anim.current;
+    if (!step) {
+      // 飛んだ時と、滑らせない時は残りを捨てる
+      cancelAnimationFrame(a.raf);
+      a.raf = 0;
+      a.rem = { x: 0, y: 0 };
       setSlide(null);
+      return;
+    }
+    const now = performance.now();
+    a.ms = nextSlideMs(a.ms, a.last === null ? null : now - a.last);
+    a.last = now;
+    // 遅れが2マスより溜まらないようにする
+    const cap = (v: number) => Math.max(-2 * CHIP_SIZE, Math.min(2 * CHIP_SIZE, v));
+    a.rem = { x: cap(a.rem.x + step.dx * CHIP_SIZE), y: cap(a.rem.y + step.dy * CHIP_SIZE) };
+    a.speed = Math.hypot(a.rem.x, a.rem.y) / a.ms;
+    if (a.raf) return;
+    a.t = now;
+    const tick = (t: number) => {
+      a.rem = stepSlide(a.rem, a.speed, Math.max(0, t - a.t));
+      a.t = t;
+      const done = a.rem.x === 0 && a.rem.y === 0;
+      // 整数の px にする。端数の位置に描くと、チップの境目が隣と混ざって線に見える
+      setSlide(done ? null : { x: Math.round(a.rem.x), y: Math.round(a.rem.y) });
+      a.raf = done ? 0 : requestAnimationFrame(tick);
     };
-  }, [map?.pos?.x, map?.pos?.y, world]);
+    a.raf = requestAnimationFrame(tick);
+  }, [here?.world, here?.x, here?.y]);
+  useEffect(() => () => cancelAnimationFrame(anim.current.raf), []);
 
   useEffect(() => {
     const ctx = mapCanvas.current?.getContext("2d");

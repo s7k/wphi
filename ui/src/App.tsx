@@ -259,10 +259,13 @@ export function App() {
   const mapStatePort = useRef<MessageChannel | null>(null);
   // 表のタブの位置の予想。返事を待ちきった移動を進んだとみなす
   const predictor = useRef(new Predictor());
-  /** 予想を使うか。v6 の北固定で、#ex-pos の届く世界の時だけ(docs/05-protocol-v6.md の 4.4) */
+  /**
+   * 予想を使うか。v6 の北固定で、#ex-pos の届く世界か #v6 G を送るサーバの時だけ(docs/05-protocol-v6.md の 4.4 と 7.2)。
+   * #v6 G で確かめる時は位置を照らし合わせないので、#ex-pos は要らない
+   */
   const predicting = (session: number) => {
     const map = mapStates.current.get(session)?.map;
-    return session === activeRef.current && !!map?.v6 && !!map.pos && isNorthFix(map);
+    return session === activeRef.current && !!map?.v6 && isNorthFix(map) && (!!map.pos || predictor.current.confirms);
   };
   useEffect(() => {
     predictor.current.reset();
@@ -333,9 +336,10 @@ export function App() {
         const s = mapStateSession.current;
         const state = s === null ? undefined : mapStates.current.get(s);
         const predict = predictor.current.offset;
+        const walk = predictor.current.walk;
         trace("main emit");
         // 宛先は to で見分ける(map.tsx)。main 窓の中の地図にも届くよう、全部の窓へ送る
-        emit(MAP_STATE_EVENT, { ...(state ?? { session: -1, mapset: "" }), predict, to }).catch((e) => console.error(e));
+        emit(MAP_STATE_EVENT, { ...(state ?? { session: -1, mapset: "" }), predict, walk, to }).catch((e) => console.error(e));
       };
     }
     mapStatePort.current.port2.postMessage(null);
@@ -668,7 +672,7 @@ export function App() {
       case "map":
         s.map = ev;
         trace("main map");
-        if (session === activeRef.current && ev.pos) predictor.current.onMap(`${ev.pos.x},${ev.pos.y}`, ev);
+        if (session === activeRef.current) predictor.current.onMap(ev.pos ? `${ev.pos.x},${ev.pos.y}` : null, ev);
         break;
       case "status": {
         // 裏のタブで HP か MP が減ったら、タブに印を付ける

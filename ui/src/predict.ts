@@ -53,6 +53,10 @@ export class Predictor {
   private acked = false;
   /** 最後に届いた地図の後に #v6 G で確かめた、動いた差 */
   private moved = { dx: 0, dy: 0 };
+  /** #v6 G で確かめた、1 マスずつ歩いた分の合計。地図が来ても戻さない */
+  private walked = { x: 0, y: 0 };
+  /** 飛んだ時とやり直した時に増やす。walk の差を比べない印 */
+  private epoch = 0;
   /** 移動を送ってから地図か「進めません」が届くまでの時間(ms)。新しい方の SAMPLES 個 */
   private samples: number[] = [];
   private lastGuess = -Infinity;
@@ -66,6 +70,18 @@ export class Predictor {
   get offset(): { dx: number; dy: number } {
     const g = sum(this.guessed);
     return { dx: this.moved.dx + g.dx, dy: this.moved.dy + g.dy };
+  }
+
+  /** サーバが #v6 G を送るか */
+  get confirms(): boolean {
+    return this.acked;
+  }
+
+  /** 歩いた分を足した位置(進んだとみなした分も含む)。#v6 G を送るサーバだけ */
+  get walk(): { x: number; y: number; epoch: number } | undefined {
+    if (!this.acked) return undefined;
+    const g = sum(this.guessed);
+    return { x: this.walked.x + g.dx, y: this.walked.y + g.dy, epoch: this.epoch };
   }
 
   /** 返事を待っている移動があるか */
@@ -94,16 +110,18 @@ export class Predictor {
    * 前の地図からのずれと、古い方から足した移動のずれが合う所までを、返事の来た移動とみなす。
    * 一様な所では進んでも地図が来ないので、地図は「進んだとみなした移動」と「待っている移動」のどちらへの返事にもなる
    */
-  onMap(pos: string, map: MapEvent | null = null) {
+  onMap(pos: string | null, map: MapEvent | null = null) {
     this.map = map;
-    const [x, y] = pos.split(",").map(Number);
-    const prev = this.base;
-    this.base = { x, y };
     if (this.acked) {
-      // #v6 G は地図より先に届くので、地図は返事の来た移動を全部含む。返事の来ていない移動はそのまま
+      // #v6 G は地図より先に届くので、地図は返事の来た移動を全部含む。返事の来ていない移動はそのまま。
+      // 位置は使わないので、#ex-pos の届かない世界でもよい
       this.moved = { dx: 0, dy: 0 };
       return;
     }
+    if (!pos) return;
+    const [x, y] = pos.split(",").map(Number);
+    const prev = this.base;
+    this.base = { x, y };
     if (prev && prev.x === x && prev.y === y) {
       // 位置の変わらない地図(他のキャラが動いた)。進んだとみなした分は、まだ進んでいない
       this.guessed = [];
@@ -154,9 +172,11 @@ export class Predictor {
     }
     if (Math.abs(dx) + Math.abs(dy) === 1) {
       this.moved = { dx: this.moved.dx + dx, dy: this.moved.dy + dy };
+      this.walked = { x: this.walked.x + dx, y: this.walked.y + dy };
     } else if (dx || dy) {
       this.moved = { dx: 0, dy: 0 };
       this.guessed = [];
+      this.epoch++;
     }
     const after = this.offset;
     return before.dx !== after.dx || before.dy !== after.dy;
@@ -201,6 +221,7 @@ export class Predictor {
     this.map = null;
     this.acked = false;
     this.moved = { dx: 0, dy: 0 };
+    this.epoch++;
     this.lastGuess = -Infinity;
   }
 }

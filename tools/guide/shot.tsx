@@ -10,8 +10,8 @@ import "../../ui/src/style.css";
 
 const SERVER = "http://127.0.0.1:5180";
 const text = (path: string) => fetch(SERVER + path).then((r) => r.text());
-// ?modern でモダンの画面にする
-const settings = { ...DEFAULT_SETTINGS, singleWindow: true, modern: location.search.includes("modern") };
+// ?modern でモダンの画面に、?smooth でスムーズ移動にする
+const settings = { ...DEFAULT_SETTINGS, singleWindow: true, modern: location.search.includes("modern"), smoothMove: location.search.includes("smooth") };
 
 mockIPC(
   async (cmd, args: any) => {

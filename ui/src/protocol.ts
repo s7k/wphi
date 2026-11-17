@@ -127,6 +127,11 @@ export type MapState = {
   listChecked?: boolean[];
   /** 実験的: 最後に届いた地図の位置から、main 窓が予想したずれ(ui/src/predict.ts) */
   predict?: { dx: number; dy: number };
+  /**
+   * #v6 G を送るサーバで、自キャラが歩いた分を足した位置(ui/src/predict.ts の walk)。原点は決めず、差だけに使う。
+   * epoch が変わったら(タブの切り替え・テレポート)前の位置とは比べない。スムーズ移動が使う
+   */
+  walk?: { x: number; y: number; epoch: number };
 };
 
 /**
