@@ -1479,9 +1479,11 @@ button > svg:only-child,
   display: grid;
   place-items: center;
   color: #fff;
-  background: rgb(16 20 24 / 75%);
-  border: 1.5px solid rgb(255 255 255 / 55%);
+  /* 茶色のリュックが目立つよう、明るい地にする */
+  background: rgb(240 234 220 / 92%);
+  border: 1.5px solid rgb(0 0 0 / 55%);
   border-radius: 50%;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 40%);
   cursor: pointer;
 }
 
@@ -1493,7 +1495,7 @@ button > svg:only-child,
 }
 
 .bag-button:hover {
-  background: rgb(40 46 54 / 90%);
+  background: rgb(255 252 244);
 }
 
 .bag-panel {
@@ -1507,9 +1509,8 @@ button > svg:only-child,
   display: flex;
   flex-direction: column;
   color: #fff;
-  /* 札(.sign-card)より明るい青灰色。白い文字が読める明るさまで */
-  background: rgb(84 94 108 / 95%);
-  border: 1.5px solid rgb(255 255 255 / 65%);
+  background: rgb(16 20 24 / 92%);
+  border: 1.5px solid rgb(255 255 255 / 55%);
   border-radius: 12px;
   box-shadow: 0 4px 16px rgb(0 0 0 / 45%);
 }
@@ -1562,7 +1563,7 @@ button > svg:only-child,
 }
 
 .bag-tile.empty {
-  background: rgb(255 255 255 / 10%);
+  background: rgb(255 255 255 / 6%);
   border: 1px dashed rgb(255 255 255 / 25%);
   box-shadow: none;
   cursor: default;
