@@ -2,58 +2,51 @@
 // 行の書式は phi_dm の docs/dev/protocol-v6.md の「持ち物とインベントリ」。v6 で、世界が有効にしている時だけ届く
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { lightenColors } from "./logLines.ts";
-import {
-  Apple,
-  Axe,
-  Bone,
-  BookOpen,
-  Coins,
-  Crosshair,
-  Feather,
-  Gem,
-  Hammer,
-  Hand,
-  Package,
-  ScrollText,
-  Search,
-  Shield,
-  Slice,
-  Sparkles,
-  Sword,
-  Swords,
-  Target,
-  Wand,
-  Wind,
-  X,
-  Zap,
-  type LucideIcon,
-} from "lucide-react";
+import { Search, X } from "lucide-react";
+import { ITEM_PIXELS, PALETTE, WEAPON_PIXELS } from "./pixelIcons.ts";
 import type { ItemInfo } from "./protocol";
 
 /** 用途(IT_*)の番号 */
 const IT = { armor: 1, weapon: 2, food: 3, resource: 4, jewel: 5, charge: 6, accessory: 7, spellJewel: 8, evently: 12, scroll: 13, currency: 14 };
 
-/** 武器の種類(WT_*)の絵柄。拳・剣・刃・突き・槍・斧・打撃・鞭・牙・広範囲・周囲 */
-const WEAPON_ICON: LucideIcon[] = [Hand, Sword, Slice, Crosshair, Wand, Axe, Hammer, Wind, Bone, Swords, Target];
-
-/** 用途の絵柄。武器は WEAPON_ICON */
-const ITEM_ICON: Partial<Record<number, LucideIcon>> = {
-  [IT.armor]: Shield,
-  [IT.food]: Apple,
-  [IT.resource]: Package,
-  [IT.jewel]: Gem,
-  [IT.charge]: Zap,
-  [IT.accessory]: Sparkles,
-  [IT.spellJewel]: BookOpen,
-  [IT.evently]: Feather,
-  [IT.scroll]: ScrollText,
-  [IT.currency]: Coins,
+/** 用途のドット絵の名前(pixelIcons.ts の ITEM_PIXELS) */
+const ITEM_PIXEL_NAME: Partial<Record<number, string>> = {
+  [IT.armor]: "armor",
+  [IT.food]: "food",
+  [IT.resource]: "resource",
+  [IT.jewel]: "jewel",
+  [IT.charge]: "charge",
+  [IT.accessory]: "accessory",
+  [IT.spellJewel]: "spellJewel",
+  [IT.scroll]: "scroll",
+  [IT.currency]: "currency",
 };
+
+const pixelsOf = (it: ItemInfo) =>
+  it.it === IT.weapon ? (WEAPON_PIXELS[it.wt] ?? WEAPON_PIXELS[1]) : ITEM_PIXELS[ITEM_PIXEL_NAME[it.it] ?? "other"];
+
+/** 16x16 のドット絵を、横に続く同じ色のドットを 1 つの四角にまとめた SVG で描く。ぼやけないよう crispEdges にする */
+function Pixels(props: { rows: string[]; size: number }) {
+  const rects: React.ReactElement[] = [];
+  props.rows.forEach((row, y) => {
+    let x = 0;
+    while (x < row.length) {
+      const c = row[x];
+      let w = 1;
+      while (row[x + w] === c) w++;
+      if (c !== ".") rects.push(<rect key={`${x},${y}`} x={x} y={y} width={w} height={1} fill={PALETTE[c]} />);
+      x += w;
+    }
+  });
+  return (
+    <svg width={props.size} height={props.size} viewBox="0 0 16 16" shapeRendering="crispEdges" aria-hidden="true">
+      {rects}
+    </svg>
+  );
+}
 
 /** 属性(FN_*)の色。無・地・光・風・霊・水・火・鏡・プリズム・虹 */
 const ELEMENT_COLOR = ["#59606a", "#9a6b3c", "#c9a227", "#3f9d8e", "#7d5bc4", "#3577c4", "#c4482f", "#8d98a6", "#c45aa8", "rainbow"];
-
-const iconOf = (it: ItemInfo) => (it.it === IT.weapon ? (WEAPON_ICON[it.wt] ?? Sword) : (ITEM_ICON[it.it] ?? Package));
 
 /** 装備の印の文字 */
 const EQUIP_LABEL: Record<string, string> = { W: "武", A: "防", O: "装" };
@@ -85,7 +78,6 @@ function details(it: ItemInfo): string[] {
 function Tile(props: { item: ItemInfo | null; selected: boolean; onClick?: () => void }) {
   const it = props.item;
   if (!it) return <div className="bag-tile empty" />;
-  const Icon = iconOf(it);
   const color = ELEMENT_COLOR[it.fn] ?? ELEMENT_COLOR[0];
   return (
     <button
@@ -95,7 +87,7 @@ function Tile(props: { item: ItemInfo | null; selected: boolean; onClick?: () =>
       title={[it.name, ...details(it)].join("\n")}
       onClick={props.onClick}
     >
-      <Icon size={26} strokeWidth={2} />
+      <Pixels rows={pixelsOf(it)} size={48} />
       {EQUIP_LABEL[it.eq] && <span className="bag-equip">{EQUIP_LABEL[it.eq]}</span>}
       {it.count !== undefined && <span className="bag-count">{it.count}</span>}
       {it.ready > 0 && <span className="bag-wait" />}
