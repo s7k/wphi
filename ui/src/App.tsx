@@ -13,7 +13,8 @@ import { MASTER_EXP, parseMasterMagic, runMasterItem, type MasterMenu } from "./
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { SENT_EVENT, type Sent } from "./keyInput";
 import { isNorthFix, isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
-import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskOptions } from "./keys.ts";
+import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskOptions, type Mods } from "./keys.ts";
+import { MAX_UNCONFIRMED, walkable, Walker } from "./walker.ts";
 import { AskDialog } from "./AskDialog";
 import { alertBox, confirmBox, MessageDialogHost } from "./MessageDialog";
 import { popupTagMenu } from "./TagMenuPopup";
@@ -268,15 +269,33 @@ export function App() {
     const map = mapStates.current.get(session)?.map;
     return session === activeRef.current && !!map?.v6 && isNorthFix(map) && (!!map.pos || predictor.current.confirms);
   };
+  // スムーズ移動の歩き方(ui/src/walker.ts)。#v6 G を送るサーバで、スムーズ移動が有効な北固定の時だけ
+  const walker = useRef(new Walker<Mods>());
+  const walking = (session: number) => settingsRef.current.smoothMove && predicting(session) && predictor.current.confirms;
+  /** 押しているキーと追尾移動の向きで、次の1歩を送る。前の1歩を滑らせている間と、返事の来ていない移動が多い間は送らない */
+  const stepWalker = (session: number | null) => {
+    if (session === null || !walking(session)) return;
+    const s = walker.current.next(predictor.current.unconfirmed < MAX_UNCONFIRMED);
+    if (!s) return;
+    for (const k of s.keys) {
+      const text = moveCommand(k, s.mods, true);
+      predictor.current.walkStep(text, s.ms);
+      sendLine(session, text);
+    }
+    sendMapState(session);
+  };
   useEffect(() => {
     predictor.current.reset();
+    walker.current.clear();
     if (active === null) return;
     const timer = setInterval(() => {
       if (predictor.current.tick()) sendMapState(activeRef.current);
+      stepWalker(activeRef.current);
     }, PREDICT_TICK_MS);
     return () => {
       clearInterval(timer);
       predictor.current.reset();
+      walker.current.clear();
       sendMapState(activeRef.current);
     };
   }, [active]);
@@ -504,6 +523,14 @@ export function App() {
         return true;
       }
       const move = moveInput(e, ctx);
+      // 離したキーは、歩き方を切り替えた後でも残らないように必ず消す
+      if (e.type === "keyup") walker.current.keyUp(e.code);
+      if (move && ctx.northFix && walkable(move.key) && walking(session)) {
+        trace(`main ${e.type} ${e.code}${e.repeat ? " repeat" : ""} walk`);
+        if (e.type === "keydown") walker.current.keyDown(e.code, move.key, move.mods);
+        stepWalker(session);
+        return true;
+      }
       // 押し続けた時は OS のキーリピートに任せ、keydown のたびに1歩送る(Philly より前のクライアントと同じ)。
       // サーバは1ティックに1行ずつ処理するので、リピートが速いと離した後も少し歩く。
       // 位置を予想する時だけは Philly と同じく、リピートは前の移動の返事(地図・「進めません」・予想)を待つ。
@@ -643,7 +670,13 @@ export function App() {
       if (session === null) return;
       if (m.type === "hit") sendLine(session, "hit");
       else {
-        // 追尾移動は長押しと同じ速さにする。位置を予想する時は前の移動の返事を待ち、他は FOLLOW_MS に1歩まで
+        // 追尾移動は長押しと同じ速さにする。スムーズ移動で歩く時は歩き方に任せる(ui/src/walker.ts)。
+        // 位置を予想する時は前の移動の返事を待ち、他は FOLLOW_MS に1歩まで
+        if (m.type === "follow" && walking(session)) {
+          walker.current.setFollow(m.keys, "none");
+          stepWalker(session);
+          return;
+        }
         if (m.type === "follow") {
           const now = performance.now();
           if ((predicting(session) && predictor.current.waiting) || now - lastFollow < FOLLOW_MS) return;

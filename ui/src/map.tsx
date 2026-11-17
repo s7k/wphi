@@ -330,19 +330,21 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
       unlisten.then((f) => f());
     };
   }, []);
-  // 自分の位置は、#v6 G を送るサーバでは main 窓が数えた歩いた分(walk)と、それが変わった時刻。他は #ex-pos(map.pos)と届いた時刻。
-  // 見せるのは今より少し前の時刻の位置で、届いた位置の間を直線で補う(mapRender.ts の walkAt)。
-  // 届くのが遅れても動く速さが変わらず、続けて歩く間は止まらない
+  // 自分の位置は、#v6 G を送るサーバでは main 窓が数えた歩いた分(walk)。1歩を始めた時刻(at)と滑らせる時間(ms)が付き、
+  // 今見せている位置から at + ms に新しい位置へ着くように滑らせる(ui/src/walker.ts が、滑りきるまで次の1歩を送らない)。
+  // 他の世界は #ex-pos(map.pos)と届いた時刻で、今より少し前の時刻の位置を、届いた位置の間を直線で補って見せる(mapRender.ts の walkAt)
   // ずらす量(px)。滑らせる間は毎フレーム変わるので、state にせず描き直しを直接呼ぶ(React の描き直しを通すと、フレームが落ちる)
   const slide = useRef<{ x: number; y: number } | null>(null);
   const paint = useRef(() => {});
   const lastPos = useRef<{ world?: string; x: number; y: number } | null>(null);
   const walks = useRef<WalkSample[]>([]);
   const raf = useRef(0);
+  /** 1歩の時間が付いた位置か(#v6 G のサーバ)。滑らせている途中で変わっても、描く時に今の値を見る */
+  const timed = useRef(false);
   const walk = state?.walk;
   const here = walk
-    ? { world: `${world}#${walk.epoch}`, x: walk.x, y: walk.y, at: walk.at }
-    : map?.pos && { world, x: map.pos.x, y: map.pos.y, at: 0 };
+    ? { world: `${world}#${walk.epoch}`, x: walk.x, y: walk.y, at: walk.at, ms: walk.ms }
+    : map?.pos && { world, x: map.pos.x, y: map.pos.y, at: 0, ms: 0 };
   useEffect(() => {
     if (!here) return;
     const step = smooth && northFix ? slideStep(lastPos.current, here) : null;
@@ -357,12 +359,21 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
       paint.current();
       return;
     }
-    walks.current = addWalk(walks.current, s);
+    timed.current = here.ms > 0;
+    if (timed.current) {
+      // 今見せている位置から、main 窓の1歩の終わる時刻に着くように滑らせる。届くのが遅れても跳ばない
+      const now = performance.timeOrigin + performance.now();
+      const from = walks.current.length ? walkAt(walks.current, now) : { x: s.x - step.dx, y: s.y - step.dy };
+      walks.current = [
+        { at: now, ...from },
+        { at: Math.max(now + 16, here.at + here.ms), x: s.x, y: s.y },
+      ];
+    } else walks.current = addWalk(walks.current, s);
     if (raf.current) return;
     const tick = () => {
       const ws = walks.current;
       const last = ws[ws.length - 1];
-      const d = walkAt(ws, performance.timeOrigin + performance.now() - walkDelay(ws));
+      const d = walkAt(ws, performance.timeOrigin + performance.now() - (timed.current ? 0 : walkDelay(ws)));
       const done = d.x === last.x && d.y === last.y;
       // 整数の px にする。端数の位置に描くと、チップの境目が隣と混ざって線に見える
       slide.current = done ? null : { x: Math.round((last.x - d.x) * CHIP_SIZE), y: Math.round((last.y - d.y) * CHIP_SIZE) };

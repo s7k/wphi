@@ -31,6 +31,10 @@ const SERVER_TICK_MS = 100;
 const LATE_MAP_MS = 400;
 /** #v6 G を送るサーバで、これより待っても返事の来ない移動は捨てる(移動先の選択の最中の go は番号として読まれ、返事が来ない) */
 const MOVED_GIVE_UP_MS = 1500;
+/** スムーズ移動で1マスを滑らせる時間(ms)。サーバは 0.1 秒に1行ずつ処理するので、それに合わせる */
+export const STEP_MS = 100;
+/** 進んだとみなした分が外れて戻す時に滑らせる時間(ms) */
+const CORRECT_MS = 80;
 /** tick() を呼ぶ間隔。待ちきった時刻からの遅れはこれ以内 */
 export const PREDICT_TICK_MS = 20;
 
@@ -57,8 +61,9 @@ export class Predictor {
   private walked = { x: 0, y: 0 };
   /** 飛んだ時とやり直した時に増やす。walk の差を比べない印 */
   private epoch = 0;
-  /** walk が最後に変わった時刻(now() の値) */
+  /** walk が最後に変わった時刻(now() の値)と、そこから walk の位置まで滑らせる時間(ms) */
   private walkedAt = 0;
+  private walkMs = STEP_MS;
   /** 移動を送ってから地図か「進めません」が届くまでの時間(ms)。新しい方の SAMPLES 個 */
   private samples: number[] = [];
   private lastGuess = -Infinity;
@@ -80,10 +85,32 @@ export class Predictor {
   }
 
   /** 歩いた分を足した位置(進んだとみなした分も含む)。#v6 G を送るサーバだけ */
-  get walk(): { x: number; y: number; epoch: number; at: number } | undefined {
+  get walk(): { x: number; y: number; epoch: number; at: number; ms: number } | undefined {
     if (!this.acked) return undefined;
     const g = sum(this.guessed);
-    return { x: this.walked.x + g.dx, y: this.walked.y + g.dy, epoch: this.epoch, at: this.walkedAt };
+    return { x: this.walked.x + g.dx, y: this.walked.y + g.dy, epoch: this.epoch, at: this.walkedAt, ms: this.walkMs };
+  }
+
+  /** 進んだとみなしたが、#v6 G の返事がまだ来ていない移動の数 */
+  get unconfirmed(): number {
+    return this.guessed.length;
+  }
+
+  /**
+   * スムーズ移動で1歩を送った時(ui/src/walker.ts)。返事を待たずに進んだとみなし、その位置まで ms で滑らせる。
+   * 前に送って返事を待っている移動も、送った順を崩さないよう進んだとみなす側へ移す
+   */
+  walkStep(text: string, ms: number) {
+    const m = /^go ([NESWnesw])$/.exec(text);
+    if (!m) return;
+    const now = this.now();
+    this.guessed.push(...this.queue.splice(0));
+    const step = { ...STEP[m[1].toLowerCase()], at: now };
+    // 鍵の掛かった箱と扉へは進まない。#v6 G 0 0 と順番を合わせる為、動かない1歩として残す
+    this.guessed.push(this.locked(step) ? { dx: 0, dy: 0, at: now } : step);
+    this.lastGuess = now;
+    this.walkedAt = now;
+    this.walkMs = ms;
   }
 
   /** 返事を待っている移動があるか */
@@ -182,7 +209,11 @@ export class Predictor {
     }
     const after = this.offset;
     const changed = before.dx !== after.dx || before.dy !== after.dy;
-    if (changed) this.walkedAt = this.now();
+    if (changed) {
+      // 進んだとみなした分が外れた時の戻しは短く滑らせる
+      this.walkedAt = this.now();
+      this.walkMs = CORRECT_MS;
+    }
     return changed;
   }
 
@@ -195,6 +226,7 @@ export class Predictor {
       if (oldest && now - oldest.at > MOVED_GIVE_UP_MS) {
         if (this.guessed.shift()) {
           this.walkedAt = now;
+          this.walkMs = CORRECT_MS;
           return true;
         }
         this.queue.shift();
@@ -204,9 +236,14 @@ export class Predictor {
     if (!head || now - head.at < this.wait || now - this.lastGuess < SERVER_TICK_MS) return false;
     this.lastGuess = now;
     const m = this.queue.shift()!;
-    if (this.locked(m)) return false;
+    if (this.locked(m)) {
+      // #v6 G を送るサーバは鍵の掛かった所へも 0 0 を返すので、順番を合わせる為に動かない1歩として残す
+      if (this.acked) this.guessed.push({ dx: 0, dy: 0, at: m.at });
+      return false;
+    }
     this.guessed.push(m);
     this.walkedAt = now;
+    this.walkMs = STEP_MS;
     return true;
   }
 
