@@ -846,7 +846,8 @@ body {
   background: #d4d0c8;
   border: 2px outset #fff;
   box-shadow: 0 2px 12px rgb(0 0 0 / 35%);
-  z-index: 3;
+  /* 設定と取得の画面。モダンで地図に重ねる物(方角・ログ・札 3〜6)より上、確かめる窓(.ask-backdrop 20)より下 */
+  z-index: 15;
 }
 
 .settings-body {
