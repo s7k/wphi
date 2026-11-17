@@ -643,9 +643,14 @@ export function grassJitter(h: number): { deco: 'tuft' | 'pebble' | null; x: num
   };
 }
 
+/** 建物の外周とみなす地形。壁('#'、'H')、扉('['、'{')、窓('|')、ガラス('=')、檻('I') */
+const BUILDING_EDGE = new Set(["#", "H", "[", "{", "|", "=", "I"].map((c) => c.charCodeAt(0)));
+
 /**
- * 見えないマス('?')の分け方。0 は見えるマス、1 は盤面の端につながる見えない所(世界の外など。霧で描く)、
- * 2 は盤面の端に触れない見えない所(壁で囲まれた建物の中など。屋根で描く)。上下左右でつながる範囲ごとに決める
+ * 見えないマス('?')の分け方。0 は見えるマス、1 は屋根にしない見えない所(チップのまま描く)、
+ * 2 は建物の中(屋根で描く)。上下左右でつながる範囲ごとに決める。
+ * 建物の中とみなすのは、盤面の端に触れず、上下左右で接する見えるマスが全部建物の外周(BUILDING_EDGE)の範囲だけ。
+ * 床や草に囲まれた見えない所に屋根が乗ると、建物の無い所に屋根の幽霊が出る
  */
 export function unknownKinds(cells: { chip: number }[], width: number, height: number): Uint8Array {
   const kind = new Uint8Array(width * height);
@@ -663,6 +668,31 @@ export function unknownKinds(cells: { chip: number }[], width: number, height: n
     if (x < width - 1) stack.push(i + 1);
     if (y > 0) stack.push(i - width);
     if (y < height - 1) stack.push(i + width);
+  }
+  // 残った範囲ごとに、接する見えるマスを調べる。建物の外周でない物があれば、範囲を 1 にする
+  const seen = new Uint8Array(width * height);
+  for (let start = 0; start < kind.length; start++) {
+    if (kind[start] !== 2 || seen[start]) continue;
+    const region: number[] = [];
+    let building = true;
+    const todo = [start];
+    seen[start] = 1;
+    while (todo.length) {
+      const i = todo.pop()!;
+      region.push(i);
+      const [x, y] = [i % width, Math.floor(i / width)];
+      for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) {
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        const j = ny * width + nx;
+        if (kind[j] === 2) {
+          if (!seen[j]) {
+            seen[j] = 1;
+            todo.push(j);
+          }
+        } else if (!kind[j] && !BUILDING_EDGE.has(cells[j]?.chip)) building = false;
+      }
+    }
+    if (!building) for (const i of region) kind[i] = 1;
   }
   return kind;
 }

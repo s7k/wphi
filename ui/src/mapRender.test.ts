@@ -125,3 +125,12 @@ test("見えないマスは、端につながる所を霧、壁に囲まれた�
   assert.deepEqual([on(3, 2), on(3, 1), on(2, 2), on(4, 2), on(2, 1)], [1, 1, 1, 1, 1]);
   assert.deepEqual([on(3, 3), on(2, 3), on(4, 3), on(0, 0)], [0, 0, 0, 0]);
 });
+
+test("床や草に囲まれた見えない所には屋根を乗せない", () => {
+  // 7x5。左は壁に囲まれた見えない所(屋根)、右は草に囲まれた見えない所(屋根にしない)
+  const rows = [".......", ".###.:.", ".#?#:?:", ".#[#.:.", "......."];
+  const cells = rows.join("").split("").map((c) => ({ chip: c.charCodeAt(0) }));
+  const kinds = unknownKinds(cells, 7, 5);
+  assert.equal(kinds[2 * 7 + 2], 2);
+  assert.equal(kinds[2 * 7 + 5], 1);
+});
