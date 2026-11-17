@@ -103,6 +103,8 @@ pub struct Item {
     pub name: String,
     /// 名前をタグの色と大きさを付けた HTML にした物(ログの行と同じ作り)。画面に出す
     pub html: String,
+    /// サーバが送ったままの名前(タグを含む)。equip のように名前で指すコマンドに使う
+    pub raw_name: String,
 }
 
 /// タグ(`/*…*/`)を除く
@@ -149,6 +151,7 @@ fn parse_item(fields: &str) -> Item {
             "elem" => it.elem = v.to_string(),
             "name" => {
                 it.name = strip_tags(v);
+                it.raw_name = v.to_string();
                 it.html = crate::tag_to_html::to_html(v, &crate::tag_to_html::LogOptions::default());
             }
             _ => {}

@@ -1694,6 +1694,12 @@ button > svg:only-child,
   cursor: pointer;
 }
 
+.bag-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .bag-detail button:disabled {
   opacity: 0.5;
   cursor: default;

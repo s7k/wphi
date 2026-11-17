@@ -126,6 +126,8 @@ export type ItemInfo = {
   name: string;
   /** タグの色と大きさを付けた HTML の名前(画面に出す) */
   html: string;
+  /** サーバが送ったままの名前(タグを含む)。equip に使う */
+  rawName: string;
 };
 
 export type EagleEyeEvent = {

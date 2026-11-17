@@ -1245,6 +1245,7 @@ export function App() {
             message={tab.bagMessage ?? ""}
             onPut={(slot) => sendLine(tab.session, `#ex-inv put ${slot}`)}
             onGet={(no) => sendLine(tab.session, `#ex-inv get ${no}`)}
+            onSend={(text) => sendLines(tab.session, text)}
             onClose={() => update(tab.session, (t) => ({ ...t, bagOpen: false }))}
           />
         )}

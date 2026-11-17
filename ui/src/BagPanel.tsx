@@ -75,6 +75,26 @@ function details(it: ItemInfo): string[] {
   return lines;
 }
 
+/**
+ * 手持ちの物の操作。use と put の番号は、空きを詰めて数えた何番目か(phi_dm の item_count)。
+ * equip は名前で指し、まだ装備していない最初の物を装備する。unequip は装備中の物の一覧(武器・防具・その他の順)の番号で外す
+ */
+function handActions(hand: (ItemInfo | null)[], i: number): { label: string; send?: string; bag?: boolean; note?: string }[] {
+  const it = hand[i]!;
+  const no = hand.slice(0, i + 1).filter(Boolean).length;
+  const equipped = !!EQUIP_LABEL[it.eq];
+  const order = ["W", "A", "O"].filter((e) => hand.some((h) => h?.eq === e));
+  const equipNo = order.indexOf(it.eq) + 1;
+  return [
+    { label: "使う", send: `use ${no}` },
+    equipped
+      ? { label: "外す", send: `unequip\n${equipNo}` }
+      : { label: "装備する", send: `equip ${it.rawName || it.name}` },
+    { label: "置く", send: equipped ? undefined : `put ${no}`, note: equipped ? "装備中の物は置けません" : undefined },
+    { label: "カバンに入れる", bag: !equipped, note: equipped ? "装備中の物は入れられません" : undefined },
+  ];
+}
+
 function Tile(props: { item: ItemInfo | null; selected: boolean; onClick?: () => void }) {
   const it = props.item;
   if (!it) return <div className="bag-tile empty" />;
@@ -103,6 +123,8 @@ export function BagPanel(props: {
   message: string;
   onPut: (slot: number) => void;
   onGet: (no: number) => void;
+  /** サーバへ1行か複数行を送る(use・equip・unequip・put) */
+  onSend: (text: string) => void;
   onClose: () => void;
 }) {
   const [sel, setSel] = useState<{ where: "hand" | "bag"; i: number } | null>(null);
@@ -174,16 +196,23 @@ export function BagPanel(props: {
               <div key={l}>{l}</div>
             ))}
             {sel.where === "hand" ? (
-              <button
-                type="button"
-                disabled={!!EQUIP_LABEL[picked.eq]}
-                onClick={() => {
-                  props.onPut(sel.i + 1);
-                  setSel(null);
-                }}
-              >
-                {EQUIP_LABEL[picked.eq] ? "装備中は入れられません" : "カバンに入れる"}
-              </button>
+              <div className="bag-actions">
+                {handActions(hand, sel.i).map((a) => (
+                  <button
+                    key={a.label}
+                    type="button"
+                    disabled={!a.send && !a.bag}
+                    title={a.note}
+                    onClick={() => {
+                      if (a.bag) props.onPut(sel.i + 1);
+                      else if (a.send) props.onSend(a.send);
+                      setSel(null);
+                    }}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
             ) : (
               <button
                 type="button"
