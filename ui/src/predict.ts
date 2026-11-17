@@ -38,7 +38,11 @@ const CORRECT_MS = 80;
 /** tick() を呼ぶ間隔。待ちきった時刻からの遅れはこれ以内 */
 export const PREDICT_TICK_MS = 20;
 
-type Move = { dx: number; dy: number; at: number };
+/**
+ * 移動。wall は通れない文字のマスへ向かって止めた1歩で、その行き先(walk の座標)。サーバが通せば隠し通路として覚える。
+ * tunnel は隠し通路の中で、壁の文字のマスでも進んだとみなした1歩
+ */
+type Move = { dx: number; dy: number; at: number; wall?: { x: number; y: number }; tunnel?: boolean };
 /** 黙って進めない地形。鍵の掛かった箱('%')と扉('{')。パスウォールなら進めるが、その時は地図が来て戻る */
 const LOCKED = new Set(["%", "{"].map((c) => c.charCodeAt(0)));
 /**
@@ -48,6 +52,8 @@ const LOCKED = new Set(["%", "{"].map((c) => c.charCodeAt(0)));
  * 深い水と浅い水は同じ '_' なので止めない
  */
 const BLOCKED = new Set(["%", "{", "@", "T", "I", "|", "=", "?", "#", "H"].map((c) => c.charCodeAt(0)));
+/** 隠し扉と同じ文字で届く壁。サーバが通した所は隠し通路として覚える */
+const WALLS = new Set(["#", "H"].map((c) => c.charCodeAt(0)));
 
 const sum = (ms: Move[]) => ms.reduce((o, m) => ({ dx: o.dx + m.dx, dy: o.dy + m.dy }), { dx: 0, dy: 0 });
 
@@ -73,6 +79,10 @@ export class Predictor {
   private walkMs = STEP_MS;
   /** 最後に通れない所へ向かった1歩の向きと時刻。地図はその場で揺らして見せる */
   private bumped: { dx: number; dy: number; at: number } | null = null;
+  /** サーバが通した壁の文字のマス(隠し通路)。walk の座標で覚え、epoch が変わったら忘れる。自分が通った所だけ */
+  private passed = new Set<string>();
+  /** 隠し通路を通れた向き。同じ向きに続く壁の文字のマスも通れるとみなす。外れたら null */
+  private tunnel: { dx: number; dy: number } | null = null;
   /** 移動を送ってから地図か「進めません」が届くまでの時間(ms)。新しい方の SAMPLES 個 */
   private samples: number[] = [];
   private lastGuess = -Infinity;
@@ -117,15 +127,21 @@ export class Predictor {
     if (!m) return;
     const now = this.now();
     this.guessed.push(...this.queue.splice(0));
-    const step = { ...STEP[m[1].toLowerCase()], at: now };
+    const step: Move = { ...STEP[m[1].toLowerCase()], at: now };
     this.lastGuess = now;
-    if (this.blocks(step, BLOCKED)) {
+    const g = sum(this.guessed);
+    const to = { x: this.walked.x + g.dx + step.dx, y: this.walked.y + g.dy + step.dy };
+    const wall = this.blocks(step, WALLS);
+    const inTunnel = wall && this.tunnel?.dx === step.dx && this.tunnel?.dy === step.dy;
+    if (!wall) this.tunnel = null;
+    if (this.blocks(step, BLOCKED) && !this.passed.has(`${to.x},${to.y}`) && !inTunnel) {
       // 通れない所へは進まず、その場で揺らす。#v6 G 0 0 と順番を合わせる為、動かない1歩として残す
-      this.guessed.push({ dx: 0, dy: 0, at: now });
+      this.guessed.push({ dx: 0, dy: 0, at: now, wall: wall ? to : undefined });
       this.bumped = { dx: step.dx, dy: step.dy, at: now };
       return;
     }
-    this.guessed.push(step);
+    // 通った隠し通路と、隠し通路の中で同じ向きに続く壁は進む
+    this.guessed.push(wall ? { ...step, tunnel: true } : step);
     this.walkedAt = now;
     this.walkMs = ms;
   }
@@ -212,17 +228,27 @@ export class Predictor {
   onMoved(dx: number, dy: number): boolean {
     const before = this.offset;
     this.acked = true;
-    if (!this.guessed.shift()) {
+    const answered = this.guessed.shift();
+    if (!answered) {
       const m = this.queue.shift();
       if (m) this.measure(m);
     }
-    if (Math.abs(dx) + Math.abs(dy) === 1) {
+    const unit = Math.abs(dx) + Math.abs(dy) === 1;
+    if (answered?.wall && unit) {
+      // 止めた壁の文字のマスをサーバが通した。隠し通路として覚え、同じ向きに続く壁も通れるとみなす
+      this.passed.add(`${answered.wall.x},${answered.wall.y}`);
+      this.tunnel = { dx, dy };
+    } else if (answered?.tunnel && unit) this.passed.add(`${this.walked.x + dx},${this.walked.y + dy}`);
+    else if (answered?.tunnel) this.tunnel = null;
+    if (unit) {
       this.moved = { dx: this.moved.dx + dx, dy: this.moved.dy + dy };
       this.walked = { x: this.walked.x + dx, y: this.walked.y + dy };
     } else if (dx || dy) {
       this.moved = { dx: 0, dy: 0 };
       this.guessed = [];
       this.epoch++;
+      this.passed.clear();
+      this.tunnel = null;
     }
     const after = this.offset;
     const changed = before.dx !== after.dx || before.dy !== after.dy;
@@ -284,6 +310,8 @@ export class Predictor {
     this.map = null;
     this.acked = false;
     this.bumped = null;
+    this.passed.clear();
+    this.tunnel = null;
     this.moved = { dx: 0, dy: 0 };
     this.epoch++;
     this.lastGuess = -Infinity;

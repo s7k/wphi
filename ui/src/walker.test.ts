@@ -107,3 +107,34 @@ test("壁や木へ向かった1歩は進んだとみなさず、揺れの印を�
   assert.equal(p.unconfirmed, 0);
   assert.deepEqual(p.offset, { dx: 0, dy: 1 });
 });
+
+test("見た目が壁の隠し通路は、サーバが通したら覚え、同じ向きに続く壁も進む。行き止まりで元に戻す", () => {
+  let t = 0;
+  const p = new Predictor(() => t);
+  // 5x5 の中央 (2,2) が自キャラ。北に壁が2マス続く
+  const cells = Array.from({ length: 25 }, (_, i) => ({ chip: (i === 7 || i === 2 ? "#" : " ").charCodeAt(0), attr: 0 }));
+  const map = { type: "map", width: 5, height: 5, v6: true, dir: 0, style: "solid", cells, chars: [] } as MapEvent;
+  p.onMoved(0, 0);
+  p.onMap(null, map);
+  // 1歩目は壁とみなして揺らすが、サーバが通した
+  p.walkStep("go N", WALK_MS);
+  assert.deepEqual(p.offset, { dx: 0, dy: 0 });
+  assert.equal(p.onMoved(0, -1), true);
+  assert.deepEqual(p.offset, { dx: 0, dy: -1 });
+  // 2歩目は同じ向きの壁なので、隠し通路の中とみなして進む
+  p.walkStep("go N", WALK_MS);
+  assert.deepEqual(p.offset, { dx: 0, dy: -2 });
+  // 行き止まりだった。元に戻し、隠し通路の中とみなすのもやめる
+  p.onMoved(0, 0);
+  assert.deepEqual(p.offset, { dx: 0, dy: -1 });
+  p.walkStep("go N", WALK_MS);
+  assert.deepEqual(p.offset, { dx: 0, dy: -1 });
+  p.onMoved(0, 0);
+  // 南へ戻ってから、もう一度北へ。1歩目に通った壁のマスは覚えているので、揺らさずに進む
+  p.walkStep("go S", WALK_MS);
+  p.onMoved(0, 1);
+  p.onMap(null, map);
+  p.walkStep("go N", WALK_MS);
+  assert.deepEqual(p.offset, { dx: 0, dy: -1 });
+  t += 1;
+});
