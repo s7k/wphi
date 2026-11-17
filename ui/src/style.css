@@ -1507,8 +1507,9 @@ button > svg:only-child,
   display: flex;
   flex-direction: column;
   color: #fff;
-  background: rgb(16 20 24 / 92%);
-  border: 1.5px solid rgb(255 255 255 / 55%);
+  /* 札(.sign-card)より明るい青灰色。白い文字が読める明るさまで */
+  background: rgb(84 94 108 / 95%);
+  border: 1.5px solid rgb(255 255 255 / 65%);
   border-radius: 12px;
   box-shadow: 0 4px 16px rgb(0 0 0 / 45%);
 }
@@ -1561,7 +1562,7 @@ button > svg:only-child,
 }
 
 .bag-tile.empty {
-  background: rgb(255 255 255 / 6%);
+  background: rgb(255 255 255 / 10%);
   border: 1px dashed rgb(255 255 255 / 25%);
   box-shadow: none;
   cursor: default;
