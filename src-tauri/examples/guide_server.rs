@@ -82,13 +82,13 @@ fn world_chip(x: i32, y: i32) -> u8 {
     }
 }
 
-/// 地図の幅と高さ。ログと同じ窓の地図は 13x11 マスを見せ、セッションは外周を1マスずつ足して求める(session.rs の view_line)。
-/// 環境変数 GUIDE_VIEW="W H" で変える(大きい窓で撮る時)
+/// 地図の幅と高さ。既定は、モダンの 1000x640 の窓を覆う 33x25(外周込み)。窓より大きい分は、地図の欄の中央だけを見せる。
+/// 環境変数 GUIDE_VIEW="W H" で変える
 fn view() -> (i32, i32) {
     std::env::var("GUIDE_VIEW")
         .ok()
         .and_then(|v| v.split_once(' ').and_then(|(w, h)| Some((w.parse().ok()?, h.parse().ok()?))))
-        .unwrap_or((15, 13))
+        .unwrap_or((33, 25))
 }
 
 /// 自分が (x, y) にいる時の、北固定の v6 の受信行
