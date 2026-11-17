@@ -1654,6 +1654,11 @@ button > svg:only-child,
 .bag-name {
   font-weight: bold;
   font-size: 14px;
+  text-shadow: 0 1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, 0 -1px 0 #000;
+}
+
+.bag-name [data-lc] {
+  color: var(--lc) !important;
 }
 
 .bag-detail button {

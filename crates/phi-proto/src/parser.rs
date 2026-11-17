@@ -99,7 +99,28 @@ pub struct Item {
     pub wtype: String,
     pub mat: String,
     pub elem: String,
+    /// 名前。タグ(`/*color=red*/` など)を除いた物で、探す時と説明の文に使う
     pub name: String,
+    /// 名前をタグの色と大きさを付けた HTML にした物(ログの行と同じ作り)。画面に出す
+    pub html: String,
+}
+
+/// タグ(`/*…*/`)を除く
+fn strip_tags(s: &str) -> String {
+    let mut out = String::new();
+    let mut rest = s;
+    while let Some(i) = rest.find("/*") {
+        out.push_str(&rest[..i]);
+        match rest[i + 2..].find("*/") {
+            Some(j) => rest = &rest[i + 2 + j + 2..],
+            None => {
+                rest = "";
+                break;
+            }
+        }
+    }
+    out.push_str(rest);
+    out.trim().to_string()
 }
 
 /// `#v6 I` / `#ex-inv I` の番号の後ろの欄(タブで区切った キー=値)を読む
@@ -126,7 +147,10 @@ fn parse_item(fields: &str) -> Item {
             "wtype" => it.wtype = v.to_string(),
             "mat" => it.mat = v.to_string(),
             "elem" => it.elem = v.to_string(),
-            "name" => it.name = v.to_string(),
+            "name" => {
+                it.name = strip_tags(v);
+                it.html = crate::tag_to_html::to_html(v, &crate::tag_to_html::LogOptions::default());
+            }
             _ => {}
         }
     }
@@ -1192,6 +1216,12 @@ mod tests {
         let [Event::Bag { items }] = evs.as_slice() else { panic!("{evs:?}") };
         assert_eq!((items[0].count, items[0].name.as_str()), (Some(3), "Wand"));
         assert_eq!(p.feed(b"#ex-inv no hand"), vec![Event::BagRefused { reason: "hand".into() }]);
+        // 名前のタグは除き、HTML では色にする
+        p.feed(b"#ex-inv I 1\tname=/*color=red*/Ruby/*.*/ ring");
+        let evs = p.feed(b"#ex-inv .");
+        let [Event::Bag { items }] = evs.as_slice() else { panic!("{evs:?}") };
+        assert_eq!(items[0].name, "Ruby ring");
+        assert!(items[0].html.contains("color:red"), "{}", items[0].html);
     }
 
     #[test]

@@ -37,7 +37,7 @@ import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, TRA
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
 import { LogFind } from "./LogFind";
-import { pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
+import { lightenColors, pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
 import { ArrowDownToLine, Backpack, Check, FolderOpen, Import, Megaphone, MessageSquare, Layers, Plug, Plus, Save, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
 
 // src-tauri/src/characters.rs の Store
@@ -1773,27 +1773,6 @@ function CharacterList(props: {
       <NewCharacter onCreated={props.onChanged} onError={props.onError} />
     </div>
   );
-}
-
-/**
- * まだ見ていない行の、親と違う色の要素に、その色を白へ寄せた色を --lc で付ける。
- * 色は Log.css のクラスとタグの style の両方から来るので、付いた結果の色を読む。行ごとに一度だけ見る
- */
-function lightenColors(root: HTMLElement) {
-  const lines = root.querySelectorAll<HTMLElement>("[data-line]:not([data-lc-done])");
-  // 先に全部の色を読んでから書く。書きながら読むと、子が薄くした親の色と比べることになる
-  const found: [HTMLElement, string][] = [];
-  for (const line of lines) {
-    for (const el of line.querySelectorAll<HTMLElement>("*")) {
-      const color = getComputedStyle(el).color;
-      if (el.parentElement && color !== getComputedStyle(el.parentElement).color) found.push([el, color]);
-    }
-  }
-  for (const [el, color] of found) {
-    el.style.setProperty("--lc", `color-mix(in srgb, ${color} 45%, white)`);
-    el.dataset.lc = "";
-  }
-  for (const line of lines) line.dataset.lcDone = "";
 }
 
 /** 追尾移動で、続けて送る間隔の下限(ms)。サーバは 0.1 秒に1行ずつ処理する */

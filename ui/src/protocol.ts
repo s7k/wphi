@@ -122,7 +122,10 @@ export type ItemInfo = {
   wtype: string;
   mat: string;
   elem: string;
+  /** タグを除いた名前(探す時と説明の文) */
   name: string;
+  /** タグの色と大きさを付けた HTML の名前(画面に出す) */
+  html: string;
 };
 
 export type EagleEyeEvent = {

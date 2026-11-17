@@ -1,6 +1,7 @@
 // カバン。手持ちの 8 個(#v6 I)とインベントリ(#ex-inv)をアイコンで並べ、出し入れする。
 // 行の書式は phi_dm の docs/dev/protocol-v6.md の「持ち物とインベントリ」。v6 で、世界が有効にしている時だけ届く
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lightenColors } from "./logLines.ts";
 import {
   Apple,
   Axe,
@@ -126,6 +127,10 @@ export function BagPanel(props: {
     [props.bag, tab, query],
   );
   const picked = sel?.where === "hand" ? hand[sel.i] : sel ? (props.bag?.[sel.i - 1] ?? null) : null;
+  const detail = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (detail.current) lightenColors(detail.current);
+  }, [picked?.html]);
   return (
     <div className="bag-panel" role="dialog" aria-label="カバン">
       <div className="sign-head">
@@ -170,8 +175,9 @@ export function BagPanel(props: {
           )}
         </div>
         {picked && sel && (
-          <div className="bag-detail">
-            <div className="bag-name">{picked.name}</div>
+          <div className="bag-detail" ref={detail}>
+            {/* html は phi-proto の tag_to_html がエスケープ済みで作ったもの。札と同じく色を白へ寄せる */}
+            <div className="bag-name" data-line="name" key={picked.html} dangerouslySetInnerHTML={{ __html: picked.html }} />
             {details(picked).map((l) => (
               <div key={l}>{l}</div>
             ))}
