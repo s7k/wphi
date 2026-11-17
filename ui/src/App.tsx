@@ -336,7 +336,8 @@ export function App() {
         const s = mapStateSession.current;
         const state = s === null ? undefined : mapStates.current.get(s);
         const predict = predictor.current.offset;
-        const walk = predictor.current.walk;
+        const w = predictor.current.walk;
+        const walk = w && { ...w, at: performance.timeOrigin + w.at };
         trace("main emit");
         // 宛先は to で見分ける(map.tsx)。main 窓の中の地図にも届くよう、全部の窓へ送る
         emit(MAP_STATE_EVENT, { ...(state ?? { session: -1, mapset: "" }), predict, walk, to }).catch((e) => console.error(e));

@@ -57,6 +57,8 @@ export class Predictor {
   private walked = { x: 0, y: 0 };
   /** 飛んだ時とやり直した時に増やす。walk の差を比べない印 */
   private epoch = 0;
+  /** walk が最後に変わった時刻(now() の値) */
+  private walkedAt = 0;
   /** 移動を送ってから地図か「進めません」が届くまでの時間(ms)。新しい方の SAMPLES 個 */
   private samples: number[] = [];
   private lastGuess = -Infinity;
@@ -78,10 +80,10 @@ export class Predictor {
   }
 
   /** 歩いた分を足した位置(進んだとみなした分も含む)。#v6 G を送るサーバだけ */
-  get walk(): { x: number; y: number; epoch: number } | undefined {
+  get walk(): { x: number; y: number; epoch: number; at: number } | undefined {
     if (!this.acked) return undefined;
     const g = sum(this.guessed);
-    return { x: this.walked.x + g.dx, y: this.walked.y + g.dy, epoch: this.epoch };
+    return { x: this.walked.x + g.dx, y: this.walked.y + g.dy, epoch: this.epoch, at: this.walkedAt };
   }
 
   /** 返事を待っている移動があるか */
@@ -179,7 +181,9 @@ export class Predictor {
       this.epoch++;
     }
     const after = this.offset;
-    return before.dx !== after.dx || before.dy !== after.dy;
+    const changed = before.dx !== after.dx || before.dy !== after.dy;
+    if (changed) this.walkedAt = this.now();
+    return changed;
   }
 
   /** PREDICT_TICK_MS ごとに呼ぶ。返事を待ちきった移動を1つ、進んだとみなす。ずれが変われば true */
@@ -189,7 +193,10 @@ export class Predictor {
     if (this.acked) {
       const oldest = this.guessed[0] ?? head;
       if (oldest && now - oldest.at > MOVED_GIVE_UP_MS) {
-        if (this.guessed.shift()) return true;
+        if (this.guessed.shift()) {
+          this.walkedAt = now;
+          return true;
+        }
         this.queue.shift();
         return false;
       }
@@ -199,6 +206,7 @@ export class Predictor {
     const m = this.queue.shift()!;
     if (this.locked(m)) return false;
     this.guessed.push(m);
+    this.walkedAt = now;
     return true;
   }
 

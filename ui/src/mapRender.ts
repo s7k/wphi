@@ -559,29 +559,47 @@ export function cellIndex(x: number, y: number, size: number): number {
   return y * size + x;
 }
 
-/**
- * スムーズ移動で1歩を滑らせる時間(ms)の下限と上限と、止まっていた後の最初の値。
- * 長押しで歩く間は、歩いた間隔に合わせて滑らせ、次の1歩までの間に止まらないようにする。
- * サーバは 0.1 秒に1行しか処理しないので、歩く間隔は 100ms に回線の揺れを足した物になる
- */
-export const SLIDE_MIN_MS = 80;
-export const SLIDE_MAX_MS = 250;
-export const SLIDE_FIRST_MS = 110;
+/** スムーズ移動の、自分の位置とその時刻(ms。窓をまたいで比べる絶対の時刻) */
+export type WalkSample = { at: number; x: number; y: number };
 
-/** 次の1歩を滑らせる時間。前の1歩から間が空いた時(止まっていた)は最初の値。続けて歩く間は、間隔と前の値の中間 */
-export function nextSlideMs(prev: number, sinceLast: number | null): number {
-  if (sinceLast === null || sinceLast > SLIDE_MAX_MS * 2) return SLIDE_FIRST_MS;
-  const t = Math.min(SLIDE_MAX_MS, Math.max(SLIDE_MIN_MS, sinceLast));
-  return (prev + t) / 2;
+/**
+ * スムーズ移動で、見せる位置を今より遅らせる時間(ms)の下限と上限。
+ * 見せるのは「今より少し前の時刻の位置」で、届いた位置の間を直線で補う。届くのが遅れても(窓の間の受け渡しで 7〜26ms 揺れる)
+ * 動く速さは変わらない。下限は、止まっていた後の1歩目の時間(SLIDE_FIRST_MS)に、受け渡しの遅れを足した物
+ */
+export const SLIDE_MIN_MS = 130;
+export const SLIDE_MAX_MS = 250;
+/** 止まっていた後の1歩目を滑らせる時間。サーバは 0.1 秒に1歩 */
+export const SLIDE_FIRST_MS = 100;
+
+/** 新しい位置を足す。止まっていた後(前の位置から SLIDE_MAX_MS より空いた)の1歩目は、その SLIDE_FIRST_MS 前まで前の位置にいた事にする。古い分は捨てる */
+export function addWalk(samples: WalkSample[], s: WalkSample): WalkSample[] {
+  const last = samples[samples.length - 1];
+  const out = [...samples];
+  if (last && s.at - last.at > SLIDE_MAX_MS) out.push({ ...last, at: s.at - SLIDE_FIRST_MS });
+  out.push(s);
+  return out.slice(-8);
 }
 
-/** 残りのずれ rem(px)を、0 に向かって speed(px/ms)で dt ms 分減らす。行き過ぎない */
-export function stepSlide(rem: { x: number; y: number }, speed: number, dt: number): { x: number; y: number } {
-  const len = Math.hypot(rem.x, rem.y);
-  const move = speed * dt;
-  if (len <= move || len === 0) return { x: 0, y: 0 };
-  const k = (len - move) / len;
-  return { x: rem.x * k, y: rem.y * k };
+/** 遅らせる時間。続けて歩いている間の最近の間隔の最大を、下限と上限で挟む。間隔より短いと、次の位置が届く前に追いついて止まる */
+export function walkDelay(samples: WalkSample[]): number {
+  let d = SLIDE_MIN_MS;
+  for (let i = 1; i < samples.length; i++) {
+    const gap = samples[i].at - samples[i - 1].at;
+    if (gap <= SLIDE_MAX_MS) d = Math.max(d, gap + SLIDE_MIN_MS - SLIDE_FIRST_MS);
+  }
+  return Math.min(SLIDE_MAX_MS, d);
+}
+
+/** 時刻 t に見せる位置。前後の位置の間を直線で補う。最初より前は最初、最後より後は最後 */
+export function walkAt(samples: WalkSample[], t: number): { x: number; y: number } {
+  const i = samples.findIndex((s) => s.at > t);
+  const only = (s: WalkSample) => ({ x: s.x, y: s.y });
+  if (i === 0) return only(samples[0]);
+  if (i < 0) return only(samples[samples.length - 1]);
+  const [a, b] = [samples[i - 1], samples[i]];
+  const k = (t - a.at) / (b.at - a.at);
+  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
 }
 
 /**
