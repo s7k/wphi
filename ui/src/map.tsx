@@ -20,6 +20,8 @@ import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type CondEvent, type
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
 import { hideOnClose, useImages, useScreenshot } from "./windowUtil";
 import { findChar, MAP_POP_EVENT, type Pop, type PopKind } from "./mapPop.ts";
+import { Pixels } from "./BagPanel.tsx";
+import { COMPASS_PIXELS } from "./pixelIcons.ts";
 
 /** Philly のキャラのアニメ周期(PersonalThread.h の ANIMATION_INTERVAL = 500ms) */
 const ANIMATION_MS = 500;
@@ -660,8 +662,11 @@ function ModernHud(props: { title: string; now?: StatusEvent; cond?: CondEvent; 
         {bar("mp", s?.mp, s?.maxMp)}
         <CondBadges cond={props.cond} />
       </div>
-      <div className="modern-compass">
-        <Compass dir={props.dir} northFix={props.northFix} />
+      {/* カバンとステータスのボタンと同じ丸に、ドット絵の針を描く。北固定でない地図は向きに合わせて回す */}
+      <div className="modern-compass" title={props.northFix ? "北固定" : "回転"}>
+        <div style={{ transform: `rotate(${props.dir * 45}deg)` }}>
+          <Pixels rows={COMPASS_PIXELS} size={32} />
+        </div>
       </div>
     </>
   );
