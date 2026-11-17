@@ -69,6 +69,11 @@ export interface DrawMapInput {
   slide?: { x: number; y: number };
   /** 窓に見せる範囲(mapRender.ts の viewArea)。canvas の左上に (x, y) のマスが来る。省略時は全部 */
   view?: { x: number; y: number; w: number; h: number };
+  /**
+   * スムーズ移動で、描いた地図をずらして写す時(map.tsx)。others は自キャラ以外を描き、self は自キャラだけを
+   * 消さずに上へ描く
+   */
+  only?: 'self' | 'others';
 }
 
 /** EagleEye でアイテムのマスに描くマップチップ(Philly の MapChipCache->Draw(..., 19, ...)) */
@@ -101,6 +106,16 @@ export function drawMap(
   const scale = cs / CHIP_SIZE; // 1 or 2
 
   const view = input.view ?? { x: 0, y: 0, w: width, h: height };
+  if (input.only === 'self') {
+    const me = input.self ?? { x: (width - 1) >> 1, y: (height - 1) >> 1 };
+    ctx.save();
+    ctx.translate(-view.x * cs, -view.y * cs);
+    for (const { ch, dx } of arrangeRow(input.chars.filter((c) => c.x === me.x && c.y === me.y))) {
+      drawChara(ctx, ch, cs, scale, imgs, animFrame, dx * scale, input.eagleEye ? 0 : CHARA_Y_ABOVE_FLOOR * scale);
+    }
+    ctx.restore();
+    return;
+  }
   ctx.clearRect(0, 0, view.w * cs, view.h * cs);
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, view.w * cs, view.h * cs);
@@ -191,7 +206,7 @@ export function drawMap(
     }
 
     // 4. キャラ(この行)。同じマスに2人いれば横にずらす(arrangeRow)
-    const rowChars = input.chars.filter((c) => c.y === row && inRange(c) && !(slide && atCenter(c)));
+    const rowChars = input.chars.filter((c) => c.y === row && inRange(c) && !((slide || input.only === 'others') && atCenter(c)));
     for (const { ch, dx } of arrangeRow(rowChars)) {
       drawChara(ctx, ch, cs, scale, imgs, animFrame, dx * scale, input.eagleEye ? 0 : CHARA_Y_ABOVE_FLOOR * scale);
     }

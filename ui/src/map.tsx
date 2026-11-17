@@ -65,6 +65,9 @@ const AMOUNT_CLASS: Partial<Record<PopKind, string>> = {
 /** MAP_STATE_EVENT などの宛先。main 窓の中に置いた地図なら "main" */
 export type MapPlace = "map" | "main";
 
+/** スムーズ移動で、地図の周りに余分に描くマス数。見せる位置の遅れ(mapRender.ts の walkDelay)は2マスまで */
+const SLIDE_MARGIN = 2;
+
 /** モダンで窓を埋める時の、見せるマス数の上限。v6 のサーバの上限(北固定 31x23、回転 23x23。phi_dm の docs/dev/protocol-v6.md) */
 const MODERN_MAX = { w: 31, h: 23 };
 
@@ -132,7 +135,10 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
   // main 窓が位置を予想していれば(ui/src/predict.ts)、最後の v6 の地図を予想した位置へずらして描く
   const raw = state?.map;
   const pred = state?.predict;
-  const map = raw && pred && (pred.dx || pred.dy) ? predictedMap(raw, pred.dx, pred.dy) : raw;
+  const map = useMemo(
+    () => (raw && pred && (pred.dx || pred.dy) ? predictedMap(raw, pred.dx, pred.dy) : raw),
+    [raw, pred?.dx, pred?.dy],
+  );
   const [area, setArea] = useState({ w: 0, h: 0 });
   useEffect(() => {
     const el = mapArea.current;
@@ -196,7 +202,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     return () => clearTimeout(t);
   }, [shown, viewW, viewH]);
   // MapState は status などが変わっただけでも新しいオブジェクトで届くので、マップは中身で比べる
-  const mapKey = JSON.stringify(map ?? null);
+  const mapKey = useMemo(() => JSON.stringify(map ?? null), [map]);
   const square = props.modern ? Math.max(viewW, viewH) : Math.min(viewW, viewH);
   const view = northFix ? { w: viewW, h: viewH } : { w: square, h: square };
   // 盤面は届いた地図のまま描き、窓には view の範囲を見せる(v6 は外周1マスが窓の外)
@@ -285,7 +291,9 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
   // 自分の位置は、#v6 G を送るサーバでは main 窓が数えた歩いた分(walk)と、それが変わった時刻。他は #ex-pos(map.pos)と届いた時刻。
   // 見せるのは今より少し前の時刻の位置で、届いた位置の間を直線で補う(mapRender.ts の walkAt)。
   // 届くのが遅れても動く速さが変わらず、続けて歩く間は止まらない
-  const [slide, setSlide] = useState<{ x: number; y: number } | null>(null);
+  // ずらす量(px)。滑らせる間は毎フレーム変わるので、state にせず描き直しを直接呼ぶ(React の描き直しを通すと、フレームが落ちる)
+  const slide = useRef<{ x: number; y: number } | null>(null);
+  const paint = useRef(() => {});
   const lastPos = useRef<{ world?: string; x: number; y: number } | null>(null);
   const walks = useRef<WalkSample[]>([]);
   const raf = useRef(0);
@@ -303,7 +311,8 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
       walks.current = [s];
       cancelAnimationFrame(raf.current);
       raf.current = 0;
-      setSlide(null);
+      slide.current = null;
+      paint.current();
       return;
     }
     walks.current = addWalk(walks.current, s);
@@ -314,17 +323,23 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
       const d = walkAt(ws, performance.timeOrigin + performance.now() - walkDelay(ws));
       const done = d.x === last.x && d.y === last.y;
       // 整数の px にする。端数の位置に描くと、チップの境目が隣と混ざって線に見える
-      setSlide(done ? null : { x: Math.round((last.x - d.x) * CHIP_SIZE), y: Math.round((last.y - d.y) * CHIP_SIZE) });
+      slide.current = done ? null : { x: Math.round((last.x - d.x) * CHIP_SIZE), y: Math.round((last.y - d.y) * CHIP_SIZE) };
+      paint.current();
       raf.current = done ? 0 : requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
   }, [here?.world, here?.x, here?.y]);
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
 
-  useEffect(() => {
+  // 滑らせる間は、周りに SLIDE_MARGIN マス広く描いた地図(自キャラ以外)を layer に1回描き、毎フレームはそれをずらして写して
+  // 自キャラだけを上に描く。毎フレーム全部のマスを描くと、遅い WebView(WebKitGTK)では 60fps に間に合わない
+  const layer = useRef<HTMLCanvasElement | null>(null);
+  const layerDirty = useRef(true);
+  paint.current = () => {
     const ctx = mapCanvas.current?.getContext("2d");
     if (!ctx || !board || !state) return;
-    trace("map draw");
+    const t0 = performance.now();
+    const s = slide.current;
     // 上の余白は透明にし、マップはその下から描く(一番上の行のはみ出しは余白に出る)。
     // 余白と地図の外は欄の灰色にして、地図の中の何も無い黒いマスと見分けられるようにする
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -338,9 +353,46 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
       items: image(assetUrl("items")),
       chara: image,
     };
-    drawMap(ctx, { ...board, mapset: state.mapset, slide: slide ?? undefined }, imgs, frame);
-    // 描き直すのはマップ・地形・アニメ・画像の読み込み・大きさ・ずらす量が変わった時だけ。#status だけの変化では描かない
-  }, [board, frame, loaded, state?.mapset, state?.defines?.join(), slide]);
+    const input = { ...board, mapset: state.mapset };
+    if (!s) {
+      drawMap(ctx, input, imgs, frame);
+      trace(`map draw ${(performance.now() - t0).toFixed(1)}ms`);
+      return;
+    }
+    const m = SLIDE_MARGIN * CHIP_SIZE;
+    const [w, h] = [ctx.canvas.width, ctx.canvas.height];
+    if (layerDirty.current || !layer.current) {
+      const l = (layer.current ??= document.createElement("canvas"));
+      [l.width, l.height] = [w + 2 * m, h + 2 * m];
+      const lc = l.getContext("2d")!;
+      lc.setTransform(1, 0, 0, 1, 0, 0);
+      lc.imageSmoothingEnabled = false;
+      lc.clearRect(0, 0, l.width, MAP_TOP);
+      lc.translate(0, MAP_TOP);
+      const v = board.view;
+      drawMap(
+        lc,
+        { ...input, view: { x: v.x - SLIDE_MARGIN, y: v.y - SLIDE_MARGIN, w: v.w + 2 * SLIDE_MARGIN, h: v.h + 2 * SLIDE_MARGIN }, only: "others" },
+        imgs,
+        frame,
+      );
+      layerDirty.current = false;
+    }
+    // 上の余白は止まっている時と同じく透明にし、地図の部分だけを写す
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const [sx, sy] = [m - Math.max(-m, Math.min(m, s.x)), m - Math.max(-m, Math.min(m, s.y))];
+    ctx.drawImage(layer.current!, sx, sy + MAP_TOP, w, h - MAP_TOP, 0, MAP_TOP, w, h - MAP_TOP);
+    ctx.translate(0, MAP_TOP);
+    drawMap(ctx, { ...input, only: "self" }, imgs, frame);
+    trace(`map slide ${(performance.now() - t0).toFixed(1)}ms`);
+  };
+  // 描き直すのはマップ・地形・アニメ・画像の読み込み・大きさが変わった時だけ。#status だけの変化では描かない。
+  // ずらす量が変わった時は、滑らせる処理が paint を直接呼ぶ
+  useEffect(() => {
+    layerDirty.current = true;
+    paint.current();
+  }, [board, frame, loaded, state?.mapset, state?.defines?.join()]);
 
   const canvasLeft = snap((area.w - boardW * CHIP_SIZE * zoom) / 2);
   const canvasTop = snap((area.h - (boardH * CHIP_SIZE + MAP_TOP) * zoom) / 2);

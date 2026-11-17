@@ -4,7 +4,6 @@ import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import type { Channel } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { createRoot } from "react-dom/client";
-import { App } from "../../ui/src/App";
 import { DEFAULT_SETTINGS } from "../../ui/src/settings.ts";
 import "../../ui/src/style.css";
 
@@ -61,6 +60,12 @@ mockIPC(
       case "set_map_view":
         (window as any).guideView = args;
         return null;
+      // ?trace で時刻の記録(ui/src/trace.ts)を window.guideTrace に溜める
+      case "trace_on":
+        return location.search.includes("trace");
+      case "trace":
+        ((window as any).guideTrace ??= []).push(`${Math.round(args.at)} ${args.what}`);
+        return null;
       case "download_items":
         return JSON.parse(await text("/download_items"));
       default:
@@ -73,4 +78,6 @@ mockIPC(
 mockWindows("main");
 // 撮る側(shoot.mjs)がメニューを選ぶ為
 (window as any).menu = (id: string) => emit("phi-menu", id);
+// App は差し替えた後に読む。読んだ時に Tauri を呼ぶモジュール(trace.ts)が、差し替える前の物を呼ばないように
+const { App } = await import("../../ui/src/App");
 createRoot(document.getElementById("root")!).render(<App />);
