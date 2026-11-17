@@ -331,9 +331,10 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
   }, [here?.world, here?.x, here?.y]);
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
 
-  // 滑らせる間は、周りに SLIDE_MARGIN マス広く描いた地図(自キャラ以外)を layer に1回描き、毎フレームはそれをずらして写して
-  // 自キャラだけを上に描く。毎フレーム全部のマスを描くと、遅い WebView(WebKitGTK)では 60fps に間に合わない
-  const layer = useRef<HTMLCanvasElement | null>(null);
+  // 滑らせる間は、周りに SLIDE_MARGIN マス広く描いた地図(自キャラ以外)を layers に1回描き、毎フレームはそれをずらして写して
+  // 自キャラを描く。毎フレーム全部のマスを描くと、遅い WebView(WebKitGTK)では 60fps に間に合わない。
+  // 地図は自キャラより後ろの行と前の行に分け、後ろ → 自キャラ → 前 の順に重ねる。止まっている時と同じく、下の行の壁が自キャラに重なる
+  const layers = useRef<{ back: HTMLCanvasElement; front: HTMLCanvasElement; split: number } | null>(null);
   const layerDirty = useRef(true);
   paint.current = () => {
     const ctx = mapCanvas.current?.getContext("2d");
@@ -361,30 +362,35 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     }
     const m = SLIDE_MARGIN * CHIP_SIZE;
     const [w, h] = [ctx.canvas.width, ctx.canvas.height];
-    if (layerDirty.current || !layer.current) {
-      const l = (layer.current ??= document.createElement("canvas"));
-      [l.width, l.height] = [w + 2 * m, h + 2 * m];
-      const lc = l.getContext("2d")!;
-      lc.setTransform(1, 0, 0, 1, 0, 0);
-      lc.imageSmoothingEnabled = false;
-      lc.clearRect(0, 0, l.width, MAP_TOP);
-      lc.translate(0, MAP_TOP);
+    // 前に描く行。自キャラの絵(1マス)より下にある最初の行から。上下に滑らせる間は、自キャラは行の間にいる
+    const split = Math.ceil(board.self.y - s.y / CHIP_SIZE) + 1;
+    if (layerDirty.current || !layers.current || layers.current.split !== split) {
+      const ls = (layers.current ??= { back: document.createElement("canvas"), front: document.createElement("canvas"), split });
+      ls.split = split;
       const v = board.view;
-      drawMap(
-        lc,
-        { ...input, view: { x: v.x - SLIDE_MARGIN, y: v.y - SLIDE_MARGIN, w: v.w + 2 * SLIDE_MARGIN, h: v.h + 2 * SLIDE_MARGIN }, only: "others" },
-        imgs,
-        frame,
-      );
+      const wide = { x: v.x - SLIDE_MARGIN, y: v.y - SLIDE_MARGIN, w: v.w + 2 * SLIDE_MARGIN, h: v.h + 2 * SLIDE_MARGIN };
+      for (const part of ["back", "front"] as const) {
+        const l = ls[part];
+        [l.width, l.height] = [w + 2 * m, h + 2 * m];
+        const lc = l.getContext("2d")!;
+        lc.setTransform(1, 0, 0, 1, 0, 0);
+        lc.imageSmoothingEnabled = false;
+        lc.clearRect(0, 0, l.width, l.height);
+        lc.translate(0, MAP_TOP);
+        drawMap(lc, { ...input, view: wide, only: "others", split: { row: split, part } }, imgs, frame);
+      }
       layerDirty.current = false;
     }
     // 上の余白は止まっている時と同じく透明にし、地図の部分だけを写す
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, w, h);
     const [sx, sy] = [m - Math.max(-m, Math.min(m, s.x)), m - Math.max(-m, Math.min(m, s.y))];
-    ctx.drawImage(layer.current!, sx, sy + MAP_TOP, w, h - MAP_TOP, 0, MAP_TOP, w, h - MAP_TOP);
+    const blit = (l: HTMLCanvasElement) => ctx.drawImage(l, sx, sy + MAP_TOP, w, h - MAP_TOP, 0, MAP_TOP, w, h - MAP_TOP);
+    blit(layers.current.back);
     ctx.translate(0, MAP_TOP);
     drawMap(ctx, { ...input, only: "self" }, imgs, frame);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    blit(layers.current.front);
     trace(`map slide ${(performance.now() - t0).toFixed(1)}ms`);
   };
   // 描き直すのはマップ・地形・アニメ・画像の読み込み・大きさが変わった時だけ。#status だけの変化では描かない。

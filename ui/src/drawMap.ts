@@ -74,6 +74,11 @@ export interface DrawMapInput {
    * 消さずに上へ描く
    */
   only?: 'self' | 'others';
+  /**
+   * スムーズ移動で、自キャラの後ろと前に分けて描く時(map.tsx)。back は rows より上の行を描き、front は rows から下の行を
+   * 透明の上に描いてキャラの名前も描く。止まっている時と同じく、下の行の壁が自キャラに重なるようにする為
+   */
+  split?: { row: number; part: 'back' | 'front' };
 }
 
 /** EagleEye でアイテムのマスに描くマップチップ(Philly の MapChipCache->Draw(..., 19, ...)) */
@@ -116,9 +121,11 @@ export function drawMap(
     ctx.restore();
     return;
   }
-  ctx.clearRect(0, 0, view.w * cs, view.h * cs);
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, view.w * cs, view.h * cs);
+  if (input.split?.part !== 'front') {
+    ctx.clearRect(0, 0, view.w * cs, view.h * cs);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, view.w * cs, view.h * cs);
+  }
 
   const chipImg = imgs.chip;
   // マスのチップシート(Philly の DefineNo = Attribute & 0x03)
@@ -132,7 +139,12 @@ export function drawMap(
   const me = input.self ?? { x: (width - 1) >> 1, y: (height - 1) >> 1 };
   const slide = input.slide && (input.slide.x || input.slide.y) ? input.slide : null;
   const atCenter = (c: MapChar) => c.x === me.x && c.y === me.y;
-  const { c0, c1, r0, r1 } = drawRange(view, slide ?? { x: 0, y: 0 }, width, height, cs);
+  const range = drawRange(view, slide ?? { x: 0, y: 0 }, width, height, cs);
+  const { c0, c1 } = range;
+  // 分けて描く時は、その分の行だけ
+  const split = input.split;
+  const r0 = split?.part === 'front' ? Math.max(range.r0, split.row) : range.r0;
+  const r1 = split?.part === 'back' ? Math.min(range.r1, split.row - 1) : range.r1;
   const inRange = (c: MapChar) => c.x >= c0 && c.x <= c1 && c.y >= r0 && c.y <= r1;
   ctx.save();
   ctx.translate(-view.x * cs, -view.y * cs);
@@ -212,8 +224,11 @@ export function drawMap(
     }
   }
 
-  // 5. キャラ名ラベル(自キャラは除外)。
-  drawCharaNames(ctx, input.chars.filter((c) => !atCenter(c) && inRange(c)), cs, scale, width, height);
+  // 5. キャラ名ラベル(自キャラは除外)。分けて描く時は、前の分に全部描く(地形より上に出す)
+  if (split?.part !== 'back') {
+    const shown = (c: MapChar) => c.x >= c0 && c.x <= c1 && c.y >= range.r0 && c.y <= range.r1;
+    drawCharaNames(ctx, input.chars.filter((c) => !atCenter(c) && shown(c)), cs, scale, width, height);
+  }
   ctx.restore();
 
   // ずらしている間は、自キャラを最後にずらさずに描く
