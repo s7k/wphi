@@ -1178,7 +1178,8 @@ export function App() {
 
   return (
     <div
-      className={["main", settings.logFontSize && "log-sized", settings.modern && "modern"].filter(Boolean).join(" ")}
+      // モダンの暗い見た目は、地図を出しているタブだけ。キャラを選ぶ画面は今まで通りの明るい見た目にする
+      className={["main", settings.logFontSize && "log-sized", settings.modern && tab && "modern"].filter(Boolean).join(" ")}
       // ログ欄のフォントと大きさ(設定)。空と 0 はスキンと既定に任せる
       style={
         {
