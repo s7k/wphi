@@ -9,11 +9,9 @@ export const WALK_MS = 100;
 export const WALK_DIAGONAL_MS = 200;
 /** 進んだとみなして返事の来ていない移動がこれ以上あれば、次の1歩を待つ。回線が遅い時にサーバより先へ行き過ぎない */
 export const MAX_UNCONFIRMED = 2;
-/**
- * 押したキーの離した知らせ(keyup)が来ない時に、押していないとみなすまでの時間(ms)。押している間は OS のリピートで
- * keydown が続けて届くので、その度に延ばす。最初のリピートまでの待ち(多くは 250〜500ms)より長くする
- */
-const HELD_EXPIRE_MS = 700;
+// 押しているかは keydown と keyup だけで決め、時間では離したとみなさない。OS のキーリピートは最後に押したキーにしか
+// 掛からないので、上を押したまま右を押して離すと、上の keydown は届かなくなる(v0.1.87 まではそこで 700ms 後に止まった)。
+// keyup が届かない時(窓のフォーカスが外れた時)は、呼ぶ側が clear() する
 /** 追尾移動の向きが届かなくなってから止めるまでの時間(ms)。地図は 30ms ごとに送る */
 const FOLLOW_EXPIRE_MS = 120;
 
@@ -36,7 +34,7 @@ export type Step<M> = { keys: MoveKey[]; mods: M; ms: number };
 
 export class Walker<M> {
   /** 押しているキー(キーのコード → 向きと修飾キー、最後に届いた時刻) */
-  private held = new Map<string, { key: MoveKey; mods: M; at: number }>();
+  private held = new Map<string, { key: MoveKey; mods: M }>();
   private follow: { keys: MoveKey[]; mods: M; at: number } | null = null;
   /** 今の1歩を滑りきる時刻 */
   private busyUntil = 0;
@@ -47,7 +45,7 @@ export class Walker<M> {
   }
 
   keyDown(code: string, key: MoveKey, mods: M) {
-    this.held.set(code, { key, mods, at: this.now() });
+    this.held.set(code, { key, mods });
   }
 
   keyUp(code: string) {
@@ -71,7 +69,6 @@ export class Walker<M> {
   next(canStep: boolean): Step<M> | null {
     const now = this.now();
     if (now < this.busyUntil) return null;
-    for (const [code, h] of this.held) if (now - h.at > HELD_EXPIRE_MS) this.held.delete(code);
     if (this.follow && now - this.follow.at > FOLLOW_EXPIRE_MS) this.follow = null;
     const want = this.want();
     if (!want || !canStep) return null;

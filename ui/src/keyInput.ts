@@ -12,6 +12,9 @@ export type ForwardedKey = Pick<KeyboardEvent, "code" | "shiftKey" | "ctrlKey" |
   type: "keydown" | "keyup";
 };
 
+/** ForwardedKey の code。map 窓のフォーカスが外れた時に送り、押しているキーを全部離したとみなす */
+export const RELEASE_ALL = "*release-all";
+
 /** map 窓から main 窓へ転送するマウス操作 */
 export const MOUSE_EVENT = "phi-mouse";
 /** follow は追尾移動(地図の中クリックで入り切り)の1歩。main 窓が歩く速さに合わせて間引く */

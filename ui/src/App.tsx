@@ -12,7 +12,7 @@ import { selectedLines } from "./logCopy.ts";
 import { MASTER_EXP, parseMasterMagic, runMasterItem, type MasterMenu } from "./masterMagic.ts";
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { SENT_EVENT, type Sent } from "./keyInput";
-import { isNorthFix, isTextTarget, KEY_EVENT, MOUSE_EVENT, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
+import { isNorthFix, isTextTarget, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskOptions, type Mods } from "./keys.ts";
 import { MAX_UNCONFIRMED, walkable, Walker } from "./walker.ts";
 import { AskDialog } from "./AskDialog";
@@ -271,12 +271,18 @@ export function App() {
   };
   // スムーズ移動の歩き方(ui/src/walker.ts)。#v6 G を送るサーバで、スムーズ移動が有効な北固定の時だけ
   const walker = useRef(new Walker<Mods>());
+  const walkWaiting = useRef(false);
   const walking = (session: number) => settingsRef.current.smoothMove && predicting(session) && predictor.current.confirms;
   /** 押しているキーと追尾移動の向きで、次の1歩を送る。前の1歩を滑らせている間と、返事の来ていない移動が多い間は送らない */
   const stepWalker = (session: number | null) => {
     if (session === null || !walking(session)) return;
-    const s = walker.current.next(predictor.current.unconfirmed < MAX_UNCONFIRMED);
+    const canStep = predictor.current.unconfirmed < MAX_UNCONFIRMED;
+    const s = walker.current.next(canStep);
+    // 返事を待って止まった時をトレースに残す(続く間は1回だけ)
+    if (!canStep && !walkWaiting.current) trace(`walk wait unconfirmed=${predictor.current.unconfirmed}`);
+    walkWaiting.current = !canStep;
     if (!s) return;
+    trace(`walk ${s.keys.join("")} ${s.ms}ms`);
     for (const k of s.keys) {
       const text = moveCommand(k, s.mods, true);
       predictor.current.walkStep(text, s.ms);
@@ -284,6 +290,12 @@ export function App() {
     }
     sendMapState(session);
   };
+  // main 窓のフォーカスが外れると keyup が届かないので、押しているキーを全部離したとみなす
+  useEffect(() => {
+    const release = () => walker.current.clear();
+    window.addEventListener("blur", release);
+    return () => window.removeEventListener("blur", release);
+  }, []);
   useEffect(() => {
     predictor.current.reset();
     walker.current.clear();
@@ -523,7 +535,11 @@ export function App() {
         return true;
       }
       const move = moveInput(e, ctx);
-      // 離したキーは、歩き方を切り替えた後でも残らないように必ず消す
+      // 離したキーは、歩き方を切り替えた後でも残らないように必ず消す。map 窓のフォーカスが外れた時は全部消す
+      if (e.type === "keyup" && e.code === RELEASE_ALL) {
+        walker.current.clear();
+        return true;
+      }
       if (e.type === "keyup") walker.current.keyUp(e.code);
       if (move && ctx.northFix && walkable(move.key) && walking(session)) {
         trace(`main ${e.type} ${e.code}${e.repeat ? " repeat" : ""} walk`);

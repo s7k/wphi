@@ -34,12 +34,18 @@ test("2つの向きを押すと斜めに歩き、2行分の時間で滑らせる
   assert.deepEqual(w.next(true)?.keys, ["8"]);
 });
 
-test("返事を待つ移動が多い間と、離した知らせが来ないまま時間が経った後は歩かない", () => {
+test("返事を待つ移動が多い間は歩かない。押したままなら、keydown が届かなくなっても歩き続け、clear() で止まる", () => {
   const { w, advance } = setup();
   w.keyDown("ArrowDown", "down", "ctrl");
   assert.equal(w.next(false), null);
   assert.deepEqual(w.next(true)?.mods, "ctrl");
+  // 下を押したまま右を押して離すと、OS のリピートは下に掛からなくなる。それでも下へ歩き続ける
+  w.keyDown("ArrowRight", "right", "ctrl");
+  w.keyUp("ArrowRight");
   advance(800);
+  assert.deepEqual(w.next(true)?.keys, ["2"]);
+  w.clear();
+  advance(100);
   assert.equal(w.next(true), null);
 });
 

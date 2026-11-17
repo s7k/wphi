@@ -11,7 +11,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { assetUrl } from "./asset";
 import { drawMap, type ImageRefs } from "./drawMap";
 import { trace } from "./trace.ts";
-import { isNorthFix, KEY_EVENT, MOUSE_EVENT, sendLine, type ForwardedKey, type ForwardedMouse } from "./keyInput";
+import { isNorthFix, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, sendLine, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { predictedMap } from "./predict.ts";
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
 import { addWalk, CHIP_SIZE, MAP_TOP, selfPos, slideStep, viewArea, viewCover, viewFor, walkAt, walkDelay, type WalkSample } from "./mapRender";
@@ -123,15 +123,21 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
       // Tab や Space でマップ窓の中が動かないようにする
       e.preventDefault();
       const { code, shiftKey, ctrlKey, altKey, metaKey, repeat } = e;
-      if (e.type !== "keydown") return;
-      trace(`map keydown ${code}${repeat ? " repeat" : ""}`);
-      forward({ type: "keydown", code, shiftKey, ctrlKey, altKey, metaKey, repeat });
+      // keyup も送る。スムーズ移動は、離した知らせで歩くのをやめる(ui/src/walker.ts)
+      const type = e.type === "keyup" ? "keyup" : "keydown";
+      trace(`map ${type} ${code}${repeat ? " repeat" : ""}`);
+      forward({ type, code, shiftKey, ctrlKey, altKey, metaKey, repeat });
     };
+    // フォーカスが外れると keyup が届かないので、全部離したとみなす
+    const onBlur = () =>
+      forward({ type: "keyup", code: RELEASE_ALL, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, repeat: false });
     document.addEventListener("keydown", onKey);
     document.addEventListener("keyup", onKey);
+    window.addEventListener("blur", onBlur);
     return () => {
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("keyup", onKey);
+      window.removeEventListener("blur", onBlur);
     };
   }, []);
 
