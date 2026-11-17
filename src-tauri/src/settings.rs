@@ -52,7 +52,7 @@ pub struct Settings {
     pub smooth_move: bool,
     /// マップの窓を使わず、main 窓のログの左にマップを出す(クラシック(1窓))。表示のメニューで切り替える(Philly に無い)
     pub single_window: bool,
-    /// main 窓いっぱいにマップを出し、ログと入力欄を重ねる(モダン)。single_window より優先する(Philly に無い)
+    /// main 窓いっぱいにマップを出し、ログと入力欄を重ねる(モダン)。single_window より優先する。既定(Philly に無い)
     pub modern: bool,
     /// 実験的: マップの木と草に、場所で決まる揺らぎを付ける(木のずれと、草の飾り)。表示のメニューで切り替える(Philly に無い)
     pub map_variety: bool,
@@ -84,7 +84,7 @@ impl Default for Settings {
             map_zoom: 100,
             smooth_move: false,
             single_window: false,
-            modern: false,
+            modern: true,
             map_variety: true,
             map_effects: true,
         }

@@ -114,7 +114,8 @@ fn login_lines(id: Option<&str>, view: Option<(u8, u8)>) -> Vec<String> {
 /// スムーズ移動で地図をずらした時に、窓に入る端を描く為。回転はサーバが正方形しか受け付けないので、小さい方に揃えて送る
 fn view_line((w, h): (u8, u8), turn: bool) -> String {
     let (w, h) = if turn { (w.min(h), w.min(h)) } else { (w, h) };
-    let (w, h) = (w + 2, h + 2);
+    // 行番号と座標が 10 進 2 桁なので、外周を足して 99 まで
+    let (w, h) = (w.min(97) + 2, h.min(97) + 2);
     format!("#ex-map view={w} {h}")
 }
 

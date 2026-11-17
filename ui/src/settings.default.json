@@ -32,7 +32,7 @@
   "mapZoom": 100,
   "smoothMove": false,
   "singleWindow": false,
-  "modern": false,
+  "modern": true,
   "mapVariety": true,
   "mapEffects": true
 }

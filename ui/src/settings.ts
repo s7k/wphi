@@ -54,11 +54,11 @@ type SameKeys<A, B> = [keyof A] extends [keyof B] ? ([keyof B] extends [keyof A]
 const sameKeys: SameKeys<typeof defaults, Settings> = true;
 void sameKeys;
 
-export const MAP_ZOOM_MIN = 50;
-export const MAP_ZOOM_MAX = 400;
-/** 拡大率(%)を、扱える範囲の整数にする。数でなければ 100 */
+/** マップの拡大率(%)。ドットが崩れない整数倍だけ */
+export const MAP_ZOOMS = [100, 200, 300] as const;
+/** 拡大率(%)を、MAP_ZOOMS の一番近い値にする(同じ近さなら大きい方)。数でなければ 100 */
 export const clampZoom = (z: number) =>
-  Number.isFinite(z) ? Math.min(MAP_ZOOM_MAX, Math.max(MAP_ZOOM_MIN, Math.round(z))) : 100;
+  Number.isFinite(z) ? MAP_ZOOMS.reduce((a, b) => (Math.abs(b - z) <= Math.abs(a - z) ? b : a)) : 100;
 
 /** Philly.ini の文字列の \n を改行にする */
 export const unescape = (s: string) => s.replace(/\\n/g, "\n");

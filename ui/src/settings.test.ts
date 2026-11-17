@@ -13,10 +13,11 @@ test("F8〜F12 と Alt+G", () => {
   assert.equal(shortcutText(key("F5"), s, false), null);
 });
 
-test("マップの拡大率は範囲の整数にする", () => {
-  assert.equal(clampZoom(150), 150);
-  assert.equal(clampZoom(10), 50);
-  assert.equal(clampZoom(1000), 400);
-  assert.equal(clampZoom(125.4), 125);
+test("マップの拡大率は 100・200・300% の一番近い値にする", () => {
+  assert.equal(clampZoom(100), 100);
+  assert.equal(clampZoom(125), 100);
+  assert.equal(clampZoom(150), 200);
+  assert.equal(clampZoom(10), 100);
+  assert.equal(clampZoom(1000), 300);
   assert.equal(clampZoom(NaN), 100);
 });

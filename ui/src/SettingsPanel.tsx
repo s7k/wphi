@@ -1,7 +1,7 @@
 // 設定画面(Philly は Philly.ini を直接書き換える)。
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
-import { clampZoom, MAP_ZOOM_MAX, MAP_ZOOM_MIN, type Settings } from "./settings.ts";
+import { clampZoom, MAP_ZOOMS, type Settings } from "./settings.ts";
 import { Import, Save, X } from "lucide-react";
 
 export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings) => void; onClose: () => void }) {
@@ -114,15 +114,14 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
         </label>
         <label>
           マップの拡大率{" "}
-          <input
-            type="number"
-            min={MAP_ZOOM_MIN}
-            max={MAP_ZOOM_MAX}
-            step={10}
-            value={s.mapZoom}
-            onChange={(e) => set("mapZoom", Number(e.target.value))}
-          />{" "}
-          %(拡大すると、v6 のサーバで見える範囲は狭くなる)
+          <select value={clampZoom(s.mapZoom)} onChange={(e) => set("mapZoom", Number(e.target.value))}>
+            {MAP_ZOOMS.map((z) => (
+              <option key={z} value={z}>
+                {z}%
+              </option>
+            ))}
+          </select>{" "}
+          (ドットが崩れない整数倍だけ。拡大すると、v6 のサーバで見える範囲は狭くなる)
         </label>
         {message && <p>{message}</p>}
       </div>

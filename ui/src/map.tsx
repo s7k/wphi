@@ -68,8 +68,8 @@ export type MapPlace = "map" | "main";
 /** スムーズ移動で、地図の周りに余分に描くマス数。見せる位置の遅れ(mapRender.ts の walkDelay)は2マスまで */
 const SLIDE_MARGIN = 2;
 
-/** モダンで窓を埋める時の、見せるマス数の上限。v6 のサーバの上限(北固定 31x23、回転 23x23。phi_dm の docs/dev/protocol-v6.md) */
-const MODERN_MAX = { w: 31, h: 23 };
+/** v6 で求められるマス数の上限。行番号と座標が 10 進 2 桁の為(phi_dm の docs/dev/protocol-v6.md)。外周の2マスを含む */
+const V6_MAX = 99;
 
 /** embedded は main 窓の中に置く時。modern はその中で窓いっぱいに描き、名前の欄とステータスの代わりに HUD を重ねる */
 export function MapView(props: { embedded?: boolean; modern?: boolean }) {
@@ -178,19 +178,16 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
   // 地図を出しているのがこの窓か。もう一方の窓(隠した map 窓など)の大きさで視界を要求しない
   const [shown, setShown] = useState(false);
   const northFix = isNorthFix(map);
-  // モダンは、サーバの上限のマス数で窓を覆えるまで拡大する。覆うマス数は奇数へ切り上げるので、上限より1マス少ない数で割る。
-  // 拡大率は画面の実際のピクセル(devicePixelRatio)で整数倍に限る。半端な倍率ではドットの幅が揃わず、名前の文字が崩れる。
-  // 整数倍で覆えない窓では、地図の周りが空く
+  // 拡大率は画面の実際のピクセル(devicePixelRatio)で整数倍に限る(設定は 100・200・300%)。半端な倍率ではドットの幅が揃わず、
+  // 名前の文字が崩れる。モダンは窓を覆うマス数を求め、それが v6 の上限(V6_MAX)を超える時だけ倍率を上げる
   const dpr = window.devicePixelRatio || 1;
-  const fit = Math.max(
-    area.w / (((northFix ? MODERN_MAX.w : MODERN_MAX.h) - 1) * CHIP_SIZE),
-    area.h / ((MODERN_MAX.h - 1) * CHIP_SIZE + MAP_TOP),
-  );
-  const zoom = props.modern
-    ? Math.max(Math.max(1, Math.round(dpr * zoomSetting)), Math.floor(fit * dpr)) / dpr
-    : zoomSetting;
-  // 画面のピクセルの境目に揃える(モダンだけ。クラシックは今まで通り CSS の px に揃える)
-  const snap = (v: number) => (props.modern ? Math.floor(v * dpr) / dpr : Math.floor(v));
+  let zoomDev = Math.max(1, Math.round(dpr * zoomSetting));
+  if (props.modern)
+    while (Math.max(viewCover(area.w, (CHIP_SIZE * zoomDev) / dpr), viewCover(area.h, (CHIP_SIZE * zoomDev) / dpr)) + 2 > V6_MAX)
+      zoomDev++;
+  const zoom = zoomDev / dpr;
+  // 画面のピクセルの境目に揃える
+  const snap = (v: number) => Math.floor(v * dpr) / dpr;
   const count = props.modern ? viewCover : viewFor;
   // v6 の視界(docs/05-protocol-v6.md の 4.1)。欄に入るマス数を奇数に切り下げる。回転は正方形
   const cell = CHIP_SIZE * zoom;
@@ -534,8 +531,8 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
             // 中央に置く。位置を整数にして、半ピクセルずれて画像がにじまないようにする
             style={{
               cursor,
-              width: props.modern ? boardW * CHIP_SIZE * zoom : Math.round(boardW * CHIP_SIZE * zoom),
-              height: props.modern ? (boardH * CHIP_SIZE + MAP_TOP) * zoom : Math.round((boardH * CHIP_SIZE + MAP_TOP) * zoom),
+              width: boardW * CHIP_SIZE * zoom,
+              height: (boardH * CHIP_SIZE + MAP_TOP) * zoom,
               imageRendering: zoom === 1 ? undefined : "pixelated",
               left: canvasLeft,
               top: canvasTop,
