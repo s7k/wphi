@@ -64,6 +64,9 @@ mockIPC(
       case "send_line":
         ((window as any).guideSent ??= []).push(args.text);
         return null;
+      case "send_lines":
+        ((window as any).guideSent ??= []).push(...args.lines);
+        return null;
       // ?trace で時刻の記録(ui/src/trace.ts)を window.guideTrace に溜める
       case "trace_on":
         return location.search.includes("trace");

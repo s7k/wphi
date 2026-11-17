@@ -451,3 +451,23 @@ export const BAG_PIXELS: string[] = [
   "..oooooooooooo..",
   "................",
 ];
+
+/** ステータスを開くボタンのドット絵(人の形を描いた札) */
+export const STATUS_PIXELS: string[] = [
+  "................",
+  "..oooooooooooo..",
+  "..oppppppppppo..",
+  "..oppppoopppPo..",
+  "..opppoCCoppPo..",
+  "..opppoCCoppPo..",
+  "..oppppoopppPo..",
+  "..opppoCCoppPo..",
+  "..oppoCCCCopPo..",
+  "..oppoCCCCopPo..",
+  "..opppppppppPo..",
+  "..opoooooooopo..",
+  "..opppppppppPo..",
+  "..opoooooopppo..",
+  "..oooooooooooo..",
+  "................",
+];

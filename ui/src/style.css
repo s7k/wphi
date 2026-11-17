@@ -1468,10 +1468,11 @@ button > svg:only-child,
 }
 
 /* カバン(BagPanel.tsx)。看板の札(.sign-card)と同じ見た目で、右に寄せる */
+/* 方角(右上)の左へ横に並べる。下へ並べると、右に開く priv の欄の閉じるボタンに重なる */
 .bag-button {
   position: absolute;
-  top: 60px;
-  right: 16px;
+  top: 6px;
+  right: 64px;
   z-index: 5;
   width: 44px;
   height: 44px;
@@ -1492,6 +1493,11 @@ button > svg:only-child,
   width: 32px;
   height: 32px;
   margin: 0;
+}
+
+/* カバンのボタンの左に並べる */
+.status-button-modern {
+  right: 114px;
 }
 
 .bag-button:hover {
