@@ -19,7 +19,7 @@ import { AskDialog } from "./AskDialog";
 import { alertBox, confirmBox, MessageDialogHost } from "./MessageDialog";
 import { popupTagMenu } from "./TagMenuPopup";
 import { assetUrl } from "./asset";
-import { MAP_POP_EVENT, newPopState, popsFromLine } from "./mapPop.ts";
+import { MAP_POP_EVENT, newPopState, popsFromLine, stripTags } from "./mapPop.ts";
 import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, EXPERIMENT_EVENT, shortcutText, type Settings } from "./settings.ts";
 import { DownloadPanel } from "./DownloadPanel";
@@ -75,6 +75,8 @@ type Tab = {
   hurt: boolean;
   /** 追加発言(Philly の TalkAdd。キャラごと。#80) */
   talkAdd?: string;
+  /** 看板などの本文(#more 〜 #end-more)の札。タグを除いた行。閉じたら null */
+  sign?: string[] | null;
 };
 
 /**
@@ -271,6 +273,12 @@ export function App() {
   };
   // スムーズ移動の歩き方(ui/src/walker.ts)。#v6 G を送るサーバで、スムーズ移動が有効な北固定の時だけ
   const walker = useRef(new Walker<Mods>());
+  /** #more の中で届いた本文の行(セッションごと)。#end-more で札にする */
+  const signLines = useRef(new Map<number, string[]>());
+  /** 看板の札を閉じる */
+  const closeSign = (session: number) => {
+    if (tabsRef.current.find((t) => t.session === session)?.sign) update(session, (t) => ({ ...t, sign: null }));
+  };
   const walkWaiting = useRef(false);
   const walking = (session: number) => settingsRef.current.smoothMove && predicting(session) && predictor.current.confirms;
   /** 押しているキーと追尾移動の向きで、次の1歩を送る。前の1歩を滑らせている間と、返事の来ていない移動が多い間は送らない */
@@ -283,6 +291,7 @@ export function App() {
     walkWaiting.current = !canStep;
     if (!s) return;
     trace(`walk ${s.keys.join("")} ${s.ms}ms`);
+    closeSign(session);
     for (const k of s.keys) {
       const text = moveCommand(k, s.mods, true);
       predictor.current.walkStep(text, s.ms);
@@ -313,6 +322,7 @@ export function App() {
   }, [active]);
   /** 移動を送る。位置を予想している時は数える */
   const sendMove = (session: number, text: string) => {
+    closeSign(session);
     if (predicting(session)) predictor.current.sent(text);
     sendLine(session, text);
   };
@@ -515,6 +525,11 @@ export function App() {
       }
       const session = activeRef.current;
       if (session === null) return false;
+      // 看板の札は Esc で閉じる
+      if (e.type === "keydown" && e.code === "Escape" && tabsRef.current.find((t) => t.session === session)?.sign) {
+        closeSign(session);
+        return true;
+      }
       const ctx = keyContext(mapStates.current.get(session), settingsRef.current.fullKeyMove);
       // リスト表示中は、番号・取り消し・カーソルのキーを移動より先に見る(Philly の KeyDown は KeyBindListMode が先)。
       // フルキー移動の 7・8・9 やテンキーの 2・4・6・8、上下の矢印は、リスト表示中は番号とカーソルになる
@@ -978,6 +993,7 @@ export function App() {
       switch (ev.type) {
         case "log":
           append(session, ev.html, ev.raw);
+          signLines.current.get(session)?.push(stripTags(ev.raw ?? ""));
           notifyTalk(session, ev.channel, ev.html, !!ev.noFlash);
           if (ev.channel === "priv" && ev.from) addPriv(session, ev.from, ev.html);
           if (ev.raw) {
@@ -1032,6 +1048,17 @@ export function App() {
           const mapset = ev.mapset ?? mapStates.current.get(session)?.mapset;
           emitTo("eagleeye", EAGLE_EYE_EVENT, { ...ev, mapset }).catch(console.error);
           Window.getByLabel("eagleeye").then((w) => w?.show());
+          break;
+        }
+        case "mode": {
+          // 看板などの本文(#more 〜 #end-more)は、ログに流すのに加えて札に出す(試験中)
+          const reading = signLines.current.get(session);
+          if (ev.more && !reading) signLines.current.set(session, []);
+          else if (!ev.more && reading) {
+            signLines.current.delete(session);
+            if (reading.some((l) => l)) update(session, (t) => ({ ...t, sign: reading }));
+          }
+          onMapEvent(session, ev);
           break;
         }
         case "edit":
@@ -1179,6 +1206,7 @@ export function App() {
             <MapView embedded modern />
           </div>
         )}
+        {tab.sign && <SignCard lines={tab.sign} onClose={() => closeSign(tab.session)} />}
         <div className="log-area" style={settings.modern ? ({ "--log-h": `${logHeight}vh` } as React.CSSProperties) : undefined}>
           {settings.modern && <LogHeight value={logHeight} onChange={setLogHeight} />}
           <div
@@ -1730,6 +1758,25 @@ function lightenColors(root: HTMLElement) {
 
 /** 追尾移動で、続けて送る間隔の下限(ms)。サーバは 0.1 秒に1行ずつ処理する */
 const FOLLOW_MS = 110;
+
+/** 看板などの本文の札(試験中)。タグを除いた文字だけを出す。× か Esc か、歩くと閉じる。本文はログにも残る */
+function SignCard(props: { lines: string[]; onClose: () => void }) {
+  return (
+    <div className="sign-card" role="dialog" aria-label="看板・お知らせ">
+      <div className="sign-head">
+        <span>看板・お知らせ</span>
+        <button type="button" title="閉じる(Esc)" onClick={props.onClose}>
+          <X />
+        </button>
+      </div>
+      <div className="sign-body">
+        {props.lines.map((l, i) => (
+          <p key={i}>{l || "\u00a0"}</p>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /** マップを main 窓に出すか(クラシック(1窓)とモダン) */
 const inMain = (s: Settings) => s.singleWindow || s.modern;

@@ -173,6 +173,15 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
     const DM: &str = "/*color=gray*/DM > ";
     let lines: &[&str] = match scene {
         "talk" => &["Kotone > 市場はこっちです", "市場の猫 > にゃあ"],
+        // 看板を読んだ時(#more 〜 #end-more)
+        "sign" => &[
+            "#more",
+            "/*color=#2080d0*/ようこそ/*.*/ お城の入口です",
+            "",
+            "/*size=large*/北の池/*.*/ では釣りが出来ます",
+            "市場は毎朝開きます。/*color=red*/夜は閉まります/*.*/",
+            "#end-more",
+        ],
         "slash" => &["DM Mirai は 市場の猫 を /*.*/木の枝 /*color=gray*/で攻撃した. [/*color=-hp*/12/*color=gray*/ hp] "],
         "bolt" => &["Kotone > Fire ball", "DM Kotone は 市場の猫 を /*.*/Fire ball /*color=gray*/で攻撃した. [/*color=-hp*/30/*color=gray*/ hp] "],
         "heal" => &[

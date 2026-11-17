@@ -1407,3 +1407,56 @@ button > svg:only-child,
   right: 16px;
   bottom: 12px;
 }
+
+/* 看板などの本文の札(App.tsx の SignCard)。地図の上の真ん中寄り */
+.sign-card {
+  position: absolute;
+  /* モダンの左上の地名と HP・MP の下から */
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  width: min(560px, calc(100% - 32px));
+  max-height: 50%;
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+  background: rgb(16 20 24 / 88%);
+  border: 1.5px solid rgb(255 255 255 / 55%);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 45%);
+}
+
+.sign-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 6px 14px;
+  font-weight: bold;
+  border-bottom: 1px solid rgb(255 255 255 / 25%);
+}
+
+.sign-head button {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.sign-body {
+  overflow-y: auto;
+  padding: 8px 14px 12px;
+  line-height: 1.6;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.sign-body p {
+  margin: 0;
+}
+
+.main-body {
+  position: relative;
+}
