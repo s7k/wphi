@@ -28,6 +28,13 @@ const pixelsOf = (it: ItemInfo) =>
 /** 16x16 のドット絵を、横に続く同じ色のドットを 1 つの四角にまとめた SVG で描く。ぼやけないよう crispEdges にする */
 export function Pixels(props: { rows: string[]; size: number }) {
   const rects: React.ReactElement[] = [];
+  // 床のアイテムの絵と同じく、足元に薄い影を落とす。一番下の行の幅に合わせ、その 1 ドット下に描く
+  const bottom = props.rows.length - 1 - [...props.rows].reverse().findIndex((r) => /[^.]/.test(r));
+  if (bottom >= 0 && bottom < props.rows.length && bottom < 15) {
+    const r = props.rows[bottom];
+    const [x0, x1] = [r.search(/[^.]/), r.length - 1 - [...r].reverse().findIndex((c) => c !== ".")];
+    rects.push(<rect key="shadow" x={x0} y={bottom + 1} width={x1 - x0 + 1} height={1} fill="rgb(0 0 0 / 35%)" />);
+  }
   props.rows.forEach((row, y) => {
     let x = 0;
     while (x < row.length) {

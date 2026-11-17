@@ -2,14 +2,14 @@
 // 色は PALETTE の文字。世界のマップチップの絵は使わず、WPHI で描いた物(出所の分からない絵を同梱しない為)
 
 export const PALETTE: Record<string, string> = {
-  o: "#1b1b1f", // 縁
-  m: "#eef3f6", // 金属の明るい所
-  M: "#a9b4bc", // 金属
-  D: "#66727b", // 金属の暗い所
+  o: "#16161a", // 縁
+  m: "#e6eef2", // 金属の明るい所
+  M: "#9fb0bb", // 金属
+  D: "#5b6a75", // 金属の暗い所
   h: "#9a6431", // 木・柄
   H: "#5c3a1b", // 木の暗い所
-  g: "#f1cb5a", // 金
-  G: "#a77b1c", // 金の暗い所
+  g: "#f2d06a", // 金
+  G: "#b98a2c", // 金の暗い所
   r: "#e0483f", // 赤
   R: "#8e2421", // 赤の暗い所
   p: "#f4e3bd", // 紙
@@ -240,23 +240,23 @@ export const WEAPON_PIXELS: string[][] = [
 
 /** 用途(IT_*)のドット絵。武器は WEAPON_PIXELS */
 export const ITEM_PIXELS: Record<string, string[]> = {
-  // 防具(鎧)
+  // 防具(胸当て。裾はまっすぐ)
   armor: S([
     "................",
-    "...oo......oo...",
-    "..oMMoooooooMMo.",
-    "..oMmMMMMMMMmMo.",
-    "..oMMmMMMMMmMMo.",
-    "...oMMMMMMMMMo..",
-    "...oMMMmMmMMMo..",
-    "...oDMMMMMMMDo..",
-    "...oDMMMMMMMDo..",
-    "...oDDMMMMMDDo..",
-    "...ogggggggggo..",
-    "...oDMMMMMMMDo..",
-    "...oDDMMMMMDDo..",
-    "....oDDDDDDDo...",
-    ".....ooooooo....",
+    "................",
+    "..oo........oo..",
+    ".oMmo......omMo.",
+    ".oMmMoooooomMMo.",
+    "..oMMmmmmmmMMo..",
+    "...oMmmMMmmMo...",
+    "...oMmMMMMmMo...",
+    "...oDMMMMMMDo...",
+    "...oDMMMMMMDo...",
+    "...oDDMMMMDDo...",
+    "...oggggggggo...",
+    "...oDDDDDDDDo...",
+    "...oooooooooo...",
+    "................",
     "................",
   ]),
   // 食べ物(りんご)
@@ -354,21 +354,21 @@ export const ITEM_PIXELS: Record<string, string[]> = {
     "................",
     "................",
   ]),
-  // 魔法石(呪文の宝珠)
+  // 魔法石(魔法を封じた宝石)
   spellJewel: S([
     "................",
-    "......oooo......",
-    "....oovvvvoo....",
-    "...ovwwvvvvVo...",
-    "..ovwvvvvvvVVo..",
-    "..ovvvvvvvvVVo..",
-    "..ovvvvvvvVVVo..",
-    "..oVvvvvvVVVVo..",
-    "...oVVvvVVVVo...",
-    "....ooVVVVoo....",
-    "...ogggggggGo...",
-    "..ogGGGGGGGGGo..",
-    "..oooooooooooo..",
+    "............w...",
+    "......oooo.wvw..",
+    ".....ovwvVo.w...",
+    "....ovwvvvVo....",
+    "...ovwvvvvvVo...",
+    "..ovwvvwvvvVVo..",
+    "..oVvvvvvvVVVo..",
+    "...oVvvvvVVVo...",
+    "....oVvvVVVo....",
+    ".....oVVVVo.....",
+    "......oVVo......",
+    ".......oo.......",
     "................",
     "................",
     "................",
@@ -392,22 +392,22 @@ export const ITEM_PIXELS: Record<string, string[]> = {
     "................",
     "................",
   ]),
-  // お金
+  // お金(平たい硬貨を散らした形。床のアイテムの絵に合わせる)
   currency: S([
     "................",
     "................",
-    "......oooooo....",
-    ".....oggggggo...",
-    "....ogwgggggGo..",
-    "....ooggggggGo..",
-    "...oggoooooooo..",
-    "..ogwgggggggo...",
-    "..oggggggggGo...",
-    "..oooooooooooo..",
-    ".ogwgggggggggGo.",
-    ".ogggggggggggGo.",
-    ".oGGGGGGGGGGGGo.",
-    "..oooooooooooo..",
+    "................",
+    "........oooo....",
+    ".......ogwggo...",
+    ".......oGGGGo...",
+    "....oooooooo....",
+    "...ogwgggo......",
+    "...oGGGGGo.oooo.",
+    "....ooooo.ogwggo",
+    "..oooo....oGGGGo",
+    ".ogwggo....oooo.",
+    ".oGGGGo.........",
+    "..oooo..........",
     "................",
     "................",
   ]),
