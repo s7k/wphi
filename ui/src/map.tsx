@@ -14,9 +14,9 @@ import { trace } from "./trace.ts";
 import { isNorthFix, KEY_EVENT, MOUSE_EVENT, sendLine, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { predictedMap } from "./predict.ts";
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
-import { CHIP_SIZE, MAP_TOP, SLIDE_MS, selfPos, slideStep, viewArea, viewFor } from "./mapRender";
+import { CHIP_SIZE, MAP_TOP, SLIDE_MS, selfPos, slideStep, viewArea, viewCover, viewFor } from "./mapRender";
 import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
-import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type MapChar, type MapListAction, type MapState, type StatusEvent } from "./protocol";
+import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type CondEvent, type MapChar, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
 import { hideOnClose, useImages, useScreenshot } from "./windowUtil";
 import { findChar, MAP_POP_EVENT, type Pop, type PopKind } from "./mapPop.ts";
@@ -65,7 +65,11 @@ const AMOUNT_CLASS: Partial<Record<PopKind, string>> = {
 /** MAP_STATE_EVENT などの宛先。main 窓の中に置いた地図なら "main" */
 export type MapPlace = "map" | "main";
 
-export function MapView(props: { embedded?: boolean }) {
+/** モダンで窓を埋める時の、見せるマス数の上限。v6 のサーバの上限(北固定 31x23、回転 23x23。phi_dm の docs/dev/protocol-v6.md) */
+const MODERN_MAX = { w: 31, h: 23 };
+
+/** embedded は main 窓の中に置く時。modern はその中で窓いっぱいに描き、名前の欄とステータスの代わりに HUD を重ねる */
+export function MapView(props: { embedded?: boolean; modern?: boolean }) {
   const place: MapPlace = props.embedded ? "main" : "map";
   const [state, setState] = useState<MapState | null>(null);
   const [frame, setFrame] = useState(0);
@@ -163,14 +167,24 @@ export function MapView(props: { embedded?: boolean }) {
   }, []);
   const [smooth, setSmooth] = useState(false);
   // マップの拡大率。canvas は等倍で描き、CSS で拡大縮小する。v6 の視界は、拡大した大きさで欄に収まる分だけ
-  const [zoom, setZoom] = useState(1);
+  const [zoomSetting, setZoom] = useState(1);
   // 地図を出しているのがこの窓か。もう一方の窓(隠した map 窓など)の大きさで視界を要求しない
   const [shown, setShown] = useState(false);
   const northFix = isNorthFix(map);
+  // モダンは、サーバの上限のマス数で窓を覆えるまで拡大する。拡大率の設定より小さくはしない。
+  // 覆うマス数は奇数へ切り上げるので、上限より1マス少ない数で割る
+  const zoom = props.modern
+    ? Math.max(
+        zoomSetting,
+        area.w / (((northFix ? MODERN_MAX.w : MODERN_MAX.h) - 1) * CHIP_SIZE),
+        area.h / ((MODERN_MAX.h - 1) * CHIP_SIZE + MAP_TOP),
+      )
+    : zoomSetting;
+  const count = props.modern ? viewCover : viewFor;
   // v6 の視界(docs/05-protocol-v6.md の 4.1)。欄に入るマス数を奇数に切り下げる。回転は正方形
   const cell = CHIP_SIZE * zoom;
-  const viewW = viewFor(area.w, cell);
-  const viewH = viewFor(area.h - MAP_TOP * zoom, cell);
+  const viewW = count(area.w, cell);
+  const viewH = count(area.h - MAP_TOP * zoom, cell);
   useEffect(() => {
     if (!shown || area.w === 0 || area.h === 0) return;
     // 窓の端を引きずっている間は送らず、最後に変わってから 300ms 後に送る
@@ -179,7 +193,8 @@ export function MapView(props: { embedded?: boolean }) {
   }, [shown, viewW, viewH]);
   // MapState は status などが変わっただけでも新しいオブジェクトで届くので、マップは中身で比べる
   const mapKey = JSON.stringify(map ?? null);
-  const view = northFix ? { w: viewW, h: viewH } : { w: Math.min(viewW, viewH), h: Math.min(viewW, viewH) };
+  const square = props.modern ? Math.max(viewW, viewH) : Math.min(viewW, viewH);
+  const view = northFix ? { w: viewW, h: viewH } : { w: square, h: square };
   // 盤面は届いた地図のまま描き、窓には view の範囲を見せる(v6 は外周1マスが窓の外)
   const board = useMemo(
     () => map && { ...map, self: selfPos(map.width, map.height, map.style === "turn"), view: viewArea(map, view.w, view.h) },
@@ -255,7 +270,7 @@ export function MapView(props: { embedded?: boolean }) {
   useEffect(() => {
     const apply = (s: Settings) => {
       setSmooth(s.smoothMove);
-      setShown(s.singleWindow === !!props.embedded);
+      setShown(s.singleWindow || s.modern ? !!props.embedded && !!s.modern === !!props.modern : !props.embedded);
       setZoom(clampZoom(s.mapZoom) / 100);
     };
     invoke<Settings>("get_settings").then(apply).catch(console.error);
@@ -383,9 +398,10 @@ export function MapView(props: { embedded?: boolean }) {
     .map(({ c }) => stripTags(c.name))
     .filter((n) => n);
   return (
-    <div className="map-window">
+    <div className={props.modern ? "map-window modern" : "map-window"}>
       {/* main 窓の中では窓のタイトルに出せないので、地図の上に出す */}
-      {props.embedded && <div className="map-title">{title}</div>}
+      {props.embedded && !props.modern && <div className="map-title">{title}</div>}
+      {props.modern && <ModernHud title={title} now={prevStatus.current.now} cond={state?.cond} dir={direction} northFix={northFix} />}
       <div className="map-row">
         <div className="map-area" ref={mapArea}>
           <canvas
@@ -409,6 +425,7 @@ export function MapView(props: { embedded?: boolean }) {
           />
           {popEls}
         </div>
+        {!props.modern && (
         <div className="map-side">
           <Compass dir={direction} northFix={northFix} />
           {/* リスト表示中は名前の代わりにリストを出す(Philly.ini の ListInMap=on)。
@@ -433,7 +450,10 @@ export function MapView(props: { embedded?: boolean }) {
             ))}
           </ul>
         </div>
+        )}
       </div>
+      {!props.modern && (
+      <>
       <StatusPanel
         session={state?.session ?? -1}
         now={prevStatus.current.now}
@@ -443,6 +463,37 @@ export function MapView(props: { embedded?: boolean }) {
       <div className="map-status-bar">
         <CondBadges cond={state?.cond} />
       </div>
+      </>
+      )}
     </div>
+  );
+}
+
+/** モダンの左上の地名と HP・MP、右上の方角。文字は白に黒の縁取り(style.css の .modern-hud) */
+function ModernHud(props: { title: string; now?: StatusEvent; cond?: CondEvent; dir: number; northFix: boolean }) {
+  const s = props.now;
+  const bar = (kind: "hp" | "mp", v = 0, max = 0) => (
+    <div className={`modern-bar ${kind}`}>
+      <i style={{ width: `${max > 0 ? Math.max(0, Math.min(100, (v / max) * 100)) : 0}%` }} />
+      <span>
+        <span>{kind.toUpperCase()}</span>
+        <span>
+          {v} / {max}
+        </span>
+      </span>
+    </div>
+  );
+  return (
+    <>
+      <div className="modern-hud">
+        <div className="modern-place">{props.title}</div>
+        {bar("hp", s?.hp, s?.maxHp)}
+        {bar("mp", s?.mp, s?.maxMp)}
+        <CondBadges cond={props.cond} />
+      </div>
+      <div className="modern-compass">
+        <Compass dir={props.dir} northFix={props.northFix} />
+      </div>
+    </>
   );
 }

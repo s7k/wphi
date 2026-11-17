@@ -18,5 +18,13 @@ npx vite --config tools/guide/vite.config.ts &
 node tools/guide/shoot.mjs ../s7k.github.io/wphi/guide/images
 ```
 
+モダンの画面(modern.png)は、地図を大きく返す guide_server で別に撮る。
+
+```sh
+GUIDE_VIEW="33 25" cargo run --example guide_server --manifest-path src-tauri/Cargo.toml &
+npx vite --config tools/guide/vite.config.ts &
+node tools/guide/shoot.mjs ../s7k.github.io/wphi/guide/images modern
+```
+
 Chrome は `~/.cache/puppeteer` の chrome-headless-shell 131 を使う。
 別の Chrome を使う時は、環境変数 `CHROME` に実行ファイルを指定する。

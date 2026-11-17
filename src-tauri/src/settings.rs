@@ -50,8 +50,10 @@ pub struct Settings {
     pub map_zoom: u32,
     /// 実験的: 自分が1マス進んだ時に、地図を滑らかにずらして描く。表示のメニューで切り替える(Philly に無い)
     pub smooth_move: bool,
-    /// 実験的: マップの窓を使わず、main 窓のログの左にマップを出す。表示のメニューで切り替える(Philly に無い)
+    /// マップの窓を使わず、main 窓のログの左にマップを出す(クラシック(1窓))。表示のメニューで切り替える(Philly に無い)
     pub single_window: bool,
+    /// main 窓いっぱいにマップを出し、ログと入力欄を重ねる(モダン)。single_window より優先する(Philly に無い)
+    pub modern: bool,
     /// マップのキャラの上に、発言の吹き出しと HP・MP の増減を出す。表示のメニューで切り替える(Philly に無い)
     pub map_effects: bool,
 }
@@ -80,6 +82,7 @@ impl Default for Settings {
             map_zoom: 100,
             smooth_move: false,
             single_window: false,
+            modern: false,
             map_effects: true,
         }
     }

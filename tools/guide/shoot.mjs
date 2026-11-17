@@ -20,6 +20,19 @@ await page.route("http://phi-asset.localhost/**", (r) =>
 const shot = (name, opts = {}) => page.screenshot({ path: `${out}/${name}.png`, ...opts });
 const button = (name) => page.getByRole("button", { name, exact: true });
 
+// node shoot.mjs <出力先> modern で、モダンの画面だけを撮る(guide_server は GUIDE_VIEW="33 25" で立てる)
+if (process.argv[3] === "modern") {
+  await page.goto("http://localhost:5179/?modern");
+  await button("接続").first().click();
+  await page.waitForFunction(() => window.guideReady === true, null, { timeout: 30000 });
+  await page.waitForTimeout(800);
+  await page.locator(".priv-head button").click();
+  await page.waitForTimeout(600);
+  await shot("modern");
+  await browser.close();
+  process.exit(0);
+}
+
 await page.goto("http://localhost:5179/");
 await button("接続").first().waitFor();
 await shot("characters");

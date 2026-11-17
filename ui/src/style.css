@@ -1151,3 +1151,237 @@ button > svg:only-child,
   background: rgba(255, 150, 0, 0.5);
   outline: 1px solid #d08000;
 }
+
+/*
+ * モダン(settings.modern)。地図を main 窓いっぱいに描き、地名と HP・MP、方角、ログ、入力欄を重ねる。
+ * 文字は白に黒の縁取り、色の付いた文字は白へ寄せて薄くする(App.tsx の lightenColors)
+ */
+.main.modern {
+  --edge: #000;
+  --outline: -1px -1px 0 var(--edge), 0 -1px 0 var(--edge), 1px -1px 0 var(--edge), -1px 0 0 var(--edge), 1px 0 0 var(--edge),
+    -1px 1px 0 var(--edge), 0 1px 0 var(--edge), 1px 1px 0 var(--edge);
+  background: #101410;
+}
+
+.main.modern .tab-bar {
+  background: #1a1e1a;
+  border-bottom-color: #000;
+}
+
+.main.modern .tab {
+  background: #2c322c;
+  border-color: #000;
+  color: #ddd;
+}
+
+.main.modern .tab.active {
+  background: #4a544a;
+  color: #fff;
+}
+
+.main.modern .tab.unread {
+  background: #6a3434;
+}
+
+.main.modern .tab-label,
+.main.modern .tab-close {
+  color: inherit;
+}
+
+.main-body.modern {
+  position: relative;
+}
+
+.modern-map {
+  position: absolute;
+  inset: 0;
+}
+
+.map-window.modern {
+  background: #101410;
+}
+
+.map-window.modern .map-area {
+  background: #101410;
+}
+
+/* 左上の地名と HP・MP。右上の方角 */
+.modern-hud {
+  position: absolute;
+  top: 10px;
+  left: 16px;
+  z-index: 3;
+  width: min(260px, 60%);
+  display: grid;
+  gap: 4px;
+  color: #fff;
+  text-shadow: var(--outline);
+  pointer-events: none;
+}
+
+.modern-place {
+  font-weight: bold;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modern-bar {
+  position: relative;
+  height: 14px;
+  background: rgb(0 0 0 / 45%);
+  border: 1px solid rgb(0 0 0 / 80%);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.modern-bar > i {
+  position: absolute;
+  inset: 0 auto 0 0;
+}
+
+.modern-bar.hp > i {
+  background: linear-gradient(#6fe08a, #3fae5c);
+}
+
+.modern-bar.mp > i {
+  background: linear-gradient(#7cc8ff, #3d8fd0);
+}
+
+.modern-bar > span {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+}
+
+.modern-compass {
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  z-index: 3;
+}
+
+.modern-compass .compass {
+  width: 40px;
+  height: 40px;
+}
+
+/* ログ。透過の入った白い角丸の枠で囲み、高さは右上のボタンで選ぶ(--log-h) */
+.main-body.modern > .log-area {
+  position: absolute;
+  left: 16px;
+  bottom: 12px;
+  z-index: 4;
+  /* 自キャラは地図の真ん中にいるので、ログは真ん中より左に収める */
+  width: min(560px, max(45%, 320px));
+  flex: none;
+  max-height: var(--log-h, 42vh);
+  height: var(--log-h, 42vh);
+  box-sizing: border-box;
+  border: 1.5px solid rgb(255 255 255 / 55%);
+  border-radius: 12px;
+  background: rgb(10 14 20 / 38%);
+  backdrop-filter: blur(2px);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 35%);
+}
+
+.main.modern .log-area .phi-log {
+  background: transparent;
+  color: #fff;
+  text-shadow: var(--outline);
+  padding: 6px 10px;
+  border-radius: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 45%) transparent;
+}
+
+/* 行が少ない時も、新しい行を枠の下に寄せる */
+.main.modern .log-area .phi-log > div {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.main.modern .phi-log [data-lc] {
+  color: var(--lc) !important;
+}
+
+.log-height {
+  position: absolute;
+  top: -11px;
+  right: 12px;
+  z-index: 1;
+  display: flex;
+  border: 1px solid rgb(255 255 255 / 55%);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgb(0 0 0 / 65%);
+}
+
+.log-height button {
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  color: #fff;
+  background: transparent;
+  border: 0;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+
+.log-height button + button {
+  border-left: 1px solid rgb(255 255 255 / 35%);
+}
+
+.log-height button[aria-pressed="true"] {
+  background: rgb(255 255 255 / 28%);
+}
+
+/* priv の欄は右に重ねる。上は方角の下から */
+.main-body.modern .priv-panel {
+  position: absolute;
+  top: 64px;
+  right: 16px;
+  bottom: 12px;
+  z-index: 4;
+}
+
+/* 入力欄とボタンは一番下。地図が透けて見えるよう暗くするだけ */
+.main.modern .input-area {
+  border-top: none;
+  background: #101410;
+}
+
+.main.modern .toggle {
+  color: #ddd;
+  background: transparent;
+  border-color: #555;
+}
+
+.main.modern .toggle.on {
+  background: #4a544a;
+  color: #fff;
+}
+
+.main.modern .input-line {
+  color: #fff;
+  background: #1c221c;
+  border: 1px solid #555;
+  border-radius: 6px;
+}
+
+.main.modern .input-line.loud {
+  background: #5a5200;
+}
+
+.main.modern .status-bar {
+  display: none;
+}

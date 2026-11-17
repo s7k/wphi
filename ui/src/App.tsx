@@ -1,7 +1,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { emit, emitTo, listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { memo, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { getVersion } from "@tauri-apps/api/app";
@@ -167,6 +167,7 @@ export function App() {
     );
   // ログを最下行に固定する(既定 on。off は Philly の「ログスクロール停止」)
   const [logFollow, setLogFollow] = useState(true);
+  const [logHeight, setLogHeight] = useLogHeight();
   // 新しい版があれば、Release のページを開くか聞く(#25)。見られなくても何も出さない
   useEffect(() => {
     getVersion()
@@ -182,7 +183,13 @@ export function App() {
     invoke<Settings>("get_settings").then(setSettings).catch(console.error);
     // 表示のメニューで切り替えた分を覚える。覚えないと、設定の画面で保存した時に元に戻す
     const smooth = listen<Settings>(EXPERIMENT_EVENT, (e) =>
-      setSettings((s) => ({ ...s, smoothMove: e.payload.smoothMove, singleWindow: e.payload.singleWindow, mapEffects: e.payload.mapEffects })),
+      setSettings((s) => ({
+        ...s,
+        smoothMove: e.payload.smoothMove,
+        singleWindow: e.payload.singleWindow,
+        modern: e.payload.modern,
+        mapEffects: e.payload.mapEffects,
+      })),
     );
     return () => {
       smooth.then((f) => f());
@@ -274,20 +281,21 @@ export function App() {
     if (predicting(session)) predictor.current.sent(text);
     sendLine(session, text);
   };
-  // 実験的: マップをログと同じ窓に出す(settings.singleWindow)。mapPane は main 窓の中の地図を出しているか
+  // マップを main 窓に出す(クラシック(1窓)の settings.singleWindow と、モダンの settings.modern)。mapPane は main 窓の中の地図を出しているか
   const [mapPane, setMapPane] = useState(true);
   const mapPaneRef = useRef(mapPane);
   mapPaneRef.current = mapPane;
-  const mapPlace = (): MapPlace => (settingsRef.current.singleWindow ? "main" : "map");
+  const mapPlace = (): MapPlace => (inMain(settingsRef.current) ? "main" : "map");
+  const mapInMain = inMain(settings);
   // 同じ窓に出す間は map 窓を隠し、やめたら出し直す。切り替えた時だけ動かす(起動した時は map 窓の表示を変えない)
   const singleBefore = useRef(false);
   useEffect(() => {
-    if (singleBefore.current === settings.singleWindow) return;
-    singleBefore.current = settings.singleWindow;
+    if (singleBefore.current === mapInMain) return;
+    singleBefore.current = mapInMain;
     Window.getByLabel("map")
       .then(async (w) => {
         if (!w) return;
-        if (settings.singleWindow) {
+        if (mapInMain) {
           mapShown.current = false;
           await w.hide();
         } else if (!(await w.isVisible())) {
@@ -297,7 +305,7 @@ export function App() {
         sendMapState(activeRef.current);
       })
       .catch(console.error);
-  }, [settings.singleWindow]);
+  }, [mapInMain]);
   const mapStateQueued = useRef(false);
   const mapStateSession = useRef<number | null>(null);
   const mapShown = useRef(true);
@@ -382,6 +390,9 @@ export function App() {
       "map-solid": viewMode && !viewMode.turn,
       "smooth-move": settings.smoothMove,
       "map-effects": settings.mapEffects,
+      "layout-classic2": !mapInMain,
+      "layout-classic1": settings.singleWindow && !settings.modern,
+      "layout-modern": settings.modern,
     })[id] ?? false;
   const syncViewChecks = (force = false) => {
     const s = activeRef.current === null ? undefined : mapStates.current.get(activeRef.current);
@@ -1053,7 +1064,7 @@ export function App() {
 
   return (
     <div
-      className={settings.logFontSize ? "main log-sized" : "main"}
+      className={["main", settings.logFontSize && "log-sized", settings.modern && "modern"].filter(Boolean).join(" ")}
       // ログ欄のフォントと大きさ(設定)。空と 0 はスキンと既定に任せる
       style={
         {
@@ -1098,9 +1109,15 @@ export function App() {
       )}
       <TabBar tabs={tabs} active={active} onSelect={setActive} onClose={close} onSettings={() => setSettingsOpen(true)} />
       {tab ? (
-        <div className={settings.singleWindow ? "main-body single" : "main-body"}>
-        {settings.singleWindow && mapPane && <MapPane />}
-        <div className="log-area">
+        <div className={settings.modern ? "main-body modern" : settings.singleWindow ? "main-body single" : "main-body"}>
+        {settings.singleWindow && !settings.modern && mapPane && <MapPane />}
+        {settings.modern && mapPane && (
+          <div className="modern-map">
+            <MapView embedded modern />
+          </div>
+        )}
+        <div className="log-area" style={settings.modern ? ({ "--log-h": `${logHeight}vh` } as React.CSSProperties) : undefined}>
+          {settings.modern && <LogHeight value={logHeight} onChange={setLogHeight} />}
           <div
             className="log-menu-area"
             onContextMenu={(e) => {
@@ -1109,7 +1126,7 @@ export function App() {
             }}
           >
             {/* 検索中は最下行へ戻さない。戻すと、見つけた行が新しいログで流れる */}
-            <LogView key={tab.session} lines={tab.lines} follow={logFollow && !findOpen} />
+            <LogView key={tab.session} lines={tab.lines} follow={logFollow && !findOpen} light={settings.modern} />
           </div>
           {findOpen && (
             <LogFind
@@ -1287,7 +1304,7 @@ function TabBar(props: {
  * ログ欄。follow が on の時は、ログが増えるたびと、中の画像が読み込まれて高さが変わるたびに最下行へ移る。
  * off は Philly の「ログスクロール停止」に当たる
  */
-const LogView = memo(function LogView(props: { lines: LogLine[]; follow: boolean }) {
+const LogView = memo(function LogView(props: { lines: LogLine[]; follow: boolean; light?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const follow = useRef(props.follow);
@@ -1298,6 +1315,10 @@ const LogView = memo(function LogView(props: { lines: LogLine[]; follow: boolean
     if (el && follow.current) el.scrollTop = el.scrollHeight;
   };
   useEffect(toBottom, [props.lines, props.follow]);
+  // モダンは地図の上に白い文字で出すので、色の付いた文字を白に寄せて薄くする(style.css の [data-lc])
+  useLayoutEffect(() => {
+    if (props.light && inner.current) lightenColors(inner.current);
+  }, [props.lines, props.light]);
   useEffect(() => {
     if (!inner.current) return;
     const ro = new ResizeObserver(toBottom);
@@ -1619,6 +1640,72 @@ function CharacterList(props: {
       </form>
 
       <NewCharacter onCreated={props.onChanged} onError={props.onError} />
+    </div>
+  );
+}
+
+/**
+ * まだ見ていない行の、親と違う色の要素に、その色を白へ寄せた色を --lc で付ける。
+ * 色は Log.css のクラスとタグの style の両方から来るので、付いた結果の色を読む。行ごとに一度だけ見る
+ */
+function lightenColors(root: HTMLElement) {
+  const lines = root.querySelectorAll<HTMLElement>("[data-line]:not([data-lc-done])");
+  // 先に全部の色を読んでから書く。書きながら読むと、子が薄くした親の色と比べることになる
+  const found: [HTMLElement, string][] = [];
+  for (const line of lines) {
+    for (const el of line.querySelectorAll<HTMLElement>("*")) {
+      const color = getComputedStyle(el).color;
+      if (el.parentElement && color !== getComputedStyle(el.parentElement).color) found.push([el, color]);
+    }
+  }
+  for (const [el, color] of found) {
+    el.style.setProperty("--lc", `color-mix(in srgb, ${color} 45%, white)`);
+    el.dataset.lc = "";
+  }
+  for (const line of lines) line.dataset.lcDone = "";
+}
+
+/** マップを main 窓に出すか(クラシック(1窓)とモダン) */
+const inMain = (s: Settings) => s.singleWindow || s.modern;
+
+const LOG_HEIGHT_KEY = "wphi:modernLogHeight";
+/** モダンのログの高さ(窓の高さの %)。小・中・大 */
+const LOG_HEIGHTS: [string, number][] = [
+  ["小", 20],
+  ["中", 42],
+  ["大", 65],
+];
+
+/** モダンのログの高さ。この窓の localStorage に覚える */
+function useLogHeight(): [number, (v: number) => void] {
+  const [h, setH] = useState(() => {
+    try {
+      const v = Number(localStorage.getItem(LOG_HEIGHT_KEY));
+      return LOG_HEIGHTS.some(([, x]) => x === v) ? v : 42;
+    } catch {
+      return 42;
+    }
+  });
+  const set = (v: number) => {
+    setH(v);
+    try {
+      localStorage.setItem(LOG_HEIGHT_KEY, String(v));
+    } catch {
+      // 覚えられなくても、今の高さのまま使う
+    }
+  };
+  return [h, set];
+}
+
+/** モダンのログの右上の、高さを選ぶボタン */
+function LogHeight(props: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="log-height" role="group" aria-label="ログの高さ">
+      {LOG_HEIGHTS.map(([label, v]) => (
+        <button key={v} type="button" aria-pressed={props.value === v} onClick={() => props.onChange(v)}>
+          {label}
+        </button>
+      ))}
     </div>
   );
 }

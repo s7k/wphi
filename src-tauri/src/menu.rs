@@ -13,7 +13,6 @@ use tauri::{
 pub const MENU_EVENT: &str = "phi-menu";
 /// 設定を切り替える、チェックの付く項目。main.rs が設定に書き、EXPERIMENT_EVENT で設定の全体を全部の窓へ知らせる
 pub const SMOOTH_MOVE: &str = "smooth-move";
-pub const SINGLE_WINDOW: &str = "single-window";
 pub const MAP_EFFECTS: &str = "map-effects";
 pub const EXPERIMENT_EVENT: &str = "phi-experiment";
 
@@ -21,11 +20,45 @@ pub const EXPERIMENT_EVENT: &str = "phi-experiment";
 pub fn experiment<'a>(s: &'a mut crate::settings::Settings, id: &str) -> Option<&'a mut bool> {
     match id {
         SMOOTH_MOVE => Some(&mut s.smooth_move),
-        SINGLE_WINDOW => Some(&mut s.single_window),
         MAP_EFFECTS => Some(&mut s.map_effects),
         _ => None,
     }
 }
+/// 窓の形(1つだけチェックが付く)。(id, クラシック(1窓)か, モダンか)
+const LAYOUTS: [(&str, bool, bool); 3] = [("layout-classic2", false, false), ("layout-classic1", true, false), ("layout-modern", false, true)];
+
+/// 窓の形の項目なら、設定をその形にして true
+pub fn set_layout(s: &mut crate::settings::Settings, id: &str) -> bool {
+    let Some(&(_, single, modern)) = LAYOUTS.iter().find(|l| l.0 == id) else { return false };
+    s.single_window = single;
+    s.modern = modern;
+    true
+}
+
+/// 設定の窓の形の項目の id
+fn layout_id(s: &crate::settings::Settings) -> &'static str {
+    if s.modern {
+        "layout-modern"
+    } else if s.single_window {
+        "layout-classic1"
+    } else {
+        "layout-classic2"
+    }
+}
+
+/// 窓の形のチェックを付け直す。OS のメニューは選んだ項目のチェックだけを反転するので、他の2つを外す
+pub fn set_layout_checks<R: Runtime>(menu: &Menu<R>, s: &crate::settings::Settings) {
+    let on = layout_id(s);
+    for item in menu.items().unwrap_or_default() {
+        let Some(sub) = item.as_submenu() else { continue };
+        for (id, ..) in LAYOUTS {
+            if let Some(c) = sub.get(id).as_ref().and_then(|i| i.as_check_menuitem()) {
+                let _ = c.set_checked(id == on);
+            }
+        }
+    }
+}
+
 /// 今の表示のモードにチェックを付ける項目。モードはサーバが決めるので、UI が地図を受けるたびに set_view_checks で付け直す
 const VIEW_CHECKS: [&str; 2] = ["map-turn", "map-solid"];
 
@@ -137,7 +170,10 @@ const MENUS: Table = &[
             (MAP_EFFECTS, "吹き出しと HP・MP の増減をマップに出す"),
             ("-", ""),
             (SMOOTH_MOVE, "マップを滑らかに動かす(試験中)"),
-            (SINGLE_WINDOW, "マップをログと同じ窓に出す(試験中)"),
+            ("-", ""),
+            ("layout-classic2", "クラシック(2窓)"),
+            ("layout-classic1", "クラシック(1窓)"),
+            ("layout-modern", "モダン"),
         ],
     ),
     (
@@ -307,7 +343,8 @@ pub fn model(menu_txt: &str) -> Vec<MenuModel> {
                     id: id.to_string(),
                     text: text.to_string(),
                     check: experiment(&mut crate::settings::Settings::default(), id).is_some()
-                        || VIEW_CHECKS.contains(id),
+                        || VIEW_CHECKS.contains(id)
+                        || LAYOUTS.iter().any(|l| l.0 == *id),
                 })
                 .collect(),
         })
@@ -377,8 +414,8 @@ pub fn build<R: Runtime>(
         for (id, text) in *items {
             if *id == "-" {
                 sub.append(&PredefinedMenuItem::separator(app)?)?;
-            } else if experiment(&mut settings, id).is_some() || VIEW_CHECKS.contains(id) {
-                let checked = experiment(&mut settings, id).is_some_and(|v| *v);
+            } else if experiment(&mut settings, id).is_some() || VIEW_CHECKS.contains(id) || LAYOUTS.iter().any(|l| l.0 == *id) {
+                let checked = experiment(&mut settings, id).is_some_and(|v| *v) || layout_id(&settings) == *id;
                 sub.append(&CheckMenuItem::with_id(app, *id, *text, true, checked, None::<&str>)?)?;
             } else {
                 sub.append(&MenuItem::with_id(app, *id, *text, true, None::<&str>)?)?;

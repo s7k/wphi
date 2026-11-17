@@ -36,6 +36,8 @@ export type Settings = {
   /** 実験的: 自分が進んだ時に地図を滑らかにずらす(表示のメニューで切り替える) */
   smoothMove: boolean;
   singleWindow: boolean;
+  /** main 窓いっぱいにマップを出し、ログと入力欄を重ねる(モダン)。singleWindow より優先する */
+  modern: boolean;
   /** マップのキャラの上に、発言の吹き出しと HP・MP の増減を出す(表示のメニュー) */
   mapEffects: boolean;
 };

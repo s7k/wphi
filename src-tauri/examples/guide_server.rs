@@ -72,17 +72,23 @@ fn chip(x: i32, y: i32) -> u8 {
     }
 }
 
-/// 地図の幅と高さ。ログと同じ窓の地図は 13x11 マスを見せ、セッションは外周を1マスずつ足して求める(session.rs の view_line)
-const VIEW_W: i32 = 15;
-const VIEW_H: i32 = 13;
+/// 地図の幅と高さ。ログと同じ窓の地図は 13x11 マスを見せ、セッションは外周を1マスずつ足して求める(session.rs の view_line)。
+/// 環境変数 GUIDE_VIEW="W H" で変える(大きい窓で撮る時)
+fn view() -> (i32, i32) {
+    std::env::var("GUIDE_VIEW")
+        .ok()
+        .and_then(|v| v.split_once(' ').and_then(|(w, h)| Some((w.parse().ok()?, h.parse().ok()?))))
+        .unwrap_or((15, 13))
+}
 
 /// 自分が (x, y) にいる時の、北固定の v6 の受信行
 fn frame(x: i32, y: i32, facing: u8) -> Vec<Vec<u8>> {
-    let (cx, cy) = ((VIEW_W - 1) / 2, (VIEW_H - 1) / 2);
-    let mut lines = vec![format!("#v6 M N {:08x} {VIEW_W} {VIEW_H}", 0x6a3b_0000u32).into_bytes()];
-    for r in 0..VIEW_H {
+    let (vw, vh) = view();
+    let (cx, cy) = ((vw - 1) / 2, (vh - 1) / 2);
+    let mut lines = vec![format!("#v6 M N {:08x} {vw} {vh}", 0x6a3b_0000u32).into_bytes()];
+    for r in 0..vh {
         let mut l = format!("#v6 R {r:02} ").into_bytes();
-        for c in 0..VIEW_W {
+        for c in 0..vw {
             l.push(chip(x + c - cx, y + r - cy));
             l.push(0);
         }
@@ -103,7 +109,7 @@ fn frame(x: i32, y: i32, facing: u8) -> Vec<Vec<u8>> {
     o(1, cx, cy, facing, ME, "t_valkyrie");
     for (i, (name, gra, ox, oy, dir)) in OTHERS.iter().enumerate() {
         let (gx, gy) = (ox - x + cx, oy - y + cy);
-        if (0..VIEW_W).contains(&gx) && (0..VIEW_H).contains(&gy) {
+        if (0..vw).contains(&gx) && (0..vh).contains(&gy) {
             o(2 + i as u32, gx, gy, *dir, name, gra);
         }
     }
@@ -119,7 +125,8 @@ fn transcript() -> Vec<Vec<u8>> {
     text("#ex-notice area=はじまりの草原");
     text("#mapset default");
     text("#ex-map style=solid");
-    text(&format!("#ex-map view={VIEW_W} {VIEW_H}"));
+    let (w, h) = view();
+    text(&format!("#ex-map view={w} {h}"));
     text(&format!("#status {ME} : 1820: 2400: 960: 1200: 48210: 3150: 2215: 1840: 960: 1205"));
     text("#cond -------");
     text("/*color=#2080d0*/ようこそ WPHI Guide の世界へ。/*.*/");

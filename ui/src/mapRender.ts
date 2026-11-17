@@ -501,6 +501,12 @@ export function viewFor(px: number, cell: number): number {
   return Math.max(3, Math.min(99, n % 2 ? n : n - 1));
 }
 
+/** 窓を覆うマス数。viewFor と違い、奇数へ切り上げる(はみ出す分は窓の外。モダンで地図の周りを空けない為) */
+export function viewCover(px: number, cell: number): number {
+  const n = Math.ceil(px / cell);
+  return Math.max(3, Math.min(99, n % 2 ? n : n + 1));
+}
+
 /**
  * 地図のうち窓に見せる範囲。x, y はその左上の、地図の中の位置。v6 でない地図(7x7)は全部見せる。
  * v6 は窓より上下左右に1マスずつ多く求める(session.rs の view_line)ので、届いた地図の外周は窓の外に置き、
