@@ -1256,7 +1256,11 @@ export function App() {
             message={tab.bagMessage ?? ""}
             onPut={(slot) => sendLine(tab.session, `#ex-inv put ${slot}`)}
             onGet={(no) => sendLine(tab.session, `#ex-inv get ${no}`)}
-            onSend={(text) => sendLines(tab.session, text)}
+            onSend={(text) => {
+              // unequip は装備中の物の一覧を出してから番号を受け取る。番号も一緒に送るので、一覧は出さずに閉じる(Alt+数字の cast と同じ)
+              if (text.startsWith("unequip")) listFlow(tab.session).cancel += 1;
+              sendLines(tab.session, text);
+            }}
             onClose={() => update(tab.session, (t) => ({ ...t, bagOpen: false }))}
           />
         )}
@@ -1294,7 +1298,11 @@ export function App() {
                 ta.setRangeText(text + "\n", ta.selectionStart, ta.selectionEnd, "end");
                 ta.focus();
               }}
-              onSend={(text) => sendLines(tab.session, text)}
+              onSend={(text) => {
+              // unequip は装備中の物の一覧を出してから番号を受け取る。番号も一緒に送るので、一覧は出さずに閉じる(Alt+数字の cast と同じ)
+              if (text.startsWith("unequip")) listFlow(tab.session).cancel += 1;
+              sendLines(tab.session, text);
+            }}
               onShow={(text) => alertBox(text)}
               onToggle={(key) => {
                 const next = { ...settings, [key]: !settings[key] };
