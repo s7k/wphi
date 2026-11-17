@@ -31,8 +31,10 @@ export type Settings = {
   autoEquipSystemMagic: boolean;
   /** 超魔法メニューを、マスターでなくても出す(サーバの権限ファイルでマスターになった時) */
   masterMagicMenu: boolean;
-  /** マップの拡大率(%) */
+  /** マップの拡大率(%)。v6 の地図に使う */
   mapZoom: number;
+  /** v6 でない 7x7 の地図(v5y など)の拡大率(%)。0 なら mapZoom と同じ */
+  mapZoomM57: number;
   /** 実験的: 自分が進んだ時に地図を滑らかにずらす(表示のメニューで切り替える) */
   smoothMove: boolean;
   singleWindow: boolean;

@@ -13,7 +13,7 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
 
   async function save(next: Settings) {
     try {
-      next = { ...next, mapZoom: clampZoom(next.mapZoom) };
+      next = { ...next, mapZoom: clampZoom(next.mapZoom), mapZoomM57: clampZoom(next.mapZoomM57 || next.mapZoom) };
       setS(next);
       await invoke("save_settings", { settings: next });
       props.onSaved(next);
@@ -113,8 +113,16 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
           Alt+G で送る言葉 <input value={s.altGWord} onChange={(e) => set("altGWord", e.target.value)} />
         </label>
         <label>
-          マップの拡大率{" "}
+          マップの拡大率 v6 の地図{" "}
           <select value={clampZoom(s.mapZoom)} onChange={(e) => set("mapZoom", Number(e.target.value))}>
+            {MAP_ZOOMS.map((z) => (
+              <option key={z} value={z}>
+                {z}%
+              </option>
+            ))}
+          </select>{" "}
+          7x7 の地図(v5y など){" "}
+          <select value={clampZoom(s.mapZoomM57 || s.mapZoom)} onChange={(e) => set("mapZoomM57", Number(e.target.value))}>
             {MAP_ZOOMS.map((z) => (
               <option key={z} value={z}>
                 {z}%

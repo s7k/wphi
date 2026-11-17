@@ -48,6 +48,8 @@ pub struct Settings {
     pub master_magic_menu: bool,
     /// マップの拡大率(%)。マップの画像を拡大縮小する。v6 の視界は、拡大した大きさで欄に収まる分だけ(Philly に無い)
     pub map_zoom: u32,
+    /// v6 でない 7x7 の地図(v5y など)の拡大率(%)。0 なら map_zoom と同じ(Philly に無い)
+    pub map_zoom_m57: u32,
     /// 実験的: 自分が1マス進んだ時に、地図を滑らかにずらして描く。表示のメニューで切り替える(Philly に無い)
     pub smooth_move: bool,
     /// マップの窓を使わず、main 窓のログの左にマップを出す(クラシック(1窓))。表示のメニューで切り替える(Philly に無い)
@@ -82,6 +84,7 @@ impl Default for Settings {
             auto_equip_system_magic: false,
             master_magic_menu: false,
             map_zoom: 100,
+            map_zoom_m57: 0,
             smooth_move: false,
             single_window: false,
             modern: true,

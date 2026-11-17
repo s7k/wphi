@@ -184,7 +184,9 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
   const [smooth, setSmooth] = useState(false);
   const [variety, setVariety] = useState(false);
   // マップの拡大率。canvas は等倍で描き、CSS で拡大縮小する。v6 の視界は、拡大した大きさで欄に収まる分だけ
-  const [zoomSetting, setZoom] = useState(1);
+  // 拡大率の設定。v6 の地図と、v6 でない 7x7 の地図(v5y など)で別に持つ
+  const [zooms, setZooms] = useState({ v6: 1, m57: 1 });
+  const zoomSetting = map?.v6 ? zooms.v6 : zooms.m57;
   // 地図を出しているのがこの窓か。もう一方の窓(隠した map 窓など)の大きさで視界を要求しない
   const [shown, setShown] = useState(false);
   const northFix = isNorthFix(map);
@@ -332,7 +334,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
       setSmooth(s.smoothMove);
       setVariety(s.mapVariety);
       setShown(s.singleWindow || s.modern ? !!props.embedded && !!s.modern === !!props.modern : !props.embedded);
-      setZoom(clampZoom(s.mapZoom) / 100);
+      setZooms({ v6: clampZoom(s.mapZoom) / 100, m57: clampZoom(s.mapZoomM57 || s.mapZoom) / 100 });
     };
     invoke<Settings>("get_settings").then(apply).catch(console.error);
     const unlisten = listen<Settings>(EXPERIMENT_EVENT, (e) => apply(e.payload));

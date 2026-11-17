@@ -30,6 +30,7 @@
   "autoEquipSystemMagic": false,
   "masterMagicMenu": false,
   "mapZoom": 100,
+  "mapZoomM57": 0,
   "smoothMove": false,
   "singleWindow": false,
   "modern": true,
