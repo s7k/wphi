@@ -15,6 +15,7 @@ import { SENT_EVENT, type Sent } from "./keyInput";
 import { isNorthFix, isTextTarget, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskOptions, type Mods } from "./keys.ts";
 import { MAX_UNCONFIRMED, walkable, Walker } from "./walker.ts";
+import { BagPanel } from "./BagPanel.tsx";
 import { AskDialog } from "./AskDialog";
 import { alertBox, confirmBox, MessageDialogHost } from "./MessageDialog";
 import { popupTagMenu } from "./TagMenuPopup";
@@ -32,12 +33,12 @@ import { ListOverlay } from "./ListOverlay";
 import { listNo, listOk, moreNo, moveListCursor, receiveList, type ListFlow, type ListState } from "./list.ts";
 import { trace } from "./trace.ts";
 import { PREDICT_TICK_MS, Predictor } from "./predict.ts";
-import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, TRANSFER_NO, TRANSFER_YES, type MapListAction, type MapState, type UiEvent } from "./protocol";
+import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, TRANSFER_NO, TRANSFER_YES, type ItemInfo, type MapListAction, type MapState, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
 import { LogFind } from "./LogFind";
 import { pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
-import { ArrowDownToLine, Check, FolderOpen, Import, Megaphone, MessageSquare, Layers, Plug, Plus, Save, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
+import { ArrowDownToLine, Backpack, Check, FolderOpen, Import, Megaphone, MessageSquare, Layers, Plug, Plus, Save, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
 
 // src-tauri/src/characters.rs の Store
 type Character = { label: string; host: string; port: number };
@@ -77,6 +78,11 @@ type Tab = {
   talkAdd?: string;
   /** 看板などの本文(#more 〜 #end-more)の札。ログと同じ HTML の行。閉じたら null */
   sign?: string[] | null;
+  /** 手持ちの 8 個(#v6 I)とインベントリ(#ex-inv)。v6 で届いた時だけ */
+  items?: (ItemInfo | null)[];
+  bag?: ItemInfo[] | null;
+  bagOpen?: boolean;
+  bagMessage?: string;
 };
 
 /**
@@ -275,6 +281,11 @@ export function App() {
   const walker = useRef(new Walker<Mods>());
   /** #more の中で届いた本文の行(セッションごと)。#end-more で札にする */
   const signLines = useRef(new Map<number, string[]>());
+  /** カバンを開き、インベントリの中身を求める */
+  const openBag = (session: number) => {
+    update(session, (t) => ({ ...t, bagOpen: true, bagMessage: "" }));
+    sendLine(session, "#ex-inv list");
+  };
   /** 看板の札を閉じる */
   const closeSign = (session: number) => {
     if (tabsRef.current.find((t) => t.session === session)?.sign) update(session, (t) => ({ ...t, sign: null }));
@@ -525,9 +536,13 @@ export function App() {
       }
       const session = activeRef.current;
       if (session === null) return false;
-      // 看板の札は Esc で閉じる
+      // 看板の札とカバンは Esc で閉じる
       if (e.type === "keydown" && e.code === "Escape" && tabsRef.current.find((t) => t.session === session)?.sign) {
         closeSign(session);
+        return true;
+      }
+      if (e.type === "keydown" && e.code === "Escape" && tabsRef.current.find((t) => t.session === session)?.bagOpen) {
+        update(session, (t) => ({ ...t, bagOpen: false }));
         return true;
       }
       const ctx = keyContext(mapStates.current.get(session), settingsRef.current.fullKeyMove);
@@ -1050,6 +1065,15 @@ export function App() {
           Window.getByLabel("eagleeye").then((w) => w?.show());
           break;
         }
+        case "items":
+          update(session, (t) => ({ ...t, items: ev.items }));
+          break;
+        case "bag":
+          update(session, (t) => ({ ...t, bag: ev.items, bagMessage: "" }));
+          break;
+        case "bagRefused":
+          update(session, (t) => ({ ...t, bagMessage: BAG_REFUSED[ev.reason] ?? `出し入れ出来ません(${ev.reason})` }));
+          break;
         case "mode": {
           // 看板などの本文(#more 〜 #end-more)は、ログに流すのに加えて札に出す(試験中)
           const reading = signLines.current.get(session);
@@ -1207,6 +1231,21 @@ export function App() {
           </div>
         )}
         {tab.sign && <SignCard lines={tab.sign} onClose={() => closeSign(tab.session)} />}
+        {tab.items && !tab.bagOpen && (
+          <button type="button" className="bag-button" title="カバン(持ち物とインベントリ)" onClick={() => openBag(tab.session)}>
+            <Backpack />
+          </button>
+        )}
+        {tab.bagOpen && (
+          <BagPanel
+            items={tab.items ?? []}
+            bag={tab.bag ?? null}
+            message={tab.bagMessage ?? ""}
+            onPut={(slot) => sendLine(tab.session, `#ex-inv put ${slot}`)}
+            onGet={(no) => sendLine(tab.session, `#ex-inv get ${no}`)}
+            onClose={() => update(tab.session, (t) => ({ ...t, bagOpen: false }))}
+          />
+        )}
         <div className="log-area" style={settings.modern ? ({ "--log-h": `${logHeight}vh` } as React.CSSProperties) : undefined}>
           {settings.modern && <LogHeight value={logHeight} onChange={setLogHeight} />}
           <div
@@ -1785,6 +1824,18 @@ function SignCard(props: { lines: string[]; onClose: () => void }) {
     </div>
   );
 }
+
+/** #ex-inv no の理由(phi_dm の phi_items.rs の ex_inv) */
+const BAG_REFUSED: Record<string, string> = {
+  off: "この世界ではカバンを使えません",
+  empty: "その枠には何もありません",
+  equipped: "装備中の物は入れられません",
+  nobreak: "この物はカバンに入れられません",
+  full: "カバンが一杯です",
+  hand: "手持ちが一杯か、その物がありません",
+  bad: "出し入れの指定が違います",
+  error: "カバンに入れられませんでした",
+};
 
 /** マップを main 窓に出すか(クラシック(1窓)とモダン) */
 const inMain = (s: Settings) => s.singleWindow || s.modern;

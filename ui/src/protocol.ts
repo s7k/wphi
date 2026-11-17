@@ -94,7 +94,36 @@ export type UiEvent =
   | EagleEyeEvent
   | { type: "worldTransfer" }
   /** #v6 G。v6 のサーバが go のたびに地図より先に送る、動いた差。進めなかった時は 0 0 */
-  | { type: "moved"; dx: number; dy: number };
+  | { type: "moved"; dx: number; dy: number }
+  /** #v6 I。手持ちの 8 個(空きは null) */
+  | { type: "items"; items: (ItemInfo | null)[] }
+  /** #ex-inv。インベントリ(預かり所)の中身。名前の順で、取り出す番号は 1 から */
+  | { type: "bag"; items: ItemInfo[] }
+  /** #ex-inv no。出し入れ出来なかった理由 */
+  | { type: "bagRefused"; reason: string };
+
+/** 持ち物 1 個(phi_dm の docs/dev/protocol-v6.md の「持ち物とインベントリ」) */
+export type ItemInfo = {
+  /** 装備の印。W 武器、A 防具、O その他、- 無し */
+  eq: string;
+  /** 用途(IT_*)、武器の種類(WT_*)、材質(MT_*)、属性(FN_*)の番号 */
+  it: number;
+  wt: number;
+  mt: number;
+  fn: number;
+  wp: number;
+  op: [number, number, number, number];
+  /** チャージアイテムの残りの回数 */
+  count?: number;
+  /** 使えるまでの秒数(届いた時点) */
+  ready: number;
+  /** 世界の名前の表の名前 */
+  type: string;
+  wtype: string;
+  mat: string;
+  elem: string;
+  name: string;
+};
 
 export type EagleEyeEvent = {
   type: "eagleEye";

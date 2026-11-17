@@ -173,6 +173,24 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
     const DM: &str = "/*color=gray*/DM > ";
     let lines: &[&str] = match scene {
         "talk" => &["Kotone > 市場はこっちです", "市場の猫 > にゃあ"],
+        // 持ち物(#v6 I)とインベントリ(#ex-inv)。カバンの画面を撮る時
+        "bag" => &[
+            "#v6 I 1\teq=W\tit=2\twt=1\tmt=3\tfn=6\twp=10\top=12,30,0,0\tready=0\ttype=Weapon\twtype=Sword\tmat=Steel\telem=Fire\tname=Flame sword",
+            "#v6 I 2\teq=A\tit=1\twt=0\tmt=3\tfn=1\twp=8\top=2,25,10,0\tready=0\ttype=Armor\twtype=claw\tmat=Steel\telem=Earth\tname=Iron shield",
+            "#v6 I 3\teq=-\tit=6\twt=0\tmt=0\tfn=5\twp=2\top=1,5,9,0\tcount=5\tready=0\ttype=Charged item\twtype=claw\tmat=Leather\telem=Water\tname=Heal wand",
+            "#v6 I 4\teq=O\tit=7\twt=0\tmt=4\tfn=2\twp=1\top=0,0,0,0\tready=0\ttype=Accessories\twtype=claw\tmat=Silver\telem=Light\tname=Silver ring",
+            "#v6 I 5\teq=-\tit=3\twt=0\tmt=1\tfn=1\twp=1\top=1,0,1,0\tready=0\ttype=Food\twtype=claw\tmat=Wood\telem=Earth\tname=Nuts",
+            "#v6 I 6",
+            "#v6 I 7",
+            "#v6 I 8",
+            "#v6 I .",
+            "#ex-inv I 1\teq=-\tit=2\twt=5\tmt=3\tfn=3\twp=12\top=15,20,0,0\tready=0\ttype=Weapon\twtype=Axe\tmat=Steel\telem=Air\tname=Battle axe",
+            "#ex-inv I 2\teq=-\tit=6\twt=0\tmt=0\tfn=6\twp=2\top=1,2,3,0\tcount=2\tready=30\ttype=Charged item\twtype=claw\tmat=Leather\telem=Fire\tname=Fire rod",
+            "#ex-inv I 3\teq=-\tit=5\twt=0\tmt=4\tfn=9\twp=1\top=1,50,0,0\tready=0\ttype=Jewel\twtype=claw\tmat=Silver\telem=Rainbow\tname=Rainbow gem",
+            "#ex-inv I 4\teq=-\tit=2\twt=6\tmt=5\tfn=4\twp=14\top=18,10,0,0\tready=0\ttype=Weapon\twtype=Striker\tmat=Mythril\telem=Spirit\tname=Spirit hammer",
+            "#ex-inv I 5\teq=-\tit=13\twt=0\tmt=0\tfn=0\twp=1\top=0,0,0,0\tready=0\ttype=Scroll\twtype=claw\tmat=Leather\telem=None\tname=Old map",
+            "#ex-inv .",
+        ],
         // 看板を読んだ時(#more 〜 #end-more)
         "sign" => &[
             "#more",

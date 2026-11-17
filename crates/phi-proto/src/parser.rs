@@ -60,6 +60,77 @@ pub enum Event {
         dx: i32,
         dy: i32,
     },
+    /// `#v6 I` 〜 `#v6 I .`。手持ちの 8 個。空いた枠は None(phi_dm の docs/dev/protocol-v6.md の「持ち物とインベントリ」)
+    Items {
+        items: Vec<Option<Item>>,
+    },
+    /// `#ex-inv I` 〜 `#ex-inv .`。インベントリ(預かり所)の中身。名前の順で、取り出す番号は 1 から
+    Bag {
+        items: Vec<Item>,
+    },
+    /// `#ex-inv no 理由`。インベントリの出し入れが出来なかった
+    BagRefused {
+        reason: String,
+    },
+}
+
+/// 持ち物 1 個(`#v6 I` と `#ex-inv I` の欄)
+#[derive(Debug, Clone, PartialEq, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Item {
+    /// 装備の印。W 武器、A 防具、O その他、- 無し
+    pub eq: String,
+    /// 用途(IT_*)、武器の種類(WT_*)、材質(MT_*)、属性(FN_*)の番号
+    pub it: u8,
+    pub wt: u8,
+    pub mt: u8,
+    #[serde(rename = "fn")]
+    pub fn_: i8,
+    pub wp: i32,
+    pub op: [i32; 4],
+    /// チャージアイテムの残りの回数
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub count: Option<i32>,
+    /// 使えるまでの秒数(送った時点)
+    pub ready: i64,
+    /// 世界の names/*.h の名前
+    #[serde(rename = "type")]
+    pub type_name: String,
+    pub wtype: String,
+    pub mat: String,
+    pub elem: String,
+    pub name: String,
+}
+
+/// `#v6 I` / `#ex-inv I` の番号の後ろの欄(タブで区切った キー=値)を読む
+fn parse_item(fields: &str) -> Item {
+    let mut it = Item::default();
+    for f in fields.split('\t') {
+        let Some((k, v)) = f.split_once('=') else { continue };
+        let num = || v.trim().parse::<i64>().unwrap_or(0);
+        match k {
+            "eq" => it.eq = v.to_string(),
+            "it" => it.it = num() as u8,
+            "wt" => it.wt = num() as u8,
+            "mt" => it.mt = num() as u8,
+            "fn" => it.fn_ = num() as i8,
+            "wp" => it.wp = num() as i32,
+            "op" => {
+                for (o, x) in it.op.iter_mut().zip(v.split(',')) {
+                    *o = x.trim().parse().unwrap_or(0);
+                }
+            }
+            "count" => it.count = Some(num() as i32),
+            "ready" => it.ready = num(),
+            "type" => it.type_name = v.to_string(),
+            "wtype" => it.wtype = v.to_string(),
+            "mat" => it.mat = v.to_string(),
+            "elem" => it.elem = v.to_string(),
+            "name" => it.name = v.to_string(),
+            _ => {}
+        }
+    }
+    it
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize)]
@@ -381,6 +452,9 @@ pub struct Parser {
     /// `#user` の名前 → 番号。届いた順を保つ。
     ulist: Vec<(String, i64)>,
 
+    /// `#v6 I` で届いた手持ちの枠(`#v6 I .` で Items にする)と、`#ex-inv I` で届いたインベントリの中身
+    items: Vec<Option<Item>>,
+    bag: Vec<Item>,
     /// `#v6 M` の幅と高さと、届いた `#v6 R` の行(行番号の位置)。`#v6 .` で全部揃っていれば地図にする
     v6_size: (u8, u8),
     v6_rows: Vec<Option<Vec<Cell>>>,
@@ -568,6 +642,34 @@ impl Parser {
         }
         if raw.starts_with(b"#v6 O ") {
             self.parse_m57_o(raw, 6, 2);
+            return Vec::new();
+        }
+        if let Some(rest) = text.strip_prefix("#v6 I ") {
+            if rest.trim() == "." {
+                return vec![Event::Items { items: std::mem::take(&mut self.items) }];
+            }
+            let (no, fields) = rest.split_once('\t').unwrap_or((rest, ""));
+            if let Ok(no) = no.trim().parse::<usize>()
+                && (1..=99).contains(&no)
+            {
+                if self.items.len() < no {
+                    self.items.resize(no, None);
+                }
+                self.items[no - 1] = (!fields.is_empty()).then(|| parse_item(fields));
+            }
+            return Vec::new();
+        }
+        if let Some(rest) = text.strip_prefix("#ex-inv ") {
+            if rest.trim() == "." {
+                return vec![Event::Bag { items: std::mem::take(&mut self.bag) }];
+            }
+            if let Some(reason) = rest.strip_prefix("no ") {
+                self.bag.clear();
+                return vec![Event::BagRefused { reason: reason.trim().to_string() }];
+            }
+            if let Some((_, fields)) = rest.strip_prefix("I ").and_then(|r| r.split_once('\t')) {
+                self.bag.push(parse_item(fields));
+            }
             return Vec::new();
         }
         if let Some(rest) = text.strip_prefix("#v6 G ") {
@@ -1072,6 +1174,24 @@ mod tests {
         assert_eq!((m.width, m.height, m.cells.len()), (11, 7, 77));
         assert_eq!(m.cells[11], Cell { chip: b'1', attr: 0 });
         assert_eq!((m.chars[0].x, m.chars[0].y), (5, 3));
+    }
+
+    #[test]
+    fn v6_items_and_bag() {
+        let mut p = Parser::new();
+        assert!(p.feed(b"#v6 I 1\teq=W\tit=2\twt=1\tmt=3\tfn=6\twp=10\top=12,30,0,0\tready=0\ttype=Weapon\twtype=Sword\tmat=Steel\telem=Fire\tname=Long sword").is_empty());
+        assert!(p.feed(b"#v6 I 2").is_empty());
+        let evs = p.feed(b"#v6 I .");
+        let [Event::Items { items }] = evs.as_slice() else { panic!("{evs:?}") };
+        assert_eq!(items.len(), 2);
+        let w = items[0].as_ref().unwrap();
+        assert_eq!((w.eq.as_str(), w.it, w.wt, w.fn_, w.op[0], w.name.as_str()), ("W", 2, 1, 6, 12, "Long sword"));
+        assert_eq!(items[1], None);
+        assert!(p.feed(b"#ex-inv I 1\teq=-\tit=6\tcount=3\tname=Wand").is_empty());
+        let evs = p.feed(b"#ex-inv .");
+        let [Event::Bag { items }] = evs.as_slice() else { panic!("{evs:?}") };
+        assert_eq!((items[0].count, items[0].name.as_str()), (Some(3), "Wand"));
+        assert_eq!(p.feed(b"#ex-inv no hand"), vec![Event::BagRefused { reason: "hand".into() }]);
     }
 
     #[test]
