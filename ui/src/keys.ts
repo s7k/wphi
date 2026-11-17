@@ -192,7 +192,8 @@ const ALT: Record<string, KeyAction> = {
   KeyS: { ask: { title: "看板検索", label: "検索する言葉を入力してください" }, send: "cast\nsearch\n{}", cancelList: 1 },
   KeyU: { send: "cast\nunlock\nsee", cancelList: 1, systemMagic: "reequip" },
   KeyW: { send: "cast\nwizard eye", cancelList: 1, systemMagic: "reequip" },
-  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((n) => [`Digit${n}`, { send: `cast\n${n}`, cancelList: 1 }])),
+  // 所持魔法の何番目かを唱える。魔法は手持ちの 8 枠の宝石に封じるので 8 まで(Philly は 7 まで)
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`Digit${n}`, { send: `cast\n${n}`, cancelList: 1 }])),
 };
 
 /** Shift+Alt(KeyBindShiftAlt) */
