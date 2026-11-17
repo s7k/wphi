@@ -162,6 +162,7 @@ UI からの送信は `mpsc` でタスクへ渡す。
 `ex-move-recv`、`ex-list-mode-end`、`ex-disp-magic` の3つは、v5y サーバに実装が無い(phi-client-web `docs/16-current-feature-gap.md` §2)。
 送っても害は無く、Philly との差を減らす為に残す。
 朱蓮の位置取得用に `#ex-switch ex-abspos=true` を足す(同 §3)。
+v6 のサーバ向けに、v6 の視界の `#ex-map view=W H` と、受信を deflate で圧縮させる `#ex-switch compress=deflate` を足す([05-protocol-v6.md](05-protocol-v6.md))。
 
 ### 4.3 維持と世界移動
 
