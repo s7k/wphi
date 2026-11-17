@@ -14,6 +14,7 @@ pub const MENU_EVENT: &str = "phi-menu";
 /// 設定を切り替える、チェックの付く項目。main.rs が設定に書き、EXPERIMENT_EVENT で設定の全体を全部の窓へ知らせる
 pub const SMOOTH_MOVE: &str = "smooth-move";
 pub const MAP_EFFECTS: &str = "map-effects";
+pub const MAP_VARIETY: &str = "map-variety";
 pub const EXPERIMENT_EVENT: &str = "phi-experiment";
 
 /// 切り替える項目の、設定の値
@@ -21,6 +22,7 @@ pub fn experiment<'a>(s: &'a mut crate::settings::Settings, id: &str) -> Option<
     match id {
         SMOOTH_MOVE => Some(&mut s.smooth_move),
         MAP_EFFECTS => Some(&mut s.map_effects),
+        MAP_VARIETY => Some(&mut s.map_variety),
         _ => None,
     }
 }
@@ -170,6 +172,7 @@ const MENUS: Table = &[
             (MAP_EFFECTS, "吹き出しと HP・MP の増減をマップに出す"),
             ("-", ""),
             (SMOOTH_MOVE, "マップを滑らかに動かす(試験中)"),
+            (MAP_VARIETY, "マップの木と草に揺らぎを付ける(試験中)"),
             ("-", ""),
             ("layout-classic2", "クラシック(2窓)"),
             ("layout-classic1", "クラシック(1窓)"),

@@ -33,6 +33,9 @@ import {
   magnifiedDst,
   WATER_BYTE,
   drawRange,
+  cellHash,
+  grassJitter,
+  treeJitter,
 } from './mapRender';
 
 /** drawMap が参照する画像群。null/undefined は未ロード扱いで描画スキップ。 */
@@ -79,6 +82,38 @@ export interface DrawMapInput {
    * 透明の上に描いてキャラの名前も描く。止まっている時と同じく、下の行の壁が自キャラに重なるようにする為
    */
   split?: { row: number; part: 'back' | 'front' };
+  /**
+   * 盤面の (0, 0) のマスの、世界の座標(#ex-pos か #v6 G で数えた位置から決める)。あれば、木と草のマスに座標で決まる揺らぎを付ける
+   * (木のずれ、草の小さな草の房・小石)。同じ場所はいつも同じ見え方になる
+   */
+  origin?: { x: number; y: number };
+}
+
+/** 木のチップ(地面の上に重ねる分)と、揺らぎを付ける草のマス */
+const TREE_CHIP = 3;
+const GRASS_BYTE = ':'.charCodeAt(0);
+
+function drawGrassJitter(ctx: CanvasRenderingContext2D, h: number, col: number, row: number, cs: number, scale: number) {
+  const g = grassJitter(h);
+  const [x0, y0] = [col * cs, row * cs];
+  const dot = (style: string, x: number, y: number, w: number, h2: number) => {
+    ctx.fillStyle = style;
+    ctx.fillRect(x0 + (g.x + x) * scale, y0 + (g.y + y) * scale, w * scale, h2 * scale);
+  };
+  const dark = 'rgba(0,0,0,0.3)';
+  const light = 'rgba(255,255,255,0.28)';
+  if (g.deco === 'tuft') {
+    dot(dark, 0, 3, 1, 4);
+    dot(dark, 1, 1, 1, 6);
+    dot(dark, 3, 0, 1, 7);
+    dot(dark, 5, 2, 1, 5);
+    dot(light, 1, 1, 1, 2);
+    dot(light, 3, 0, 1, 2);
+  } else if (g.deco === 'pebble') {
+    dot(dark, 0, 1, 4, 2);
+    dot(dark, 1, 3, 2, 1);
+    dot(light, 1, 0, 2, 1);
+  }
 }
 
 /** EagleEye でアイテムのマスに描くマップチップ(Philly の MapChipCache->Draw(..., 19, ...)) */
@@ -159,8 +194,25 @@ export function drawMap(
         const cell = input.cells[cellIndex(col, row, width)];
         const img = cell && chipFor(cell);
         if (!cell || !img) continue;
-        for (const idx of chipIndices(cell.chip)) {
+        // 地面を先に1行分描き、重ねるチップ(木)は後で描く。木を横にずらした時に、右隣の地面で消えないように
+        drawChip(ctx, img, chipIndices(cell.chip)[0], col, row, cs, scale);
+        if (input.origin && cell.chip === GRASS_BYTE)
+          drawGrassJitter(ctx, cellHash(input.origin.x + col, input.origin.y + row), col, row, cs, scale);
+      }
+      for (let col = c0; col <= c1; col++) {
+        const cell = input.cells[cellIndex(col, row, width)];
+        const img = cell && chipFor(cell);
+        if (!cell || !img) continue;
+        for (const idx of chipIndices(cell.chip).slice(1)) {
+          if (idx !== TREE_CHIP || !input.origin) {
+            drawChip(ctx, img, idx, col, row, cs, scale);
+            continue;
+          }
+          const t = treeJitter(cellHash(input.origin.x + col, input.origin.y + row));
+          ctx.save();
+          ctx.translate(t.dx * scale, t.dy * scale);
           drawChip(ctx, img, idx, col, row, cs, scale);
+          ctx.restore();
         }
       }
     }

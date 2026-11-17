@@ -38,6 +38,8 @@ export type Settings = {
   singleWindow: boolean;
   /** main 窓いっぱいにマップを出し、ログと入力欄を重ねる(モダン)。singleWindow より優先する */
   modern: boolean;
+  /** マップの木と草に、場所で決まる揺らぎを付ける(drawMap.ts の origin) */
+  mapVariety: boolean;
   /** マップのキャラの上に、発言の吹き出しと HP・MP の増減を出す(表示のメニュー) */
   mapEffects: boolean;
 };

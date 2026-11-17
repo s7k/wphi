@@ -9,8 +9,8 @@ import "../../ui/src/style.css";
 
 const SERVER = "http://127.0.0.1:5180";
 const text = (path: string) => fetch(SERVER + path).then((r) => r.text());
-// ?modern でモダンの画面に、?smooth でスムーズ移動にする
-const settings = { ...DEFAULT_SETTINGS, singleWindow: true, modern: location.search.includes("modern"), smoothMove: location.search.includes("smooth") };
+// ?modern でモダンの画面に、?smooth でスムーズ移動に、?plain で木と草の揺らぎ無しにする
+const settings = { ...DEFAULT_SETTINGS, singleWindow: true, modern: location.search.includes("modern"), smoothMove: location.search.includes("smooth"), mapVariety: !location.search.includes("plain") };
 
 mockIPC(
   async (cmd, args: any) => {

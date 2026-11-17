@@ -54,6 +54,8 @@ pub struct Settings {
     pub single_window: bool,
     /// main 窓いっぱいにマップを出し、ログと入力欄を重ねる(モダン)。single_window より優先する(Philly に無い)
     pub modern: bool,
+    /// 実験的: マップの木と草に、場所で決まる揺らぎを付ける(木のずれと、草の飾り)。表示のメニューで切り替える(Philly に無い)
+    pub map_variety: bool,
     /// マップのキャラの上に、発言の吹き出しと HP・MP の増減を出す。表示のメニューで切り替える(Philly に無い)
     pub map_effects: bool,
 }
@@ -83,6 +85,7 @@ impl Default for Settings {
             smooth_move: false,
             single_window: false,
             modern: false,
+            map_variety: true,
             map_effects: true,
         }
     }

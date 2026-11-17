@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addWalk, arrangeRow, drawRange, itemDrawRect, selfPos, SLIDE_MIN_MS, slideStep, viewArea, viewFor, walkAt, walkDelay } from "./mapRender.ts";
+import { addWalk, arrangeRow, cellHash, drawRange, grassJitter, itemDrawRect, selfPos, SLIDE_MIN_MS, slideStep, treeJitter, viewArea, viewFor, walkAt, walkDelay } from "./mapRender.ts";
 
 test("アイテムは Philly と同じく床の上端の8px上に描く(#41)", () => {
   const r = itemDrawRect(1, " ".charCodeAt(0), 32, 64);
@@ -98,4 +98,16 @@ test("スムーズ移動は、届いた位置の間を補い、止まってい�
   ws = addWalk(ws, { at: 5120, x: 2, y: 0 });
   assert.equal(walkDelay(ws), 150);
   assert.deepEqual(walkAt(ws, 5060), { x: 1.5, y: 0 });
+});
+
+test("木と草の揺らぎは、場所で決まり、範囲に収まる", () => {
+  assert.equal(cellHash(10, 20), cellHash(10, 20));
+  assert.notEqual(cellHash(10, 20), cellHash(11, 20));
+  for (let i = 0; i < 500; i++) {
+    const h = cellHash(i * 7, i * 13);
+    const t = treeJitter(h);
+    assert.ok(Math.abs(t.dx) <= 3 && Math.abs(t.dy) <= 2);
+    const g = grassJitter(h);
+    assert.ok(g.x + 6 <= 32 && g.y + 7 <= 32);
+  }
 });

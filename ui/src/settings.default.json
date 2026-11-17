@@ -33,5 +33,6 @@
   "smoothMove": false,
   "singleWindow": false,
   "modern": false,
+  "mapVariety": true,
   "mapEffects": true
 }

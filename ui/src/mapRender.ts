@@ -616,3 +616,29 @@ export function slideStep(
   const n = Math.max(Math.abs(dx), Math.abs(dy));
   return n === 0 || n > 2 ? null : { dx, dy };
 }
+
+/** マスの世界の座標から決まる 32bit の値 */
+export function cellHash(x: number, y: number): number {
+  let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+/** 木の揺らぎ。マスの中のずれ(px、等倍)。左右反転はしない(チップの陰影の向きが逆になる) */
+export function treeJitter(h: number): { dx: number; dy: number } {
+  return { dx: ((h >>> 8) % 7) - 3, dy: ((h >>> 12) % 5) - 2 };
+}
+
+/**
+ * 草のマスの揺らぎ。小さな飾り(草の房か小石)とその位置(px、等倍)。
+ * 飾りは下地の色を暗く・明るくするだけの半透明の点で描くので、世界のチップの色を選ばない。
+ * マスごとに明るさを変える事は試したが、マスの四角い縁が浮いて見えたのでやめた
+ */
+export function grassJitter(h: number): { deco: 'tuft' | 'pebble' | null; x: number; y: number } {
+  const r = (h >>> 4) % 100;
+  return {
+    deco: r < 14 ? 'tuft' : r < 19 ? 'pebble' : null,
+    x: 4 + ((h >>> 11) % 22),
+    y: 6 + ((h >>> 16) % 20),
+  };
+}

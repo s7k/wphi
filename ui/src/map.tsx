@@ -172,6 +172,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     };
   }, []);
   const [smooth, setSmooth] = useState(false);
+  const [variety, setVariety] = useState(false);
   // マップの拡大率。canvas は等倍で描き、CSS で拡大縮小する。v6 の視界は、拡大した大きさで欄に収まる分だけ
   const [zoomSetting, setZoom] = useState(1);
   // 地図を出しているのがこの窓か。もう一方の窓(隠した map 窓など)の大きさで視界を要求しない
@@ -279,6 +280,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
   useEffect(() => {
     const apply = (s: Settings) => {
       setSmooth(s.smoothMove);
+      setVariety(s.mapVariety);
       setShown(s.singleWindow || s.modern ? !!props.embedded && !!s.modern === !!props.modern : !props.embedded);
       setZoom(clampZoom(s.mapZoom) / 100);
     };
@@ -354,7 +356,10 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
       items: image(assetUrl("items")),
       chara: image,
     };
-    const input = { ...board, mapset: state.mapset };
+    // 揺らぎは北固定の時だけ。自キャラの世界の座標は #ex-pos、無ければ #v6 G で数えた位置
+    const selfAt = map?.pos ?? (state.walk && { x: state.walk.x, y: state.walk.y });
+    const origin = variety && northFix && selfAt ? { x: selfAt.x - board.self.x, y: selfAt.y - board.self.y } : undefined;
+    const input = { ...board, mapset: state.mapset, origin };
     if (!s) {
       drawMap(ctx, input, imgs, frame);
       trace(`map draw ${(performance.now() - t0).toFixed(1)}ms`);
@@ -398,7 +403,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
   useEffect(() => {
     layerDirty.current = true;
     paint.current();
-  }, [board, frame, loaded, state?.mapset, state?.defines?.join()]);
+  }, [board, frame, loaded, state?.mapset, state?.defines?.join(), variety]);
 
   const canvasLeft = snap((area.w - boardW * CHIP_SIZE * zoom) / 2);
   const canvasTop = snap((area.h - (boardH * CHIP_SIZE + MAP_TOP) * zoom) / 2);

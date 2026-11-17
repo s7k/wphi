@@ -188,6 +188,7 @@ export function App() {
         smoothMove: e.payload.smoothMove,
         singleWindow: e.payload.singleWindow,
         modern: e.payload.modern,
+        mapVariety: e.payload.mapVariety,
         mapEffects: e.payload.mapEffects,
       })),
     );
@@ -395,6 +396,7 @@ export function App() {
       "map-solid": viewMode && !viewMode.turn,
       "smooth-move": settings.smoothMove,
       "map-effects": settings.mapEffects,
+      "map-variety": settings.mapVariety,
       "layout-classic2": !mapInMain,
       "layout-classic1": settings.singleWindow && !settings.modern,
       "layout-modern": settings.modern,
