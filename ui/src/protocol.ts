@@ -132,7 +132,7 @@ export type MapState = {
    * epoch が変わったら(タブの切り替え・テレポート)前の位置とは比べない。at は位置が変わった時刻
    * (performance.timeOrigin + performance.now() の ms。窓をまたいで比べる)。スムーズ移動が使う
    */
-  walk?: { x: number; y: number; epoch: number; at: number; ms: number };
+  walk?: { x: number; y: number; epoch: number; at: number; ms: number; bump?: { dx: number; dy: number; at: number } };
 };
 
 /**

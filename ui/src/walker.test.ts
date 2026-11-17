@@ -81,3 +81,29 @@ test("スムーズ移動の1歩は返事を待たずに進んだとみなし、�
   assert.equal(p.unconfirmed, 0);
   t += 1;
 });
+
+test("壁や木へ向かった1歩は進んだとみなさず、揺れの印を付ける。深い水か浅い水か分からない '_' へは進む", () => {
+  let t = 0;
+  const p = new Predictor(() => t);
+  // 5x5 の中央 (2,2) が自キャラ。北が壁、東が木、南が水
+  const chip = (i: number) => ({ 7: "#", 13: "T", 17: "_" } as Record<number, string>)[i] ?? " ";
+  const cells = Array.from({ length: 25 }, (_, i) => ({ chip: chip(i).charCodeAt(0), attr: 0 }));
+  const map = { type: "map", width: 5, height: 5, v6: true, dir: 0, style: "solid", cells, chars: [] } as MapEvent;
+  p.onMoved(0, 0);
+  p.onMap(null, map);
+  p.walkStep("go N", WALK_MS);
+  assert.deepEqual(p.offset, { dx: 0, dy: 0 });
+  assert.deepEqual(p.walk?.bump, { dx: 0, dy: -1, at: 0 });
+  t = 10;
+  p.walkStep("go E", WALK_MS);
+  assert.deepEqual(p.walk?.bump, { dx: 1, dy: 0, at: 10 });
+  p.walkStep("go S", WALK_MS);
+  assert.deepEqual(p.offset, { dx: 0, dy: 1 });
+  // 返事は3つとも送った順に合う
+  assert.equal(p.unconfirmed, 3);
+  p.onMoved(0, 0);
+  p.onMoved(0, 0);
+  p.onMoved(0, 1);
+  assert.equal(p.unconfirmed, 0);
+  assert.deepEqual(p.offset, { dx: 0, dy: 1 });
+});

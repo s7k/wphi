@@ -68,6 +68,10 @@ export type MapPlace = "map" | "main";
 /** スムーズ移動で、地図の周りに余分に描くマス数。見せる位置の遅れ(mapRender.ts の walkDelay)は2マスまで */
 const SLIDE_MARGIN = 2;
 
+/** 通れない所へ向かった時の揺れの大きさ(px、等倍)と時間(ms) */
+const BUMP_PX = 4;
+const BUMP_MS = 120;
+
 /** v6 で求められるマス数の上限。行番号と座標が 10 進 2 桁の為(phi_dm の docs/dev/protocol-v6.md)。外周の2マスを含む */
 const V6_MAX = 99;
 
@@ -369,19 +373,43 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
         { at: Math.max(now + 16, here.at + here.ms), x: s.x, y: s.y },
       ];
     } else walks.current = addWalk(walks.current, s);
+    animate.current();
+  }, [here?.world, here?.x, here?.y]);
+  // 通れない所へ向かった1歩は、その場で BUMP_PX だけ進んで戻る揺れを見せる(predict.ts の walkStep)
+  const bump = useRef<{ dx: number; dy: number; start: number } | null>(null);
+  useEffect(() => {
+    const b = walk?.bump;
+    if (!b || !smooth || !northFix) return;
+    bump.current = { dx: b.dx, dy: b.dy, start: performance.timeOrigin + performance.now() };
+    animate.current();
+  }, [walk?.bump?.at]);
+  // 滑らせる量と揺れを足して、毎フレーム描く。どちらも終われば止める
+  const animate = useRef(() => {});
+  animate.current = () => {
     if (raf.current) return;
     const tick = () => {
+      const now = performance.timeOrigin + performance.now();
+      let [sx, sy, done] = [0, 0, true];
       const ws = walks.current;
       const last = ws[ws.length - 1];
-      const d = walkAt(ws, performance.timeOrigin + performance.now() - (timed.current ? 0 : walkDelay(ws)));
-      const done = d.x === last.x && d.y === last.y;
+      if (last) {
+        const d = walkAt(ws, now - (timed.current ? 0 : walkDelay(ws)));
+        if (d.x !== last.x || d.y !== last.y) [sx, sy, done] = [(last.x - d.x) * CHIP_SIZE, (last.y - d.y) * CHIP_SIZE, false];
+      }
+      const b = bump.current;
+      const t = b ? (now - b.start) / BUMP_MS : 1;
+      if (b && t < 1) {
+        // 自キャラが壁の方へ寄って見えるよう、地図を逆へずらす
+        const k = Math.sin(Math.PI * t) * BUMP_PX;
+        [sx, sy, done] = [sx - b.dx * k, sy - b.dy * k, false];
+      } else bump.current = null;
       // 整数の px にする。端数の位置に描くと、チップの境目が隣と混ざって線に見える
-      slide.current = done ? null : { x: Math.round((last.x - d.x) * CHIP_SIZE), y: Math.round((last.y - d.y) * CHIP_SIZE) };
+      slide.current = done ? null : { x: Math.round(sx), y: Math.round(sy) };
       paint.current();
       raf.current = done ? 0 : requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
-  }, [here?.world, here?.x, here?.y]);
+  };
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
 
   // 滑らせる間は、周りに SLIDE_MARGIN マス広く描いた地図(自キャラ以外)を layers に1回描き、毎フレームはそれをずらして写して

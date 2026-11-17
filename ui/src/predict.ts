@@ -41,6 +41,13 @@ export const PREDICT_TICK_MS = 20;
 type Move = { dx: number; dy: number; at: number };
 /** 黙って進めない地形。鍵の掛かった箱('%')と扉('{')。パスウォールなら進めるが、その時は地図が来て戻る */
 const LOCKED = new Set(["%", "{"].map((c) => c.charCodeAt(0)));
+/**
+ * #v6 G を送るサーバで、進んだとみなさない地形。サーバが T_CWALL の印で止める物(phi_dm/view.rs の move_chr)のうち、
+ * 地図の文字で分かる物。岩('@')、木('T')、檻('I')、窓('|')、ガラス('=')、見えない所('?')、鍵の掛かった箱と扉。
+ * 壁('#'、'H')は隠し扉も同じ文字で届くが、ほとんどは壁なので止める。サーバが通した時は #v6 G で位置を直す。
+ * 深い水と浅い水は同じ '_' なので止めない
+ */
+const BLOCKED = new Set(["%", "{", "@", "T", "I", "|", "=", "?", "#", "H"].map((c) => c.charCodeAt(0)));
 
 const sum = (ms: Move[]) => ms.reduce((o, m) => ({ dx: o.dx + m.dx, dy: o.dy + m.dy }), { dx: 0, dy: 0 });
 
@@ -64,6 +71,8 @@ export class Predictor {
   /** walk が最後に変わった時刻(now() の値)と、そこから walk の位置まで滑らせる時間(ms) */
   private walkedAt = 0;
   private walkMs = STEP_MS;
+  /** 最後に通れない所へ向かった1歩の向きと時刻。地図はその場で揺らして見せる */
+  private bumped: { dx: number; dy: number; at: number } | null = null;
   /** 移動を送ってから地図か「進めません」が届くまでの時間(ms)。新しい方の SAMPLES 個 */
   private samples: number[] = [];
   private lastGuess = -Infinity;
@@ -85,10 +94,13 @@ export class Predictor {
   }
 
   /** 歩いた分を足した位置(進んだとみなした分も含む)。#v6 G を送るサーバだけ */
-  get walk(): { x: number; y: number; epoch: number; at: number; ms: number } | undefined {
+  get walk():
+    | { x: number; y: number; epoch: number; at: number; ms: number; bump?: { dx: number; dy: number; at: number } }
+    | undefined {
     if (!this.acked) return undefined;
     const g = sum(this.guessed);
-    return { x: this.walked.x + g.dx, y: this.walked.y + g.dy, epoch: this.epoch, at: this.walkedAt, ms: this.walkMs };
+    const w = { x: this.walked.x + g.dx, y: this.walked.y + g.dy, epoch: this.epoch, at: this.walkedAt, ms: this.walkMs };
+    return this.bumped ? { ...w, bump: this.bumped } : w;
   }
 
   /** 進んだとみなしたが、#v6 G の返事がまだ来ていない移動の数 */
@@ -106,9 +118,14 @@ export class Predictor {
     const now = this.now();
     this.guessed.push(...this.queue.splice(0));
     const step = { ...STEP[m[1].toLowerCase()], at: now };
-    // 鍵の掛かった箱と扉へは進まない。#v6 G 0 0 と順番を合わせる為、動かない1歩として残す
-    this.guessed.push(this.locked(step) ? { dx: 0, dy: 0, at: now } : step);
     this.lastGuess = now;
+    if (this.blocks(step, BLOCKED)) {
+      // 通れない所へは進まず、その場で揺らす。#v6 G 0 0 と順番を合わせる為、動かない1歩として残す
+      this.guessed.push({ dx: 0, dy: 0, at: now });
+      this.bumped = { dx: step.dx, dy: step.dy, at: now };
+      return;
+    }
+    this.guessed.push(step);
     this.walkedAt = now;
     this.walkMs = ms;
   }
@@ -236,8 +253,9 @@ export class Predictor {
     if (!head || now - head.at < this.wait || now - this.lastGuess < SERVER_TICK_MS) return false;
     this.lastGuess = now;
     const m = this.queue.shift()!;
-    if (this.locked(m)) {
-      // #v6 G を送るサーバは鍵の掛かった所へも 0 0 を返すので、順番を合わせる為に動かない1歩として残す
+    // #v6 G を送るサーバは通れない所へも 0 0 を返すので、順番を合わせる為に動かない1歩として残す。
+    // 送らないサーバは、壁では「進めません」が届くので、黙って止まる鍵の掛かった所だけを捨てる
+    if (this.acked ? this.blocks(m, BLOCKED) : this.blocks(m, LOCKED)) {
       if (this.acked) this.guessed.push({ dx: 0, dy: 0, at: m.at });
       return false;
     }
@@ -247,8 +265,8 @@ export class Predictor {
     return true;
   }
 
-  /** 進んだとみなした分の先へ m で進む先が、最後の地図で鍵の掛かった箱か扉か */
-  private locked(m: Move): boolean {
+  /** 進んだとみなした分の先へ m で進む先が、最後の地図で set の地形か */
+  private blocks(m: Move, set: Set<number>): boolean {
     const map = this.map;
     if (!map) return false;
     const me = selfPos(map.width, map.height, false);
@@ -256,7 +274,7 @@ export class Predictor {
     const x = me.x + o.dx + m.dx;
     const y = me.y + o.dy + m.dy;
     if (x < 0 || x >= map.width || y < 0 || y >= map.height) return false;
-    return LOCKED.has(map.cells[y * map.width + x].chip);
+    return set.has(map.cells[y * map.width + x].chip);
   }
 
   reset() {
@@ -265,6 +283,7 @@ export class Predictor {
     this.base = null;
     this.map = null;
     this.acked = false;
+    this.bumped = null;
     this.moved = { dx: 0, dy: 0 };
     this.epoch++;
     this.lastGuess = -Infinity;
