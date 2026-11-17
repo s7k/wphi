@@ -636,12 +636,19 @@ export function App() {
       if (action) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList, ask, systemMagic });
     });
     // マップのマウス操作(Philly の MapForm.cpp の FormMouseDown)
+    let lastFollow = 0;
     const mouse = listen<ForwardedMouse>(MOUSE_EVENT, (e) => {
       const m = e.payload;
       const session = activeRef.current;
       if (session === null) return;
       if (m.type === "hit") sendLine(session, "hit");
       else {
+        // 追尾移動は長押しと同じ速さにする。位置を予想する時は前の移動の返事を待ち、他は FOLLOW_MS に1歩まで
+        if (m.type === "follow") {
+          const now = performance.now();
+          if ((predicting(session) && predictor.current.waiting) || now - lastFollow < FOLLOW_MS) return;
+          lastFollow = now;
+        }
         // 斜めは2方向を1歩ずつ送り、斜めに1マス進む(#76)
         const northFix = keyContext(mapStates.current.get(session), true).northFix;
         for (const k of m.keys) sendMove(session, moveCommand(k, "none", northFix));
@@ -1671,6 +1678,9 @@ function lightenColors(root: HTMLElement) {
   }
   for (const line of lines) line.dataset.lcDone = "";
 }
+
+/** 追尾移動で、続けて送る間隔の下限(ms)。サーバは 0.1 秒に1行ずつ処理する */
+const FOLLOW_MS = 110;
 
 /** マップを main 窓に出すか(クラシック(1窓)とモダン) */
 const inMain = (s: Settings) => s.singleWindow || s.modern;

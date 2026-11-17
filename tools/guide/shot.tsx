@@ -60,6 +60,10 @@ mockIPC(
       case "set_map_view":
         (window as any).guideView = args;
         return null;
+      // 送った行を window.guideSent に溜める(操作の確かめ用)
+      case "send_line":
+        ((window as any).guideSent ??= []).push(args.text);
+        return null;
       // ?trace で時刻の記録(ui/src/trace.ts)を window.guideTrace に溜める
       case "trace_on":
         return location.search.includes("trace");

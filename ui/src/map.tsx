@@ -220,20 +220,47 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     return x >= 0 && x < boardW && y >= 0 && y < boardH ? [{ ...c, x, y }] : [];
   });
 
-  // マップのマウス操作。左ボタンでその向きへ1歩進み、右ボタンで hit(Philly の MapForm.cpp)。押し続けても繰り返さない
+  // マップのマウス操作。左ボタンでその向きへ1歩進み、右ボタンで hit(Philly の MapForm.cpp)。押し続けても繰り返さない。
+  // 中ボタン(ホイール)で追尾移動を入り切りする。追尾中はマウスポインタの方へ歩き続ける(Philly に無い)
   const [cursor, setCursor] = useState("default");
   const mouseDown = useRef(false);
+  const [follow, setFollow] = useState(false);
+  const pointer = useRef<{ x: number; y: number; shiftOrCtrl: boolean } | null>(null);
   const sendList = (a: MapListAction) => emitTo("main", MAP_LIST_EVENT, a).catch(console.error);
   const sendMouse = (m: ForwardedMouse) => emitTo("main", MOUSE_EVENT, m).catch(console.error);
-  const dirAt = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  /** stillOnSelf は、自キャラのマスの上では null を返す(追尾移動で止まる所) */
+  const dirAtPoint = (clientX: number, clientY: number, shiftOrCtrl: boolean, stillOnSelf = false) => {
     // canvas の座標に戻す。マップは上の余白(MAP_TOP)の下から描いている。
     // 向きは自キャラのマスから見て決める(回転の自キャラは中央より下)
-    const r = e.currentTarget.getBoundingClientRect();
+    const c = mapCanvas.current;
+    if (!c) return null;
+    const r = c.getBoundingClientRect();
     const [w, h] = [boardW * CHIP_SIZE, boardH * CHIP_SIZE];
-    const x = (e.clientX - r.left) / zoom - (me.x + 0.5) * CHIP_SIZE + w / 2;
-    const y = (e.clientY - r.top) / zoom - MAP_TOP - (me.y + 0.5) * CHIP_SIZE + h / 2;
-    return mouseDir(x, y, w, h, northFix, e.shiftKey || e.ctrlKey);
+    const x = (clientX - r.left) / zoom - (me.x + 0.5) * CHIP_SIZE + w / 2;
+    const y = (clientY - r.top) / zoom - MAP_TOP - (me.y + 0.5) * CHIP_SIZE + h / 2;
+    if (stillOnSelf && Math.abs(x - w / 2) < CHIP_SIZE / 2 && Math.abs(y - h / 2) < CHIP_SIZE / 2) return null;
+    return mouseDir(x, y, w, h, northFix, shiftOrCtrl);
   };
+  const dirAt = (e: React.MouseEvent<HTMLCanvasElement>) => dirAtPoint(e.clientX, e.clientY, e.shiftKey || e.ctrlKey);
+  // 追尾中は、ポインタの方へ1歩ずつ送り続ける。間引くのは main 窓(歩く速さに合わせる)。
+  // 自キャラのマスの上と地図の外では送らない。回転マップの左右の角(その場で向きを変える所)でも送らない
+  const followDir = useRef(dirAtPoint);
+  followDir.current = dirAtPoint;
+  useEffect(() => {
+    if (!follow) return;
+    // モダンではログや HUD が地図に重なるので、ポインタは窓全体で追う。地図の範囲の外なら mouseDir が null を返す
+    const move = (e: MouseEvent) => (pointer.current = { x: e.clientX, y: e.clientY, shiftOrCtrl: e.shiftKey || e.ctrlKey });
+    window.addEventListener("mousemove", move);
+    const t = setInterval(() => {
+      const p = pointer.current;
+      const d = p && followDir.current(p.x, p.y, p.shiftOrCtrl, true);
+      if (d && !d.keys.some((k) => k === "7" || k === "9")) sendMouse({ type: "follow", keys: d.keys });
+    }, 30);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("mousemove", move);
+    };
+  }, [follow]);
   // 北固定で Shift か Ctrl を押しながら動かすと、マウスの方を向く(#6)。同じ向きは続けて送らない。
   // 送った向きは今の向きと組で覚え、キーで向きが変わったら同じ向きへもまた送る(#68)
   const lastTurn = useRef<string | null>(null);
@@ -248,6 +275,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     sendLine(state.session, `turn ${to}`);
   };
   const onMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    pointer.current = { x: e.clientX, y: e.clientY, shiftOrCtrl: e.shiftKey || e.ctrlKey };
     turnTo(e);
     const d = dirAt(e);
     // スキンのカーソル。読めなければ CSS の矢印のカーソル
@@ -255,6 +283,17 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     setCursor(d ? (skin ? `url("${assetUrl("cursor", { name: skin })}"), ${d.cursor}` : d.cursor) : "default");
   };
   const onMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button === 1) {
+      // 中ボタンの自動スクロールと貼り付けを止める
+      e.preventDefault();
+      pointer.current = { x: e.clientX, y: e.clientY, shiftOrCtrl: e.shiftKey || e.ctrlKey };
+      setFollow((f) => !f);
+      return;
+    }
+    if (e.button === 0 && follow) {
+      setFollow(false);
+      return;
+    }
     if (e.button === 2) {
       sendMouse({ type: "hit" });
       return;
@@ -266,6 +305,10 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
   };
   const onMouseUp = () => {
     mouseDown.current = false;
+  };
+  const onMouseLeave = () => {
+    mouseDown.current = false;
+    pointer.current = null;
   };
   const direction = northFix ? 0 : (map?.dir ?? 0);
 
@@ -500,10 +543,11 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
             onMouseMove={onMouseMove}
             onMouseDown={onMouseDown}
             onMouseUp={onMouseUp}
-            onMouseLeave={onMouseUp}
+            onMouseLeave={onMouseLeave}
             onContextMenu={(e) => e.preventDefault()}
           />
           {popEls}
+          {follow && <div className="map-follow">追尾移動中(中クリックか左クリックで止める)</div>}
         </div>
         {!props.modern && (
         <div className="map-side">
