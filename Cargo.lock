@@ -5201,6 +5201,7 @@ version = "0.1.72"
 dependencies = [
  "delharc",
  "fancy-regex",
+ "flate2",
  "image",
  "include_dir",
  "keyring",

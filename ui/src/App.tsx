@@ -975,6 +975,9 @@ export function App() {
           }
           break;
         }
+        case "moved":
+          if (session === activeRef.current && predictor.current.onMoved(ev.dx, ev.dy)) sendMapState(session);
+          break;
         default:
           onMapEvent(session, ev);
       }

@@ -92,7 +92,9 @@ export type UiEvent =
   | { type: "edit"; mode: "single" | "multi" | "end" }
   | { type: "userList"; users: { key: string; name: string }[] }
   | EagleEyeEvent
-  | { type: "worldTransfer" };
+  | { type: "worldTransfer" }
+  /** #v6 G。v6 のサーバが go のたびに地図より先に送る、動いた差。進めなかった時は 0 0 */
+  | { type: "moved"; dx: number; dy: number };
 
 export type EagleEyeEvent = {
   type: "eagleEye";

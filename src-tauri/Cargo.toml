@@ -22,6 +22,7 @@ serde_json = "1"
 tauri-plugin-window-state = "2"
 ureq = "3.5.2"
 delharc = "0.8.0"
+flate2 = "1.1.11"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread"] }

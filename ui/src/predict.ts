@@ -4,6 +4,7 @@
 // サーバへは何も足さない。黙って進めなかった時は、次に地図が来た時に本当の位置へ戻る。
 // 鍵の掛かった箱と扉は、サーバが音だけ鳴らして何も送らない(phi_dm/view.rs の move_chr)。地図も来ないので、
 // 箱の上に乗って見え、その先へも進んで見える(#85)。なので行き先がこの2つなら進んだとみなさない。
+// go のたびに #v6 G(動いた差)を送るサーバでは、それで確定する。待ちきった移動を進んだとみなすのは、返事が遅れた間だけになる。
 import type { MapEvent } from "./protocol";
 import { selfPos, UNKNOWN } from "./mapRender.ts";
 
@@ -28,6 +29,8 @@ const PREDICT_WAIT_MAX_MS = 1000;
 const SERVER_TICK_MS = 100;
 /** 進んだとみなした移動に、これより後に来た地図は、その移動への返事の時間として測らない */
 const LATE_MAP_MS = 400;
+/** #v6 G を送るサーバで、これより待っても返事の来ない移動は捨てる(移動先の選択の最中の go は番号として読まれ、返事が来ない) */
+const MOVED_GIVE_UP_MS = 1500;
 /** tick() を呼ぶ間隔。待ちきった時刻からの遅れはこれ以内 */
 export const PREDICT_TICK_MS = 20;
 
@@ -46,6 +49,10 @@ export class Predictor {
   private base: { x: number; y: number } | null = null;
   /** 最後に届いた地図 */
   private map: MapEvent | null = null;
+  /** サーバが #v6 G を送るか */
+  private acked = false;
+  /** 最後に届いた地図の後に #v6 G で確かめた、動いた差 */
+  private moved = { dx: 0, dy: 0 };
   /** 移動を送ってから地図か「進めません」が届くまでの時間(ms)。新しい方の SAMPLES 個 */
   private samples: number[] = [];
   private lastGuess = -Infinity;
@@ -57,7 +64,8 @@ export class Predictor {
 
   /** 最後に届いた地図の位置からの、予想したずれ */
   get offset(): { dx: number; dy: number } {
-    return sum(this.guessed);
+    const g = sum(this.guessed);
+    return { dx: this.moved.dx + g.dx, dy: this.moved.dy + g.dy };
   }
 
   /** 返事を待っている移動があるか */
@@ -91,6 +99,11 @@ export class Predictor {
     const [x, y] = pos.split(",").map(Number);
     const prev = this.base;
     this.base = { x, y };
+    if (this.acked) {
+      // #v6 G は地図より先に届くので、地図は返事の来た移動を全部含む。返事の来ていない移動はそのまま
+      this.moved = { dx: 0, dy: 0 };
+      return;
+    }
     if (prev && prev.x === x && prev.y === y) {
       // 位置の変わらない地図(他のキャラが動いた)。進んだとみなした分は、まだ進んでいない
       this.guessed = [];
@@ -122,15 +135,45 @@ export class Predictor {
 
   /** 「進めません」を受けた時。サーバは順に処理するので、一番古い返事の来ていない移動への返事 */
   onCannotGo() {
+    if (this.acked) return;
     if (this.guessed.shift()) return;
     const m = this.queue.shift();
     if (m) this.measure(m);
+  }
+
+  /**
+   * #v6 G を受けた時。サーバは順に処理するので、一番古い返事の来ていない移動への返事。ずれが変われば true。
+   * 1 マスより大きい差(スイッチやゲートで飛んだ)は、次の地図を待つ
+   */
+  onMoved(dx: number, dy: number): boolean {
+    const before = this.offset;
+    this.acked = true;
+    if (!this.guessed.shift()) {
+      const m = this.queue.shift();
+      if (m) this.measure(m);
+    }
+    if (Math.abs(dx) + Math.abs(dy) === 1) {
+      this.moved = { dx: this.moved.dx + dx, dy: this.moved.dy + dy };
+    } else if (dx || dy) {
+      this.moved = { dx: 0, dy: 0 };
+      this.guessed = [];
+    }
+    const after = this.offset;
+    return before.dx !== after.dx || before.dy !== after.dy;
   }
 
   /** PREDICT_TICK_MS ごとに呼ぶ。返事を待ちきった移動を1つ、進んだとみなす。ずれが変われば true */
   tick(): boolean {
     const head = this.queue[0];
     const now = this.now();
+    if (this.acked) {
+      const oldest = this.guessed[0] ?? head;
+      if (oldest && now - oldest.at > MOVED_GIVE_UP_MS) {
+        if (this.guessed.shift()) return true;
+        this.queue.shift();
+        return false;
+      }
+    }
     if (!head || now - head.at < this.wait || now - this.lastGuess < SERVER_TICK_MS) return false;
     this.lastGuess = now;
     const m = this.queue.shift()!;
@@ -156,6 +199,8 @@ export class Predictor {
     this.guessed = [];
     this.base = null;
     this.map = null;
+    this.acked = false;
+    this.moved = { dx: 0, dy: 0 };
     this.lastGuess = -Infinity;
   }
 }

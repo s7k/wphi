@@ -165,6 +165,36 @@ test("鍵の掛かった箱や扉へは進んだとみなさない(#85)", () => 
   assert.equal(p.waiting, false);
 });
 
+test("#v6 G を送るサーバでは、返事で進んだ分を確かめ、地図が来なくてもずらす", () => {
+  const { p, advance } = setup();
+  p.onMap("5,5,0");
+  p.sent("go N");
+  p.sent("go N");
+  advance(50);
+  // 1歩目は進み、地図は来ない(一様な所)
+  assert.equal(p.onMoved(0, -1), true);
+  assert.deepEqual(p.offset, { dx: 0, dy: -1 });
+  // 2歩目は待ちきって進んだとみなした後に、進めなかったと届く
+  advance(200);
+  assert.equal(p.tick(), true);
+  assert.deepEqual(p.offset, { dx: 0, dy: -2 });
+  assert.equal(p.onMoved(0, 0), true);
+  assert.deepEqual(p.offset, { dx: 0, dy: -1 });
+  // 地図は返事の来た移動を含むので、確かめた分を消す
+  p.onMap("5,4,0");
+  assert.deepEqual(p.offset, { dx: 0, dy: 0 });
+  // 「進めません」は #v6 G と重ねて数えない
+  p.sent("go E");
+  p.onCannotGo();
+  assert.equal(p.waiting, true);
+  // 返事の来ない移動は諦める
+  advance(2000);
+  p.tick();
+  p.tick();
+  assert.equal(p.waiting, false);
+  assert.deepEqual(p.offset, { dx: 0, dy: 0 });
+});
+
 test("予想した位置の地図は、v6 の北固定の地図を1マスずらし、入る端を '?' にする", () => {
   // 5x3。マスのチップは列と行の番号
   const cell = (x: number, y: number) => ({ chip: x * 10 + y, attr: 0 });

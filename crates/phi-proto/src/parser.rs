@@ -55,6 +55,11 @@ pub enum Event {
         state: WorldTransferState,
         server: String,
     },
+    /// `#v6 G dx dy`。v6 のサーバが go のたびに地図より先に送る、動いた差(東と南が正)。進めなかった時は 0 0
+    Moved {
+        dx: i32,
+        dy: i32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize)]
@@ -565,6 +570,13 @@ impl Parser {
             self.parse_m57_o(raw, 6, 2);
             return Vec::new();
         }
+        if let Some(rest) = text.strip_prefix("#v6 G ") {
+            let mut it = rest.split_whitespace().map(str::parse::<i32>);
+            return match (it.next(), it.next()) {
+                (Some(Ok(dx)), Some(Ok(dy))) => vec![Event::Moved { dx, dy }],
+                _ => Vec::new(),
+            };
+        }
         if let Some(rest) = text.strip_prefix("#v6 M ") {
             self.parse_v6_m(raw, rest);
             return Vec::new();
@@ -1060,6 +1072,14 @@ mod tests {
         assert_eq!((m.width, m.height, m.cells.len()), (11, 7, 77));
         assert_eq!(m.cells[11], Cell { chip: b'1', attr: 0 });
         assert_eq!((m.chars[0].x, m.chars[0].y), (5, 3));
+    }
+
+    #[test]
+    fn v6_moved() {
+        let mut p = Parser::new();
+        assert_eq!(p.feed(b"#v6 G 0 -1"), vec![Event::Moved { dx: 0, dy: -1 }]);
+        assert_eq!(p.feed(b"#v6 G 0 0"), vec![Event::Moved { dx: 0, dy: 0 }]);
+        assert_eq!(p.feed(b"#v6 G x"), vec![]);
     }
 
     /// サーバの eagleeye_m57 と同じ形の行(チップに x、属性に y を入れる)

@@ -104,6 +104,8 @@ fn login_lines(id: Option<&str>, view: Option<(u8, u8)>) -> Vec<String> {
             "#ex-switch ex-disp-magic=false".into(),
             // 朱蓮の絶対座標(v5y の :U ZA 拡張)。他の世界は =false を返す
             "#ex-switch ex-abspos=true".into(),
+            // v6 のサーバは返事の行の後ろから deflate で送る(phi_dm の docs/dev/protocol-v6.md の「通信の圧縮」)。他のサーバは読み捨てる
+            "#ex-switch compress=deflate".into(),
         ])
         .collect()
 }
@@ -120,6 +122,53 @@ fn view_line((w, h): (u8, u8), turn: bool) -> String {
 fn parse_view(text: &str) -> Option<(u8, u8)> {
     let (w, h) = text.strip_prefix(VIEW_PREFIX)?.split_once(' ')?;
     Some((w.parse().ok()?, h.parse().ok()?))
+}
+
+/// サーバの `#ex-switch compress=deflate` の返事。この行の後ろから deflate で届く
+const COMPRESS_MARK: &[u8] = b"\n#ex-switch compress=deflate\n";
+
+/// 受けたバイト列を、サーバが圧縮を始めていれば展開する
+struct Inflate {
+    /// 圧縮が始まるまでの、前に受けた分の末尾。返事の行が2回の受信に跨った時の為。最初は行頭を表す `\n`
+    tail: Vec<u8>,
+    z: Option<flate2::Decompress>,
+}
+
+impl Inflate {
+    fn new() -> Self {
+        Self { tail: b"\n".to_vec(), z: None }
+    }
+
+    fn feed(&mut self, raw: &[u8]) -> Result<Vec<u8>, String> {
+        let Some(z) = self.z.as_mut() else {
+            let mut all = std::mem::take(&mut self.tail);
+            let skip = all.len();
+            all.extend_from_slice(raw);
+            if let Some(i) = all.windows(COMPRESS_MARK.len()).position(|w| w == COMPRESS_MARK) {
+                // tail は印より短いので、印の終わりは今回の分の中にある
+                let end = i + COMPRESS_MARK.len() - skip;
+                self.z = Some(flate2::Decompress::new(true));
+                let mut out = raw[..end].to_vec();
+                out.extend(self.feed(&raw[end..])?);
+                return Ok(out);
+            }
+            self.tail = all[all.len().saturating_sub(COMPRESS_MARK.len() - 1)..].to_vec();
+            return Ok(raw.to_vec());
+        };
+        let mut out = Vec::new();
+        let mut pos = 0;
+        loop {
+            out.reserve(raw.len() * 4 + 4096);
+            let before = z.total_in();
+            z.decompress_vec(&raw[pos..], &mut out, flate2::FlushDecompress::Sync)
+                .map_err(|e| e.to_string())?;
+            pos += (z.total_in() - before) as usize;
+            // 出力の領域が余ったまま返ったら、届いた分を出し切っている
+            if pos == raw.len() && out.len() < out.capacity() {
+                return Ok(out);
+            }
+        }
+    }
 }
 
 fn line_bytes(text: &str) -> Vec<u8> {
@@ -206,6 +255,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
     }
 
     let mut lines = LineBuffer::new();
+    let mut inflate = Inflate::new();
     let mut parser = Parser::new();
     let opts = LogOptions::default();
     let mut record = recorder(&login);
@@ -234,11 +284,18 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                 last_recv = Instant::now();
                 keepalive_sent = false;
                 warned = false;
+                let data = match inflate.feed(&buf[..n]) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        emit(error(format!("受信した行を展開出来ません: {e}")));
+                        break;
+                    }
+                };
                 if let Some(f) = record.as_mut() {
                     use std::io::Write;
-                    let _ = f.write_all(&buf[..n]);
+                    let _ = f.write_all(&data);
                 }
-                let mut queue: VecDeque<Vec<u8>> = lines.feed(&buf[..n]).into();
+                let mut queue: VecDeque<Vec<u8>> = lines.feed(&data).into();
                 // 世界移動に失敗したら、#ch-srv の後の行と、移動の間に移動元から受けた行を続けて処理する(#71)
                 loop {
                 let mut moving_to = None;
@@ -307,7 +364,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     }
                     let mut skipped = Vec::new();
                     let moved = tokio::select! {
-                        r = transfer(&mut stream, &mut lines, &mut skipped, &server, &login.id, view, &mut emit) => Some(r),
+                        r = transfer(&mut stream, &mut lines, &mut inflate, &mut skipped, &server, &login.id, view, &mut emit) => Some(r),
                         _ = async { while outgoing.recv().await.is_some() {} } => None,
                     };
                     match moved {
@@ -323,6 +380,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                                 host = h.to_string();
                             }
                             lines = LineBuffer::new();
+                            inflate = Inflate::new();
                             parser = Parser::new();
                             sent_view = view.map(|v| view_line(v, false));
                             while outgoing.try_recv().is_ok() {}
@@ -414,6 +472,7 @@ fn recorder(login: &Login) -> Option<std::fs::File> {
 async fn transfer(
     src: &mut TcpStream,
     src_lines: &mut LineBuffer,
+    src_inflate: &mut Inflate,
     src_skipped: &mut Vec<Vec<u8>>,
     server: &str,
     id: &str,
@@ -448,6 +507,7 @@ async fn transfer(
         && wait_line(
             &mut dst,
             &mut dst_lines,
+            &mut Inflate::new(),
             b"#rsv-ok",
             &[b"#rsv-no", b"#x"],
             deadline(),
@@ -466,7 +526,7 @@ async fn transfer(
     emit(system(true, "転送元世界に転送要求..."));
     let trans = format!("#trans {host} {port}");
     let accepted = src.write_all(&line_bytes(&trans)).await.is_ok()
-        && wait_line(src, src_lines, b"#trs-ok", &[b"#trs-no"], deadline(), src_skipped).await;
+        && wait_line(src, src_lines, src_inflate, b"#trs-ok", &[b"#trs-no"], deadline(), src_skipped).await;
     if !accepted {
         let _ = src.write_all(&line_bytes("#ch-srv-no")).await;
         emit(system(false, "転送失敗"));
@@ -501,6 +561,7 @@ fn transfer_target(server: &str) -> Option<(&str, u16)> {
 async fn wait_line(
     stream: &mut TcpStream,
     lines: &mut LineBuffer,
+    inflate: &mut Inflate,
     ok: &[u8],
     ng: &[&[u8]],
     deadline: Instant,
@@ -512,7 +573,8 @@ async fn wait_line(
             Ok(Ok(n)) if n > 0 => n,
             _ => return false,
         };
-        let mut got = lines.feed(&buf[..n]).into_iter();
+        let Ok(data) = inflate.feed(&buf[..n]) else { return false };
+        let mut got = lines.feed(&data).into_iter();
         while let Some(line) = got.next() {
             if line == ok {
                 return true;
@@ -580,6 +642,25 @@ mod tests {
         assert_eq!(text(false), "ボーン");
         assert_eq!(text(true), "");
     }
+
+    /// 圧縮の返事の行が2回の受信に跨っても、その後ろから展開する
+    #[test]
+    fn inflate_after_compress_reply() {
+        use flate2::{Compress, Compression, FlushCompress};
+        let mut z = Compress::new(Compression::default(), true);
+        let mut packed = Vec::with_capacity(256);
+        z.compress_vec(b"#v6 G 0 -1\n", &mut packed, FlushCompress::Sync).unwrap();
+        let mut wire = b"#ex-map style=solid\n#ex-switch compr".to_vec();
+        let cut = wire.len();
+        wire.extend_from_slice(b"ess=deflate\n");
+        wire.extend_from_slice(&packed);
+        let mut inf = Inflate::new();
+        let mut got = inf.feed(&wire[..cut]).unwrap();
+        got.extend(inf.feed(&wire[cut..cut + 20]).unwrap());
+        got.extend(inf.feed(&wire[cut + 20..]).unwrap());
+        assert_eq!(got, b"#ex-map style=solid\n#ex-switch compress=deflate\n#v6 G 0 -1\n");
+    }
+
     use tokio::{
         io::{AsyncBufReadExt, BufReader},
         net::TcpListener,
@@ -641,7 +722,7 @@ mod tests {
 
         let (login, after) = server.await.unwrap();
         assert_eq!(login[0], b"#open ID\n");
-        assert_eq!(login.last().unwrap(), b"#ex-switch ex-abspos=true\n");
+        assert_eq!(login.last().unwrap(), b"#ex-switch compress=deflate\n");
         assert_eq!(after, vec![b"#end-lag\n".to_vec(), b"say \x82\xa0?\n".to_vec()]);
         assert_eq!(
             events,
