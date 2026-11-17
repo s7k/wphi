@@ -642,3 +642,45 @@ export function grassJitter(h: number): { deco: 'tuft' | 'pebble' | null; x: num
     y: 6 + ((h >>> 16) % 20),
   };
 }
+
+/**
+ * 見えないマス('?')の分け方。0 は見えるマス、1 は盤面の端につながる見えない所(世界の外など。霧で描く)、
+ * 2 は盤面の端に触れない見えない所(壁で囲まれた建物の中など。屋根で描く)。上下左右でつながる範囲ごとに決める
+ */
+export function unknownKinds(cells: { chip: number }[], width: number, height: number): Uint8Array {
+  const kind = new Uint8Array(width * height);
+  for (let i = 0; i < kind.length; i++) if (cells[i]?.chip === UNKNOWN) kind[i] = 2;
+  // 端の見えないマスから塗り広げ、つながった分を 1 にする
+  const stack: number[] = [];
+  for (let x = 0; x < width; x++) stack.push(x, (height - 1) * width + x);
+  for (let y = 0; y < height; y++) stack.push(y * width, y * width + width - 1);
+  while (stack.length) {
+    const i = stack.pop()!;
+    if (kind[i] !== 2) continue;
+    kind[i] = 1;
+    const [x, y] = [i % width, Math.floor(i / width)];
+    if (x > 0) stack.push(i - 1);
+    if (x < width - 1) stack.push(i + 1);
+    if (y > 0) stack.push(i - width);
+    if (y < height - 1) stack.push(i + width);
+  }
+  return kind;
+}
+
+/**
+ * 屋根を乗せるマス。壁に囲まれた見えない所(unknownKinds の 2)と、その北・東・西で接する見えるマス(壁)。
+ * 南だけで接するマス(扉のある正面の壁)は入れず、屋根の軒の下に見せる
+ */
+export function roofCells(kinds: Uint8Array, width: number, height: number): Uint8Array {
+  const roof = new Uint8Array(width * height);
+  const inside = (x: number, y: number) => x >= 0 && y >= 0 && x < width && y < height && kinds[y * width + x] === 2;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      if (kinds[i] === 2) roof[i] = 1;
+      else if (!kinds[i] && (inside(x, y + 1) || inside(x - 1, y) || inside(x + 1, y) || inside(x - 1, y + 1) || inside(x + 1, y + 1)))
+        roof[i] = 1;
+    }
+  }
+  return roof;
+}

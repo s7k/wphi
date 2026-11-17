@@ -399,7 +399,8 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     // 揺らぎは北固定の時だけ。自キャラの世界の座標は #ex-pos、無ければ #v6 G で数えた位置
     const selfAt = map?.pos ?? (state.walk && { x: state.walk.x, y: state.walk.y });
     const origin = variety && northFix && selfAt ? { x: selfAt.x - board.self.x, y: selfAt.y - board.self.y } : undefined;
-    const input = { ...board, mapset: state.mapset, origin };
+    // v6 の地図は、見えないマスを屋根と霧で描く(drawMap.ts の unknown)。7x7 の #m57 は今まで通り
+    const input = { ...board, mapset: state.mapset, origin, unknown: board.v6 ? ("roof" as const) : undefined };
     if (!s) {
       drawMap(ctx, input, imgs, frame);
       trace(`map draw ${(performance.now() - t0).toFixed(1)}ms`);

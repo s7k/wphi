@@ -36,6 +36,8 @@ import {
   cellHash,
   grassJitter,
   treeJitter,
+  unknownKinds,
+  roofCells,
 } from './mapRender';
 
 /** drawMap が参照する画像群。null/undefined は未ロード扱いで描画スキップ。 */
@@ -87,6 +89,68 @@ export interface DrawMapInput {
    * (木のずれ、草の小さな草の房・小石)。同じ場所はいつも同じ見え方になる
    */
   origin?: { x: number; y: number };
+  /**
+   * 見えないマス('?')の描き方。black はチップのまま(真っ黒)、fog は暗い霧にして境目をぼかし、
+   * roof は壁で囲まれた所に屋根を乗せて残りを霧にする(mapRender.ts の unknownKinds、roofCells)。map.tsx は v6 の地図で roof にする。
+   * 真っ黒の四角は穴に見え、壁の内側に平らに描いた屋根は壁より低く凹んで見えた為、屋根は壁の高さだけ持ち上げて壁の上に乗せる
+   */
+  unknown?: 'black' | 'fog' | 'roof';
+}
+
+/** 壁のチップが上へはみ出す高さ(px、等倍)。屋根をこの分だけ持ち上げる */
+const CHIP_HEIGHT_ABOVE = 16;
+
+/** 霧の色 */
+const FOG = [27, 32, 38];
+/** 屋根の色(瓦の地) */
+const ROOF = '#8a4a3a';
+
+/** 見えないマスを霧で塗る */
+function drawFog(ctx: CanvasRenderingContext2D, col: number, row: number, cs: number) {
+  ctx.fillStyle = `rgb(${FOG.join(',')})`;
+  ctx.fillRect(col * cs, row * cs, cs, cs);
+}
+
+/** 見えるマスの、霧に接する辺から内側へ、霧をぼかして重ねる。side は 0 上、1 右、2 下、3 左 */
+function drawFogEdge(ctx: CanvasRenderingContext2D, col: number, row: number, side: number, cs: number, scale: number) {
+  const d = 12 * scale;
+  const [x0, y0] = [col * cs, row * cs];
+  const box = [
+    [x0, y0, x0, y0 + d, x0, y0, cs, d],
+    [x0 + cs, y0, x0 + cs - d, y0, x0 + cs - d, y0, d, cs],
+    [x0, y0 + cs, x0, y0 + cs - d, x0, y0 + cs - d, cs, d],
+    [x0, y0, x0 + d, y0, x0, y0, d, cs],
+  ][side];
+  const g = ctx.createLinearGradient(box[0], box[1], box[2], box[3]);
+  g.addColorStop(0, `rgba(${FOG.join(',')},0.85)`);
+  g.addColorStop(1, `rgba(${FOG.join(',')},0)`);
+  ctx.fillStyle = g;
+  ctx.fillRect(box[4], box[5], box[6], box[7]);
+}
+
+/** 屋根のマス。瓦を 8px の段で並べ、上が屋根でなければ棟の明るい線、下が屋根でなければ軒の暗い帯を付ける */
+function drawRoof(ctx: CanvasRenderingContext2D, col: number, row: number, cs: number, scale: number, top: boolean, bottom: boolean) {
+  const [x0, y0] = [col * cs, row * cs];
+  ctx.fillStyle = ROOF;
+  ctx.fillRect(x0, y0, cs, cs);
+  const step = 8 * scale;
+  for (let y = 0; y < cs; y += step) {
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillRect(x0, y0 + y, cs, scale);
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(x0, y0 + y + step - scale, cs, scale);
+    // 瓦の継ぎ目は段ごとに半分ずらす
+    const shift = ((row * cs + y) / step) % 2 ? step / 2 : 0;
+    for (let x = shift; x < cs; x += step) ctx.fillRect(x0 + x, y0 + y, scale, step);
+  }
+  if (top) {
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillRect(x0, y0, cs, 2 * scale);
+  }
+  if (bottom) {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(x0, y0 + cs - 3 * scale, cs, 3 * scale);
+  }
 }
 
 /** 木のチップ(地面の上に重ねる分)と、揺らぎを付ける草のマス */
@@ -172,6 +236,11 @@ export function drawMap(
   const water = chipImg ? buildWaterGrid(input.cells, width, height) : null;
 
   const me = input.self ?? { x: (width - 1) >> 1, y: (height - 1) >> 1 };
+  const unknownStyle = input.unknown ?? 'black';
+  const kinds = unknownStyle === 'black' ? null : unknownKinds(input.cells, width, height);
+  // 1 は霧、2 は屋根(roof の時だけ。fog では霧)
+  const kindAt = (c: number, r: number) =>
+    !kinds || c < 0 || r < 0 || c >= width || r >= height ? 0 : unknownStyle === 'fog' && kinds[r * width + c] ? 1 : kinds[r * width + c];
   const slide = input.slide && (input.slide.x || input.slide.y) ? input.slide : null;
   const atCenter = (c: MapChar) => c.x === me.x && c.y === me.y;
   const range = drawRange(view, slide ?? { x: 0, y: 0 }, width, height, cs);
@@ -194,6 +263,16 @@ export function drawMap(
         const cell = input.cells[cellIndex(col, row, width)];
         const img = cell && chipFor(cell);
         if (!cell || !img) continue;
+        const k = kindAt(col, row);
+        if (k === 1) {
+          drawFog(ctx, col, row, cs);
+          continue;
+        }
+        if (k === 2) {
+          // 屋根は全部の行を描いた後に上から乗せる。ここは屋根の下になる
+          drawFog(ctx, col, row, cs);
+          continue;
+        }
         // 地面を先に1行分描き、重ねるチップ(木)は後で描く。木を横にずらした時に、右隣の地面で消えないように
         drawChip(ctx, img, chipIndices(cell.chip)[0], col, row, cs, scale);
         if (input.origin && cell.chip === GRASS_BYTE)
@@ -203,6 +282,12 @@ export function drawMap(
         const cell = input.cells[cellIndex(col, row, width)];
         const img = cell && chipFor(cell);
         if (!cell || !img) continue;
+        if (kinds && !kindAt(col, row)) {
+          // 霧に接する辺はぼかす。屋根の下のマスには軒の影を落とす
+          [kindAt(col, row - 1), kindAt(col + 1, row), kindAt(col, row + 1), kindAt(col - 1, row)].forEach((k, side) => {
+            if (k === 1) drawFogEdge(ctx, col, row, side, cs, scale);
+          });
+        }
         for (const idx of chipIndices(cell.chip).slice(1)) {
           if (idx !== TREE_CHIP || !input.origin) {
             drawChip(ctx, img, idx, col, row, cs, scale);
@@ -273,6 +358,31 @@ export function drawMap(
     const rowChars = input.chars.filter((c) => c.y === row && inRange(c) && !((slide || input.only === 'others') && atCenter(c)));
     for (const { ch, dx } of arrangeRow(rowChars)) {
       drawChara(ctx, ch, cs, scale, imgs, animFrame, dx * scale, input.eagleEye ? 0 : CHARA_Y_ABOVE_FLOOR * scale);
+    }
+  }
+
+  // 4.5 屋根。壁の高さ(上へはみ出す 16px)だけ持ち上げ、壁の上に乗せる。軒の下には影を落とす
+  if (kinds && unknownStyle === 'roof') {
+    const roof = roofCells(kinds, width, height);
+    const on = (c: number, r: number) => c >= 0 && r >= 0 && c < width && r < height && roof[r * width + c] === 1;
+    const lift = CHIP_HEIGHT_ABOVE * scale;
+    for (let row = r0; row <= r1; row++) {
+      for (let col = c0; col <= c1; col++) {
+        if (!on(col, row)) continue;
+        if (!on(col, row + 1)) {
+          // 軒の影。屋根の下の壁に落とす
+          const y = (row + 1) * cs - lift;
+          const g = ctx.createLinearGradient(0, y, 0, y + 10 * scale);
+          g.addColorStop(0, 'rgba(0,0,0,0.5)');
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.fillRect(col * cs, y, cs, 10 * scale);
+        }
+        ctx.save();
+        ctx.translate(0, -lift);
+        drawRoof(ctx, col, row, cs, scale, !on(col, row - 1), !on(col, row + 1));
+        ctx.restore();
+      }
     }
   }
 

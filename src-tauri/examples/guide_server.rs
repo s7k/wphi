@@ -60,7 +60,17 @@ const OTHERS: [(&str, &str, i32, i32, u8); 4] = [
     ("市場の猫", "t_catw", 6, 9, b'R'),
 ];
 
+/// 環境変数 GUIDE_HIDDEN があれば、お城の中と世界の外を見えないマス('?')にする(見えない所の描き方を比べる時)
 fn chip(x: i32, y: i32) -> u8 {
+    let c = world_chip(x, y);
+    if std::env::var_os("GUIDE_HIDDEN").is_none() {
+        return c;
+    }
+    let outside = !(0..WORLD[0].len() as i32).contains(&x) || !(0..WORLD.len() as i32).contains(&y);
+    if outside || ((4..=8).contains(&x) && (3..=5).contains(&y)) { b'?' } else { c }
+}
+
+fn world_chip(x: i32, y: i32) -> u8 {
     let row = usize::try_from(y).ok().and_then(|y| WORLD.get(y));
     let b = row.and_then(|r| usize::try_from(x).ok().and_then(|x| r.as_bytes().get(x)));
     // 外は木で埋める。行の長さが足りない所は草

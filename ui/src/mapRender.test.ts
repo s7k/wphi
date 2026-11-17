@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addWalk, arrangeRow, cellHash, drawRange, grassJitter, itemDrawRect, selfPos, SLIDE_MIN_MS, slideStep, treeJitter, viewArea, viewFor, walkAt, walkDelay } from "./mapRender.ts";
+import { addWalk, arrangeRow, cellHash, drawRange, grassJitter, itemDrawRect, roofCells, selfPos, SLIDE_MIN_MS, slideStep, treeJitter, unknownKinds, viewArea, viewFor, walkAt, walkDelay } from "./mapRender.ts";
 
 test("アイテムは Philly と同じく床の上端の8px上に描く(#41)", () => {
   const r = itemDrawRect(1, " ".charCodeAt(0), 32, 64);
@@ -110,4 +110,18 @@ test("木と草の揺らぎは、場所で決まり、範囲に収まる", () =>
     const g = grassJitter(h);
     assert.ok(g.x + 6 <= 32 && g.y + 7 <= 32);
   }
+});
+
+test("見えないマスは、端につながる所を霧、壁に囲まれた所を屋根にし、屋根は北・東・西の壁まで広げる", () => {
+  // 7x5。中央の 3x1 が壁に囲まれた見えない所、左の列は端につながる見えない所
+  const rows = ["?......", "?.###..", "?.#?#..", "?.#[#..", "?......"];
+  const cells = rows.join("").split("").map((c) => ({ chip: c.charCodeAt(0) }));
+  const kinds = unknownKinds(cells, 7, 5);
+  assert.equal(kinds[0], 1);
+  assert.equal(kinds[2 * 7 + 3], 2);
+  const roof = roofCells(kinds, 7, 5);
+  const on = (x: number, y: number) => roof[y * 7 + x];
+  // 中と、北・東・西の壁は屋根。南の正面の壁(扉)と、その左右は入れない
+  assert.deepEqual([on(3, 2), on(3, 1), on(2, 2), on(4, 2), on(2, 1)], [1, 1, 1, 1, 1]);
+  assert.deepEqual([on(3, 3), on(2, 3), on(4, 3), on(0, 0)], [0, 0, 0, 0]);
 });
