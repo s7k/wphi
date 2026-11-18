@@ -1313,7 +1313,8 @@ button > svg:only-child,
   scrollbar-color: rgb(255 255 255 / 45%) transparent;
 }
 
-/* リストはログ欄の下端に揃え、中身の分だけ上へ伸ばす。ログ欄を小にした時(窓の 20%)に、魔法の一覧などが見切れた為 */
+/* リストはログ欄の下端に揃え、上へ伸ばす。ログ欄を小にした時(窓の 20%)に、魔法の一覧などが見切れた為。
+   選択肢が少なくても、1 ページの 9 行(1 行 20px)が入る高さにする。窓の 60% を超える時は中でスクロールする */
 .main.modern .list-overlay {
   top: auto;
   max-height: 60vh;
@@ -1322,7 +1323,7 @@ button > svg:only-child,
 
 .main.modern .list-overlay ul {
   flex: 0 1 auto;
-  min-height: 0;
+  min-height: min(calc(9 * 20px), calc(60vh - 45px));
 }
 
 /* 行が少ない時も、新しい行を枠の下に寄せる */
