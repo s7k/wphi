@@ -545,6 +545,10 @@ async fn transfer(
     if !accepted {
         let _ = src.write_all(&line_bytes("#ch-srv-no")).await;
         emit(system(false, "転送失敗"));
+        // 移動先は断った理由(持ち込めないアイテムなど)を、#reserve を送ったこちらの接続へ書く。
+        // 移動元の行より前に起きた事なので先に処理する。移動先のコマンドは移動元の物として扱わない為、# の行は捨てる
+        let reason = read_for(&mut dst, &mut dst_lines, REASON_WAIT).await;
+        src_skipped.splice(0..0, reason.into_iter().filter(|l| !l.starts_with(b"#")));
         return None;
     }
     let after: Vec<u8> = ["#ch-srv-ok".to_string()]
@@ -569,6 +573,25 @@ fn transfer_target(server: &str) -> Option<(&str, u16)> {
     server
         .rsplit_once(':')
         .and_then(|(h, p)| Some((h, p.parse::<u16>().ok()?)))
+}
+
+/// 移動先が断った理由を待つ時間。理由は移動元の #trs-no より前に書かれるので、届いていれば待たずに読める
+const REASON_WAIT: Duration = Duration::from_secs(1);
+
+/// `wait` の間か切れるまで、届いた行を読む
+async fn read_for(stream: &mut TcpStream, lines: &mut LineBuffer, wait: Duration) -> Vec<Vec<u8>> {
+    let deadline = Instant::now() + wait;
+    let mut inflate = Inflate::new();
+    let mut buf = [0u8; 4096];
+    let mut got = Vec::new();
+    while let Ok(Ok(n)) = timeout_at(deadline, stream.read(&mut buf)).await {
+        if n == 0 {
+            break;
+        }
+        let Ok(data) = inflate.feed(&buf[..n]) else { break };
+        got.extend(lines.feed(&data));
+    }
+    got
 }
 
 /// `ok` の行が来たら true、`ng` の行が来るか、切れるか、`deadline` を過ぎたら false。
@@ -819,8 +842,14 @@ mod tests {
             let (r, mut w) = sock.into_split();
             let mut r = BufReader::new(r);
             let mut got = vec![read_line(&mut r).await];
-            w.write_all(format!("{rsv}\n").as_bytes()).await.unwrap();
-            if rsv == "#rsv-ok" {
+            w.write_all(format!("{}\n", rsv.lines().next().unwrap()).as_bytes())
+                .await
+                .unwrap();
+            if rsv.starts_with("#rsv-ok\n") {
+                // 移動元が断る時は、#trans を待ってから理由を書く(移動先のコマンドは捨てる)
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                w.write_all(rsv.split_once('\n').unwrap().1.as_bytes()).await.unwrap();
+            } else if rsv == "#rsv-ok" {
                 // #ch-srv-ok と、#open の無いログイン時の設定
                 for _ in 0..login_lines(None, VIEW).len() + 1 {
                     got.push(read_line(&mut r).await);
@@ -908,6 +937,24 @@ mod tests {
         // 移動の間に受けた行と、#trs-no の後の行も、受けた順に処理する(#71)
         let names: Vec<&str> = events.iter().filter_map(|e| e["name"].as_str()).collect();
         assert_eq!(names, ["after-ch-srv", "during-wait", "after-trs-no"]);
+    }
+
+    #[tokio::test]
+    async fn world_transfer_shows_reason_from_dst() {
+        let (_src, _dst, events) = world_transfer(
+            "#rsv-ok\n#name from-dst\nShort sword is not allowed\n",
+            "#trs-no\n#name after-trs-no\n",
+        )
+        .await;
+        let raws: Vec<&str> = events
+            .iter()
+            .filter_map(|e| e["raw"].as_str())
+            .filter(|r| !r.is_empty())
+            .collect();
+        // 移動先の理由は、#trs-no の後の移動元の行より前に出す。移動先のコマンドは処理しない
+        assert_eq!(raws, ["Short sword is not allowed"]);
+        let names: Vec<&str> = events.iter().filter_map(|e| e["name"].as_str()).collect();
+        assert_eq!(names, ["after-ch-srv", "after-trs-no"]);
     }
 
     /// 移動元の偽サーバ。ログインの行を読み、`ch_srv` を送り、次に受けた行を返す
