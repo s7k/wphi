@@ -1177,6 +1177,27 @@ export function App() {
 
   const tab = tabs.find((t) => t.session === active);
 
+  // 看板の画面はタブごとに作り、裏のタブの分は隠して書きかけを残す(#63)。
+  // モダンではログの枠が小さいので、ログ欄でなく main 窓いっぱいに重ねる
+  const boards = tabs
+    .filter((t) => t.board)
+    .map((t) => (
+      <div key={t.session} style={{ display: t.session === tab?.session ? "contents" : "none" }}>
+        <BoardEditor
+          name={t.label}
+          onSend={(text) => {
+            sendLines(t.session, text);
+            update(t.session, (x) => ({ ...x, board: false }));
+          }}
+          onCancel={() => {
+            // 閉じる時は .! を送って書くのをやめる(MEditForm.cpp の FormClose)
+            sendLine(t.session, ".!");
+            update(t.session, (x) => ({ ...x, board: false }));
+          }}
+        />
+      </div>
+    ));
+
   return (
     <div
       // モダンの暗い見た目は、地図を出しているタブだけ。キャラを選ぶ画面は今まで通りの明るい見た目にする
@@ -1232,6 +1253,7 @@ export function App() {
             <MapView embedded modern />
           </div>
         )}
+        {settings.modern && boards}
         {tab.sign && <SignCard lines={tab.sign} onClose={() => closeSign(tab.session)} />}
         {tab.items && !tab.bagOpen && (
           <button type="button" className="bag-button" title="カバン(持ち物とインベントリ)" onClick={() => openBag(tab.session)}>
@@ -1312,25 +1334,7 @@ export function App() {
               onClose={() => setLogMenu(null)}
             />
           )}
-          {/* 看板と priv の画面はタブごとに作り、裏のタブの分は隠して書きかけを残す(#63) */}
-          {tabs
-            .filter((t) => t.board)
-            .map((t) => (
-              <div key={t.session} style={{ display: t.session === tab.session ? "contents" : "none" }}>
-                <BoardEditor
-                  name={t.label}
-                  onSend={(text) => {
-                    sendLines(t.session, text);
-                    update(t.session, (x) => ({ ...x, board: false }));
-                  }}
-                  onCancel={() => {
-                    // 閉じる時は .! を送って書くのをやめる(MEditForm.cpp の FormClose)
-                    sendLine(t.session, ".!");
-                    update(t.session, (x) => ({ ...x, board: false }));
-                  }}
-                />
-              </div>
-            ))}
+          {!settings.modern && boards}
           {tab.list && (
             <ListOverlay
               list={tab.list}

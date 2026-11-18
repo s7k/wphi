@@ -1720,3 +1720,8 @@ button > svg:only-child,
   opacity: 0.5;
   cursor: default;
 }
+
+/* モダンの看板エディタは main 窓いっぱい。ログと priv の欄(z-index 4)より上に出す */
+.main-body.modern .board-editor {
+  z-index: 5;
+}
