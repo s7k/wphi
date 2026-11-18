@@ -144,3 +144,76 @@ test("見た目が壁の隠し通路は、サーバが通したら覚え、同�
   assert.deepEqual(p.offset, { dx: 0, dy: -1 });
   t += 1;
 });
+
+/** 5x5 の地図。rows は北から1行ずつ、中央 (2,2) が自キャラ */
+function grid(rows: string[]): MapEvent {
+  const cells = rows.join("").split("").map((c) => ({ chip: c.charCodeAt(0), attr: 0 }));
+  return { type: "map", width: 5, height: 5, v6: true, dir: 0, style: "solid", cells, chars: [] } as MapEvent;
+}
+
+test("見えない所への1歩は進めも揺らしもせずに返事を待ち、後の1歩は本当の位置からなぞり直す", () => {
+  let t = 0;
+  const p = new Predictor(() => t);
+  // 東 (3,2) は見えない所だが本当は床。その北 (3,1) は壁、元の位置の北 (2,1) は床
+  p.onMoved(0, 0);
+  p.onMap(null, grid([".....", "...#.", "...?.", ".....", "....."]));
+  p.walkStep("go E", WALK_MS);
+  assert.deepEqual(p.offset, { dx: 0, dy: 0 });
+  assert.equal(p.walk?.bump, undefined);
+  assert.equal(p.uncertain, true);
+  // 返事を待つ間に送った北への1歩も、見えない所の先なので見せない
+  p.walkStep("go N", WALK_MS);
+  assert.deepEqual(p.offset, { dx: 0, dy: 0 });
+  // サーバは見えない所を通した。北は壁なので、壁の中ではなくその手前に居る
+  t = 50;
+  assert.equal(p.onMoved(1, 0), true);
+  assert.equal(p.uncertain, false);
+  assert.deepEqual([p.walk?.x, p.walk?.y], [1, 0]);
+  p.onMoved(0, 0);
+  assert.deepEqual(p.offset, { dx: 1, dy: 0 });
+});
+
+test("進んだとみなした1歩をサーバが断ったら、後の1歩を本当の位置からなぞり直す", () => {
+  let t = 0;
+  const p = new Predictor(() => t);
+  // 東 (3,2) は床(誰かが居て入れない)。その北 (3,1) は床、元の位置の北 (2,1) は壁
+  p.onMoved(0, 0);
+  p.onMap(null, grid([".....", "..#..", ".....", ".....", "....."]));
+  p.walkStep("go E", WALK_MS);
+  p.walkStep("go N", WALK_MS);
+  assert.deepEqual(p.offset, { dx: 1, dy: -1 });
+  // 東は断られた。北は元の位置の北(壁)へ向かう事になるので、元の位置に留まる
+  assert.equal(p.onMoved(0, 0), true);
+  assert.deepEqual(p.offset, { dx: 0, dy: 0 });
+  assert.equal(p.walk?.ms, 80);
+  assert.equal(p.onMoved(0, 0), false);
+});
+
+test("見えない所への1歩を断られたら、その時に揺らす", () => {
+  let t = 0;
+  const p = new Predictor(() => t);
+  p.onMoved(0, 0);
+  p.onMap(null, grid([".....", ".....", "...?.", ".....", "....."]));
+  p.walkStep("go E", WALK_MS);
+  t = 70;
+  p.onMoved(0, 0);
+  assert.deepEqual(p.walk?.bump, { dx: 1, dy: 0, at: 70 });
+  assert.equal(p.uncertain, false);
+});
+
+test("斜めのうち片方だけが壁なら、もう片方だけを縦横の1歩の時間で送る", () => {
+  let t = 0;
+  const p = new Predictor(() => t);
+  // 北 (2,1) が壁、東は床
+  p.onMoved(0, 0);
+  p.onMap(null, grid([".....", "..#..", ".....", ".....", "....."]));
+  assert.deepEqual(p.pick(["go N", "go E"]), ["go E"]);
+  // 両方とも通れるか、両方とも壁ならそのまま
+  assert.deepEqual(p.pick(["go S", "go E"]), ["go S", "go E"]);
+  p.onMap(null, grid([".....", "..#..", "...T.", ".....", "....."]));
+  assert.deepEqual(p.pick(["go N", "go E"]), ["go N", "go E"]);
+  const w = new Walker<string>(() => t);
+  w.keyDown("ArrowUp", "up", "none");
+  w.keyDown("ArrowRight", "right", "none");
+  assert.deepEqual(w.next(true, () => ["6"]), { keys: ["6"], mods: "none", ms: WALK_MS });
+});

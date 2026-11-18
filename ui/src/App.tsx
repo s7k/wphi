@@ -13,7 +13,7 @@ import { MASTER_EXP, parseMasterMagic, runMasterItem, type MasterMenu } from "./
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { SENT_EVENT, type Sent } from "./keyInput";
 import { isNorthFix, isTextTarget, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
-import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskOptions, type Mods } from "./keys.ts";
+import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskOptions, type Mods, type MoveKey } from "./keys.ts";
 import { MAX_UNCONFIRMED, walkable, Walker } from "./walker.ts";
 import { BAG_ICON, BagPanel, ItemIcon, STATUS_ICON } from "./BagPanel.tsx";
 import { AskDialog } from "./AskDialog";
@@ -295,10 +295,18 @@ export function App() {
   /** 押しているキーと追尾移動の向きで、次の1歩を送る。前の1歩を滑らせている間と、返事の来ていない移動が多い間は送らない */
   const stepWalker = (session: number | null) => {
     if (session === null || !walking(session)) return;
-    const canStep = predictor.current.unconfirmed < MAX_UNCONFIRMED;
-    const s = walker.current.next(canStep);
+    // 通れるか分からない所への1歩は、返事が来るまで次を送らない
+    const canStep = predictor.current.unconfirmed < MAX_UNCONFIRMED && !predictor.current.uncertain;
+    // 斜めのうち壁の側の向きは送らず、壁に沿って滑らせる
+    const pick = (keys: MoveKey[], mods: Mods) => {
+      const texts = keys.map((k) => moveCommand(k, mods, true));
+      const kept = predictor.current.pick(texts);
+      return keys.filter((_, i) => kept.includes(texts[i]));
+    };
+    const s = walker.current.next(canStep, pick);
     // 返事を待って止まった時をトレースに残す(続く間は1回だけ)
-    if (!canStep && !walkWaiting.current) trace(`walk wait unconfirmed=${predictor.current.unconfirmed}`);
+    if (!canStep && !walkWaiting.current)
+      trace(`walk wait unconfirmed=${predictor.current.unconfirmed} uncertain=${predictor.current.uncertain}`);
     walkWaiting.current = !canStep;
     if (!s) return;
     trace(`walk ${s.keys.join("")} ${s.ms}ms`);

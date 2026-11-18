@@ -1,7 +1,8 @@
 // スムーズ移動の歩き方(docs/05-protocol-v6.md の 9)。#v6 G を送る v6 のサーバで、スムーズ移動が有効な時だけ使う。
 // 押しているキー(と追尾移動の向き)から次の1歩を決め、その1歩を滑りきるまで次の1歩を始めない。
 // キーのリピートは使わない。OS のリピートの速さで歩く速さが変わらないように、押している間かどうかだけを見る。
-// 斜め(2つの向きのキーを同時に押す、追尾移動の斜め)は2行を続けて送り、地図は斜めに1回で滑らせる
+// 斜め(2つの向きのキーを同時に押す、追尾移動の斜め)は2行を続けて送り、地図は斜めに1回で滑らせる。
+// 片方の向きが壁なら、呼ぶ側の pick でもう片方だけにし、縦横の1歩の時間で壁に沿って滑らせる
 import type { MoveKey } from "./keys.ts";
 
 /** 縦横の1歩と斜めの1歩(2行)を滑らせる時間(ms)。サーバは 0.1 秒に1行ずつ処理するので、それより短くしない */
@@ -64,16 +65,18 @@ export class Walker<M> {
 
   /**
    * 次の1歩。滑らせている途中か、歩く向きが無いか、canStep が false なら null。
-   * 返した時は、その1歩を滑りきるまで次を返さない
+   * pick は送るキーを絞る(斜めのうち壁の側を除く)。返した時は、その1歩を滑りきるまで次を返さない
    */
-  next(canStep: boolean): Step<M> | null {
+  next(canStep: boolean, pick?: (keys: MoveKey[], mods: M) => MoveKey[]): Step<M> | null {
     const now = this.now();
     if (now < this.busyUntil) return null;
     if (this.follow && now - this.follow.at > FOLLOW_EXPIRE_MS) this.follow = null;
     const want = this.want();
     if (!want || !canStep) return null;
-    this.busyUntil = now + want.ms;
-    return want;
+    const keys = pick ? pick(want.keys, want.mods) : want.keys;
+    const step = { ...want, keys, ms: keys.length > 1 ? WALK_DIAGONAL_MS : WALK_MS };
+    this.busyUntil = now + step.ms;
+    return step;
   }
 
   /** 押しているキーを足した向き。逆向きは打ち消す。キーが無ければ追尾移動の向き */

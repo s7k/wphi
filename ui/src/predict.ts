@@ -5,6 +5,9 @@
 // 鍵の掛かった箱と扉は、サーバが音だけ鳴らして何も送らない(phi_dm/view.rs の move_chr)。地図も来ないので、
 // 箱の上に乗って見え、その先へも進んで見える(#85)。なので行き先がこの2つなら進んだとみなさない。
 // go のたびに #v6 G(動いた差)を送るサーバでは、それで確定する。待ちきった移動を進んだとみなすのは、返事が遅れた間だけになる。
+// #v6 G を送るサーバでは、返事の来ていない移動を押した向きのまま持ち、#v6 G で確かめた位置から今の地図でなぞり直して
+// 見せる位置を出す(docs/05-protocol-v6.md の 9)。後の歩みを送った時の予想の位置で決めておくと、前の1歩の予想が
+// 外れた時に、本当の位置からずれた所(壁の中など)を見せる為
 import type { MapEvent } from "./protocol";
 import { selfPos, UNKNOWN } from "./mapRender.ts";
 
@@ -38,20 +41,21 @@ const CORRECT_MS = 80;
 /** tick() を呼ぶ間隔。待ちきった時刻からの遅れはこれ以内 */
 export const PREDICT_TICK_MS = 20;
 
-/**
- * 移動。wall は通れない文字のマスへ向かって止めた1歩で、その行き先(walk の座標)。サーバが通せば隠し通路として覚える。
- * tunnel は隠し通路の中で、壁の文字のマスでも進んだとみなした1歩
- */
-type Move = { dx: number; dy: number; at: number; wall?: { x: number; y: number }; tunnel?: boolean };
+/** 移動。#v6 G を送るサーバでは押した向き(進めたかは replay で決める)、送らないサーバでは進んだとみなした差 */
+type Move = { dx: number; dy: number; at: number };
+/** 行き先のマスの見込み。wall は隠し扉も同じ文字で届く壁、unknown は通れるか分からない所(見えない所、地図の外) */
+type Kind = "open" | "solid" | "wall" | "unknown";
+/** なぞった結果。x と y は walk の座標。unknown は通れるか分からない所の手前で止めた時、moved は最後の1歩が進んだか */
+type Replay = { x: number; y: number; tunnel: { dx: number; dy: number } | null; unknown: boolean; moved: boolean };
 /** 黙って進めない地形。鍵の掛かった箱('%')と扉('{')。パスウォールなら進めるが、その時は地図が来て戻る */
 const LOCKED = new Set(["%", "{"].map((c) => c.charCodeAt(0)));
 /**
  * #v6 G を送るサーバで、進んだとみなさない地形。サーバが T_CWALL の印で止める物(phi_dm/view.rs の move_chr)のうち、
- * 地図の文字で分かる物。岩('@')、木('T')、檻('I')、窓('|')、ガラス('=')、見えない所('?')、鍵の掛かった箱と扉。
+ * 地図の文字で分かる物。岩('@')、木('T')、檻('I')、窓('|')、ガラス('=')、鍵の掛かった箱と扉。
  * 壁('#'、'H')は隠し扉も同じ文字で届くが、ほとんどは壁なので止める。サーバが通した時は #v6 G で位置を直す。
- * 深い水と浅い水は同じ '_' なので止めない
+ * 深い水と浅い水は同じ '_' なので止めない。見えない所('?')は通れるか分からないので、止めも進めもせず返事を待つ
  */
-const BLOCKED = new Set(["%", "{", "@", "T", "I", "|", "=", "?", "#", "H"].map((c) => c.charCodeAt(0)));
+const BLOCKED = new Set(["%", "{", "@", "T", "I", "|", "=", "#", "H"].map((c) => c.charCodeAt(0)));
 /** 隠し扉と同じ文字で届く壁。サーバが通した所は隠し通路として覚える */
 const WALLS = new Set(["#", "H"].map((c) => c.charCodeAt(0)));
 
@@ -94,6 +98,10 @@ export class Predictor {
 
   /** 最後に届いた地図の位置からの、予想したずれ */
   get offset(): { dx: number; dy: number } {
+    if (this.acked) {
+      const r = this.replay();
+      return { dx: this.moved.dx + r.x - this.walked.x, dy: this.moved.dy + r.y - this.walked.y };
+    }
     const g = sum(this.guessed);
     return { dx: this.moved.dx + g.dx, dy: this.moved.dy + g.dy };
   }
@@ -108,14 +116,34 @@ export class Predictor {
     | { x: number; y: number; epoch: number; at: number; ms: number; bump?: { dx: number; dy: number; at: number } }
     | undefined {
     if (!this.acked) return undefined;
-    const g = sum(this.guessed);
-    const w = { x: this.walked.x + g.dx, y: this.walked.y + g.dy, epoch: this.epoch, at: this.walkedAt, ms: this.walkMs };
+    const r = this.replay();
+    const w = { x: r.x, y: r.y, epoch: this.epoch, at: this.walkedAt, ms: this.walkMs };
     return this.bumped ? { ...w, bump: this.bumped } : w;
   }
 
   /** 進んだとみなしたが、#v6 G の返事がまだ来ていない移動の数 */
   get unconfirmed(): number {
     return this.guessed.length;
+  }
+
+  /** 通れるか分からない所への1歩の返事を待っているか。待つ間は次の1歩を送らない */
+  get uncertain(): boolean {
+    return this.acked && this.replay().unknown;
+  }
+
+  /**
+   * 斜めの1歩(2行)のうち、送る行。片方の向きだけが通れない地形なら、もう片方だけを送って壁に沿って滑らせる。
+   * 両方とも通れない時と、通れるか分からない時は、そのまま送る
+   */
+  pick(texts: string[]): string[] {
+    if (texts.length !== 2 || !this.acked) return texts;
+    const steps = texts.map((t) => /^go ([NESWnesw])$/.exec(t));
+    if (!steps[0] || !steps[1]) return texts;
+    const r = this.replay();
+    if (r.unknown) return texts;
+    const blocked = steps.map((m) => this.stepFrom(r.x, r.y, STEP[m![1].toLowerCase()], r.tunnel) === "blocked");
+    if (blocked[0] !== blocked[1]) return [texts[blocked[0] ? 1 : 0]];
+    return texts;
   }
 
   /**
@@ -126,24 +154,18 @@ export class Predictor {
     const m = /^go ([NESWnesw])$/.exec(text);
     if (!m) return;
     const now = this.now();
+    const before = this.replay();
     this.guessed.push(...this.queue.splice(0));
     const step: Move = { ...STEP[m[1].toLowerCase()], at: now };
     this.lastGuess = now;
-    const g = sum(this.guessed);
-    const to = { x: this.walked.x + g.dx + step.dx, y: this.walked.y + g.dy + step.dy };
-    const wall = this.blocks(step, WALLS);
-    const inTunnel = wall && this.tunnel?.dx === step.dx && this.tunnel?.dy === step.dy;
-    if (!wall) this.tunnel = null;
-    if (this.blocks(step, BLOCKED) && !this.passed.has(`${to.x},${to.y}`) && !inTunnel) {
-      // 通れない所へは進まず、その場で揺らす。#v6 G 0 0 と順番を合わせる為、動かない1歩として残す
-      this.guessed.push({ dx: 0, dy: 0, at: now, wall: wall ? to : undefined });
-      this.bumped = { dx: step.dx, dy: step.dy, at: now };
-      return;
+    this.guessed.push(step);
+    const r = this.replay();
+    // 通れない所へは進まず、その場で揺らす。#v6 G 0 0 と順番を合わせる為、列には残す
+    if (!r.unknown && !r.moved) this.bumped = { dx: step.dx, dy: step.dy, at: now };
+    if (r.x !== before.x || r.y !== before.y) {
+      this.walkedAt = now;
+      this.walkMs = ms;
     }
-    // 通った隠し通路と、隠し通路の中で同じ向きに続く壁は進む
-    this.guessed.push(wall ? { ...step, tunnel: true } : step);
-    this.walkedAt = now;
-    this.walkMs = ms;
   }
 
   /** 返事を待っている移動があるか */
@@ -234,26 +256,31 @@ export class Predictor {
       if (m) this.measure(m);
     }
     const unit = Math.abs(dx) + Math.abs(dy) === 1;
-    if (answered?.wall && unit) {
-      // 止めた壁の文字のマスをサーバが通した。隠し通路として覚え、同じ向きに続く壁も通れるとみなす
-      this.passed.add(`${answered.wall.x},${answered.wall.y}`);
-      this.tunnel = { dx, dy };
-    } else if (answered?.tunnel && unit) this.passed.add(`${this.walked.x + dx},${this.walked.y + dy}`);
-    else if (answered?.tunnel) this.tunnel = null;
     if (unit) {
+      // 壁の文字のマスをサーバが通した。隠し通路として覚え、同じ向きに続く壁も通れるとみなす
+      const to = { x: this.walked.x + dx, y: this.walked.y + dy };
+      if (this.kindAt(to.x, to.y) === "wall") {
+        this.passed.add(`${to.x},${to.y}`);
+        this.tunnel = { dx, dy };
+      } else this.tunnel = null;
       this.moved = { dx: this.moved.dx + dx, dy: this.moved.dy + dy };
-      this.walked = { x: this.walked.x + dx, y: this.walked.y + dy };
+      this.walked = to;
     } else if (dx || dy) {
       this.moved = { dx: 0, dy: 0 };
       this.guessed = [];
       this.epoch++;
       this.passed.clear();
       this.tunnel = null;
+    } else if (answered) {
+      // 進めなかった。隠し通路の中とみなした1歩ならやめ、通れるか分からなかった所ならここで揺らす
+      if (this.tunnel?.dx === answered.dx && this.tunnel?.dy === answered.dy) this.tunnel = null;
+      const to = { x: this.walked.x + answered.dx, y: this.walked.y + answered.dy };
+      if (this.kindAt(to.x, to.y) === "unknown") this.bumped = { dx: answered.dx, dy: answered.dy, at: this.now() };
     }
     const after = this.offset;
     const changed = before.dx !== after.dx || before.dy !== after.dy;
     if (changed) {
-      // 進んだとみなした分が外れた時の戻しは短く滑らせる
+      // 予想が外れた時は、本当の位置からなぞり直した位置へ短く滑らせる
       this.walkedAt = this.now();
       this.walkMs = CORRECT_MS;
     }
@@ -279,19 +306,66 @@ export class Predictor {
     if (!head || now - head.at < this.wait || now - this.lastGuess < SERVER_TICK_MS) return false;
     this.lastGuess = now;
     const m = this.queue.shift()!;
-    // #v6 G を送るサーバは通れない所へも 0 0 を返すので、順番を合わせる為に動かない1歩として残す。
-    // 送らないサーバは、壁では「進めません」が届くので、黙って止まる鍵の掛かった所だけを捨てる
-    if (this.acked ? this.blocks(m, BLOCKED) : this.blocks(m, LOCKED)) {
-      if (this.acked) this.guessed.push({ dx: 0, dy: 0, at: m.at });
-      return false;
+    // #v6 G を送るサーバは通れない所へも 0 0 を返すので、向きのまま残し、進めるかはなぞる時に決める
+    if (this.acked) {
+      const before = this.offset;
+      this.guessed.push(m);
+      const after = this.offset;
+      if (before.dx === after.dx && before.dy === after.dy) return false;
+      this.walkedAt = now;
+      this.walkMs = STEP_MS;
+      return true;
     }
+    // 送らないサーバは、壁では「進めません」が届くので、黙って止まる鍵の掛かった所だけを捨てる
+    if (this.blocks(m, LOCKED)) return false;
     this.guessed.push(m);
     this.walkedAt = now;
     this.walkMs = STEP_MS;
     return true;
   }
 
-  /** 進んだとみなした分の先へ m で進む先が、最後の地図で set の地形か */
+  /** #v6 G で確かめた位置から、返事の来ていない移動を今の地図でなぞる。通れるか分からない所の手前で止める */
+  private replay(): Replay {
+    let { x, y } = this.walked;
+    let tunnel = this.tunnel;
+    let moved = false;
+    for (const m of this.guessed) {
+      const s = this.stepFrom(x, y, m, tunnel);
+      if (s === "unknown") return { x, y, tunnel, unknown: true, moved: false };
+      moved = s !== "blocked";
+      if (moved) {
+        x += m.dx;
+        y += m.dy;
+      }
+      if (s !== "tunnel") tunnel = null;
+    }
+    return { x, y, tunnel, unknown: false, moved };
+  }
+
+  /** (x, y) から m の向きへの1歩。tunnel は隠し通路の中で、壁の文字のマスでも進む時 */
+  private stepFrom(x: number, y: number, m: { dx: number; dy: number }, tunnel: { dx: number; dy: number } | null) {
+    const to = { x: x + m.dx, y: y + m.dy };
+    const kind = this.kindAt(to.x, to.y);
+    if (kind === "wall" && (this.passed.has(`${to.x},${to.y}`) || (tunnel?.dx === m.dx && tunnel?.dy === m.dy))) return "tunnel";
+    if (kind === "unknown") return "unknown";
+    return kind === "open" ? "open" : "blocked";
+  }
+
+  /** walk の座標 (x, y) のマスの見込み。最後の地図の中央は、#v6 G で確かめた位置から地図の後に動いた分を引いた所 */
+  private kindAt(x: number, y: number): Kind {
+    const map = this.map;
+    if (!map) return "open";
+    const me = selfPos(map.width, map.height, false);
+    const cx = me.x + x - (this.walked.x - this.moved.dx);
+    const cy = me.y + y - (this.walked.y - this.moved.dy);
+    if (cx < 0 || cx >= map.width || cy < 0 || cy >= map.height) return "unknown";
+    const chip = map.cells[cy * map.width + cx].chip;
+    if (chip === UNKNOWN) return "unknown";
+    if (WALLS.has(chip)) return "wall";
+    return BLOCKED.has(chip) ? "solid" : "open";
+  }
+
+  /** 進んだとみなした分の先へ m で進む先が、最後の地図で set の地形か(#v6 G を送らないサーバ) */
   private blocks(m: Move, set: Set<number>): boolean {
     const map = this.map;
     if (!map) return false;
