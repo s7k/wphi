@@ -348,7 +348,8 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
   // 今見せている位置から at + ms に新しい位置へ着くように滑らせる(ui/src/walker.ts が、滑りきるまで次の1歩を送らない)。
   // 他の世界は #ex-pos(map.pos)と届いた時刻で、今より少し前の時刻の位置を、届いた位置の間を直線で補って見せる(mapRender.ts の walkAt)
   // ずらす量(px)。滑らせる間は毎フレーム変わるので、state にせず描き直しを直接呼ぶ(React の描き直しを通すと、フレームが落ちる)
-  const slide = useRef<{ x: number; y: number } | null>(null);
+  // walkY は揺れを除いた、滑らせる分だけの縦のずれ(px)。前に描く行はこれで決める
+  const slide = useRef<{ x: number; y: number; walkY: number } | null>(null);
   const paint = useRef(() => {});
   const lastPos = useRef<{ world?: string; x: number; y: number } | null>(null);
   const walks = useRef<WalkSample[]>([]);
@@ -400,11 +401,13 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     const tick = () => {
       const now = performance.timeOrigin + performance.now();
       let [sx, sy, done] = [0, 0, true];
+      let walkY = 0;
       const ws = walks.current;
       const last = ws[ws.length - 1];
       if (last) {
         const d = walkAt(ws, now - (timed.current ? 0 : walkDelay(ws)));
         if (d.x !== last.x || d.y !== last.y) [sx, sy, done] = [(last.x - d.x) * CHIP_SIZE, (last.y - d.y) * CHIP_SIZE, false];
+        walkY = sy;
       }
       const b = bump.current;
       const t = b ? (now - b.start) / BUMP_MS : 1;
@@ -414,7 +417,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
         [sx, sy, done] = [sx - b.dx * k, sy - b.dy * k, false];
       } else bump.current = null;
       // 整数の px にする。端数の位置に描くと、チップの境目が隣と混ざって線に見える
-      slide.current = done ? null : { x: Math.round(sx), y: Math.round(sy) };
+      slide.current = done ? null : { x: Math.round(sx), y: Math.round(sy), walkY: Math.round(walkY) };
       paint.current();
       raf.current = done ? 0 : requestAnimationFrame(tick);
     };
@@ -456,8 +459,9 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     }
     const m = SLIDE_MARGIN * CHIP_SIZE;
     const [w, h] = [ctx.canvas.width, ctx.canvas.height];
-    // 前に描く行。自キャラの絵(1マス)より下にある最初の行から。上下に滑らせる間は、自キャラは行の間にいる
-    const split = Math.ceil(board.self.y - s.y / CHIP_SIZE) + 1;
+    // 前に描く行。自キャラの絵(1マス)より下にある最初の行から。上下に滑らせる間は、自キャラは行の間にいる。
+    // 揺れ(BUMP_PX)では行を変えない。南へ揺れた時に、南の行(塞いでいる物)が後ろに回って自キャラの下に描かれた為
+    const split = Math.ceil(board.self.y - s.walkY / CHIP_SIZE) + 1;
     if (layerDirty.current || !layers.current || layers.current.split !== split) {
       const ls = (layers.current ??= { back: document.createElement("canvas"), front: document.createElement("canvas"), split });
       ls.split = split;
