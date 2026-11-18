@@ -1313,6 +1313,18 @@ button > svg:only-child,
   scrollbar-color: rgb(255 255 255 / 45%) transparent;
 }
 
+/* リストはログ欄の下端に揃え、中身の分だけ上へ伸ばす。ログ欄を小にした時(窓の 20%)に、魔法の一覧などが見切れた為 */
+.main.modern .list-overlay {
+  top: auto;
+  max-height: 60vh;
+  z-index: 5;
+}
+
+.main.modern .list-overlay ul {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
 /* 行が少ない時も、新しい行を枠の下に寄せる */
 .main.modern .log-area .phi-log > div {
   min-height: 100%;
