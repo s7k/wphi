@@ -1702,9 +1702,9 @@ button > svg:only-child,
   cursor: default;
 }
 
-/* モダンの看板エディタは main 窓いっぱい。ログと priv の欄(z-index 4)より上に出す */
+/* モダンの看板エディタは main 窓いっぱい。ログと priv の欄(4)、カバンとステータスのボタン(5)より上で、カバン(7)より下 */
 .main-body.modern .board-editor {
-  z-index: 5;
+  z-index: 6;
 }
 
 /* カバンの持ち物の絵(BagPanel.tsx の ItemIcon) */
