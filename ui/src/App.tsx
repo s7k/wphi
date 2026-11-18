@@ -291,10 +291,19 @@ export function App() {
     if (tabsRef.current.find((t) => t.session === session)?.sign) update(session, (t) => ({ ...t, sign: null }));
   };
   const walkWaiting = useRef(false);
+  /** リストが出て歩くのを止めた。押したままのキーリピートでは歩き出さず、押し直すまで待つ */
+  const walkHalted = useRef(false);
   const walking = (session: number) => settingsRef.current.smoothMove && predicting(session) && predictor.current.confirms;
   /** 押しているキーと追尾移動の向きで、次の1歩を送る。前の1歩を滑らせている間と、返事の来ていない移動が多い間は送らない */
   const stepWalker = (session: number | null) => {
     if (session === null || !walking(session)) return;
+    // リスト(ゲートの行き先など)を出している間は歩かない。サーバは選択の最中の go を番号として読み、選択をやめてしまう。
+    // 押していたキーは離したとみなし、閉じた後は押し直すまで歩かない
+    if (tabsRef.current.find((t) => t.session === session)?.list) {
+      walker.current.clear();
+      walkHalted.current = true;
+      return;
+    }
     // 通れるか分からない所への1歩は、返事が来るまで次を送らない
     const canStep = predictor.current.unconfirmed < MAX_UNCONFIRMED && !predictor.current.uncertain;
     // 斜めのうち壁の側の向きは送らず、壁に沿って滑らせる
@@ -581,7 +590,10 @@ export function App() {
       if (e.type === "keyup") walker.current.keyUp(e.code);
       if (move && ctx.northFix && walkable(move.key) && walking(session)) {
         trace(`main ${e.type} ${e.code}${e.repeat ? " repeat" : ""} walk`);
-        if (e.type === "keydown") walker.current.keyDown(e.code, move.key, move.mods);
+        if (e.type === "keydown" && !(e.repeat && walkHalted.current)) {
+          walkHalted.current = false;
+          walker.current.keyDown(e.code, move.key, move.mods);
+        }
         stepWalker(session);
         return true;
       }
@@ -1103,6 +1115,12 @@ export function App() {
           const r = receiveList(listFlow(session), ev.active, ev.lines, tabsRef.current.find((t) => t.session === session)?.list);
           if (r === "close") closeList(session);
           else if (r) {
+            // スムーズ移動で押し続けていても、ここで止める(stepWalker)
+            if (session === activeRef.current && walking(session)) {
+              walker.current.clear();
+              walkHalted.current = true;
+              trace("walk stop list");
+            }
             update(session, (t) => ({ ...t, list: r }));
             onMapEvent(session, { ...ev, lines: r.lines });
           }
