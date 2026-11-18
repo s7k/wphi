@@ -185,9 +185,7 @@ impl Assets {
     }
 
     fn exists(&self, rel: &str) -> bool {
-        safe_rel(rel)
-            && !is_lanu(rel)
-            && (self.roots.iter().any(|r| self.find(r, rel).is_some()) || bundled(rel).is_some())
+        safe_rel(rel) && (self.roots.iter().any(|r| self.find(r, rel).is_some()) || bundled(rel).is_some())
     }
 
     fn open(&self, rel: &str) -> Option<image::DynamicImage> {
@@ -241,7 +239,7 @@ impl Assets {
     }
 
     fn read(&self, rel: &str) -> Option<Vec<u8>> {
-        if !safe_rel(rel) || is_lanu(rel) {
+        if !safe_rel(rel) {
             return None;
         }
         self.roots
@@ -249,15 +247,6 @@ impl Assets {
             .find_map(|root| std::fs::read(self.find(root, rel)?).ok())
             .or_else(|| bundled(rel).map(<[u8]>::to_vec))
     }
-}
-
-/// LANU 系のグラフィックスは使わない(2026-11-07 に作者が指定)。どこにあっても読まず、次の候補へ進む
-fn is_lanu(rel: &str) -> bool {
-    rel.rsplit('/')
-        .next()
-        .unwrap_or(rel)
-        .to_lowercase()
-        .starts_with("lanu_")
 }
 
 /// 探す場所の外を指さない相対パスか。名前とグラ名は他のプレイヤーやサーバが決める(発言の画像の URL からも届く)。
@@ -461,9 +450,9 @@ mod tests {
         assert!(a.cursor("Title").is_none());
     }
 
-    /// LANU 系は、利用者の Philly フォルダにあっても読まない
+    /// 利用者の Philly フォルダの LANU 系は読む(同梱はしない)。椅子や机が LANU 系の絵を使う為
     #[test]
-    fn never_reads_lanu() {
+    fn reads_lanu_in_user_folder() {
         let root = std::env::temp_dir().join(format!("wphi-lanu-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(root.join("chara")).unwrap();
@@ -474,10 +463,8 @@ mod tests {
         )
         .unwrap();
         let a = Assets::new(vec![root.clone()]);
-        assert!(a.open("chara/LANU_Test.bmp").is_none());
-        // LANU を読まずに既定グラになる
         let got = a.get("chara", &query(&[("gra", "LANU_Test"), ("code", "64")])).unwrap();
-        assert_eq!(decode(&got), colorkey(&a.open("chara/t_man.bmp").unwrap(), TEAL));
+        assert_eq!(decode(&got), colorkey(&a.open("chara/t_dog.bmp").unwrap(), TEAL));
         std::fs::remove_dir_all(&root).unwrap();
     }
 }
