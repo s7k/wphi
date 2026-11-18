@@ -137,7 +137,10 @@ struct Inflate {
 
 impl Inflate {
     fn new() -> Self {
-        Self { tail: b"\n".to_vec(), z: None }
+        Self {
+            tail: b"\n".to_vec(),
+            z: None,
+        }
     }
 
     fn feed(&mut self, raw: &[u8]) -> Result<Vec<u8>, String> {
@@ -470,6 +473,8 @@ fn recorder(login: &Login) -> Option<std::fs::File> {
 /// 移動先へ `#reserve <ID>` → `#rsv-ok` を待つ → 移動元へ `#trans <IP> <ポート>` → `#trs-ok` を待つ →
 /// 移動先へ `#ch-srv-ok` → 移動先へログイン時の設定(`#open` なし)。
 /// 失敗したら移動元へ `#no-srv`(移動先に繋がらない時)か `#ch-srv-no`(移動元が断った時)を送り、移動元のまま続ける。
+// 移動元の接続の状態(src〜src_skipped)を別々に受ける為、引数が多い
+#[allow(clippy::too_many_arguments)]
 async fn transfer(
     src: &mut TcpStream,
     src_lines: &mut LineBuffer,
@@ -527,7 +532,16 @@ async fn transfer(
     emit(system(true, "転送元世界に転送要求..."));
     let trans = format!("#trans {host} {port}");
     let accepted = src.write_all(&line_bytes(&trans)).await.is_ok()
-        && wait_line(src, src_lines, src_inflate, b"#trs-ok", &[b"#trs-no"], deadline(), src_skipped).await;
+        && wait_line(
+            src,
+            src_lines,
+            src_inflate,
+            b"#trs-ok",
+            &[b"#trs-no"],
+            deadline(),
+            src_skipped,
+        )
+        .await;
     if !accepted {
         let _ = src.write_all(&line_bytes("#ch-srv-no")).await;
         emit(system(false, "転送失敗"));
@@ -574,7 +588,9 @@ async fn wait_line(
             Ok(Ok(n)) if n > 0 => n,
             _ => return false,
         };
-        let Ok(data) = inflate.feed(&buf[..n]) else { return false };
+        let Ok(data) = inflate.feed(&buf[..n]) else {
+            return false;
+        };
         let mut got = lines.feed(&data).into_iter();
         while let Some(line) = got.next() {
             if line == ok {
@@ -650,7 +666,8 @@ mod tests {
         use flate2::{Compress, Compression, FlushCompress};
         let mut z = Compress::new(Compression::default(), true);
         let mut packed = Vec::with_capacity(256);
-        z.compress_vec(b"#v6 G 0 -1\n", &mut packed, FlushCompress::Sync).unwrap();
+        z.compress_vec(b"#v6 G 0 -1\n", &mut packed, FlushCompress::Sync)
+            .unwrap();
         let mut wire = b"#ex-map style=solid\n#ex-switch compr".to_vec();
         let cut = wire.len();
         wire.extend_from_slice(b"ess=deflate\n");

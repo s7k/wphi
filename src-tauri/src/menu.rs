@@ -27,11 +27,17 @@ pub fn experiment<'a>(s: &'a mut crate::settings::Settings, id: &str) -> Option<
     }
 }
 /// 窓の形(1つだけチェックが付く)。(id, クラシック(1窓)か, モダンか)
-const LAYOUTS: [(&str, bool, bool); 3] = [("layout-classic2", false, false), ("layout-classic1", true, false), ("layout-modern", false, true)];
+const LAYOUTS: [(&str, bool, bool); 3] = [
+    ("layout-classic2", false, false),
+    ("layout-classic1", true, false),
+    ("layout-modern", false, true),
+];
 
 /// 窓の形の項目なら、設定をその形にして true
 pub fn set_layout(s: &mut crate::settings::Settings, id: &str) -> bool {
-    let Some(&(_, single, modern)) = LAYOUTS.iter().find(|l| l.0 == id) else { return false };
+    let Some(&(_, single, modern)) = LAYOUTS.iter().find(|l| l.0 == id) else {
+        return false;
+    };
     s.single_window = single;
     s.modern = modern;
     true
@@ -417,7 +423,10 @@ pub fn build<R: Runtime>(
         for (id, text) in *items {
             if *id == "-" {
                 sub.append(&PredefinedMenuItem::separator(app)?)?;
-            } else if experiment(&mut settings, id).is_some() || VIEW_CHECKS.contains(id) || LAYOUTS.iter().any(|l| l.0 == *id) {
+            } else if experiment(&mut settings, id).is_some()
+                || VIEW_CHECKS.contains(id)
+                || LAYOUTS.iter().any(|l| l.0 == *id)
+            {
                 let checked = experiment(&mut settings, id).is_some_and(|v| *v) || layout_id(&settings) == *id;
                 sub.append(&CheckMenuItem::with_id(app, *id, *text, true, checked, None::<&str>)?)?;
             } else {

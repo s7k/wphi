@@ -67,7 +67,11 @@ fn chip(x: i32, y: i32) -> u8 {
         return c;
     }
     let outside = !(0..WORLD[0].len() as i32).contains(&x) || !(0..WORLD.len() as i32).contains(&y);
-    if outside || ((4..=8).contains(&x) && (3..=5).contains(&y)) { b'?' } else { c }
+    if outside || ((4..=8).contains(&x) && (3..=5).contains(&y)) {
+        b'?'
+    } else {
+        c
+    }
 }
 
 fn world_chip(x: i32, y: i32) -> u8 {
@@ -87,7 +91,10 @@ fn world_chip(x: i32, y: i32) -> u8 {
 fn view() -> (i32, i32) {
     std::env::var("GUIDE_VIEW")
         .ok()
-        .and_then(|v| v.split_once(' ').and_then(|(w, h)| Some((w.parse().ok()?, h.parse().ok()?))))
+        .and_then(|v| {
+            v.split_once(' ')
+                .and_then(|(w, h)| Some((w.parse().ok()?, h.parse().ok()?)))
+        })
         .unwrap_or((33, 25))
 }
 
@@ -137,7 +144,9 @@ fn transcript() -> Vec<Vec<u8>> {
     text("#ex-map style=solid");
     let (w, h) = view();
     text(&format!("#ex-map view={w} {h}"));
-    text(&format!("#status {ME} : 1820: 2400: 960: 1200: 48210: 3150: 2215: 1840: 960: 1205"));
+    text(&format!(
+        "#status {ME} : 1820: 2400: 960: 1200: 48210: 3150: 2215: 1840: 960: 1205"
+    ));
     text("#cond -------");
     text("/*color=#2080d0*/ようこそ WPHI Guide の世界へ。/*.*/");
     text("はじまりの草原に着いた。");
@@ -200,13 +209,22 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
             "市場は毎朝開きます。/*color=red*/夜は閉まります/*.*/",
             "#end-more",
         ],
-        "slash" => &["DM Mirai は 市場の猫 を /*.*/木の枝 /*color=gray*/で攻撃した. [/*color=-hp*/12/*color=gray*/ hp] "],
-        "bolt" => &["Kotone > Fire ball", "DM Kotone は 市場の猫 を /*.*/Fire ball /*color=gray*/で攻撃した. [/*color=-hp*/30/*color=gray*/ hp] "],
+        "slash" => {
+            &["DM Mirai は 市場の猫 を /*.*/木の枝 /*color=gray*/で攻撃した. [/*color=-hp*/12/*color=gray*/ hp] "]
+        }
+        "bolt" => &[
+            "Kotone > Fire ball",
+            "DM Kotone は 市場の猫 を /*.*/Fire ball /*color=gray*/で攻撃した. [/*color=-hp*/30/*color=gray*/ hp] ",
+        ],
         "heal" => &[
             "DM Kotone は Mirai を /*.*/Heal /*color=gray*/で回復した. [/*color=+hp*/40/*color=gray*/ hp] ",
             "DM Kotone は 市場の猫 を /*.*/Mana /*color=gray*/で回復した. [/*color=+mp*/8/*color=gray*/ mp] ",
         ],
-        "status" => &["DM Mirai はミスした. ", "DM 市場の猫 は 3 lv の毒を受けた. ", "DM Kotone は 5 秒間 麻痺する. "],
+        "status" => &[
+            "DM Mirai はミスした. ",
+            "DM 市場の猫 は 3 lv の毒を受けた. ",
+            "DM Kotone は 5 秒間 麻痺する. ",
+        ],
         "dead" => &["DM 市場の猫 は Mirai に殺された. "],
         "buff" => &[
             "DM 攻撃力が 12 point 上がった. ",
@@ -265,7 +283,10 @@ fn main() {
             "/events" => ("application/json", Some(events().to_string().into_bytes())),
             "/effects" => {
                 let scene = query(q).remove("scene").unwrap_or_default();
-                ("application/json", Some(to_events(effect_lines(&scene)).to_string().into_bytes()))
+                (
+                    "application/json",
+                    Some(to_events(effect_lines(&scene)).to_string().into_bytes()),
+                )
             }
             "/download_items" => {
                 let ini = codec::decode(assets::bundled("Config/unew.ini").unwrap_or_default());
@@ -280,7 +301,10 @@ fn main() {
                     .collect();
                 ("application/json", Some(Value::Array(rows).to_string().into_bytes()))
             }
-            "/log_css" => ("text/css", assets::bundled("Skins/Mine/Style/Log.css").map(<[u8]>::to_vec)),
+            "/log_css" => (
+                "text/css",
+                assets::bundled("Skins/Mine/Style/Log.css").map(<[u8]>::to_vec),
+            ),
             "/log_html" => {
                 let text = query(q).remove("text").unwrap_or_default();
                 ("text/html", Some(to_html(&text, &LogOptions::default()).into_bytes()))

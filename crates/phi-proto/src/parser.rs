@@ -673,7 +673,9 @@ impl Parser {
         }
         if let Some(rest) = text.strip_prefix("#v6 I ") {
             if rest.trim() == "." {
-                return vec![Event::Items { items: std::mem::take(&mut self.items) }];
+                return vec![Event::Items {
+                    items: std::mem::take(&mut self.items),
+                }];
             }
             let (no, fields) = rest.split_once('\t').unwrap_or((rest, ""));
             if let Ok(no) = no.trim().parse::<usize>()
@@ -688,11 +690,15 @@ impl Parser {
         }
         if let Some(rest) = text.strip_prefix("#ex-inv ") {
             if rest.trim() == "." {
-                return vec![Event::Bag { items: std::mem::take(&mut self.bag) }];
+                return vec![Event::Bag {
+                    items: std::mem::take(&mut self.bag),
+                }];
             }
             if let Some(reason) = rest.strip_prefix("no ") {
                 self.bag.clear();
-                return vec![Event::BagRefused { reason: reason.trim().to_string() }];
+                return vec![Event::BagRefused {
+                    reason: reason.trim().to_string(),
+                }];
             }
             if let Some((_, fields)) = rest.strip_prefix("I ").and_then(|r| r.split_once('\t')) {
                 self.bag.push(parse_item(fields));
@@ -968,7 +974,13 @@ impl Parser {
             return;
         };
         if let Some(slot) = self.v6_rows.get_mut(row as usize) {
-            *slot = Some(chip.as_chunks::<2>().0.iter().map(|&[chip, attr]| Cell { chip, attr }).collect());
+            *slot = Some(
+                chip.as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|&[chip, attr]| Cell { chip, attr })
+                    .collect(),
+            );
         }
     }
 
@@ -1172,7 +1184,10 @@ mod tests {
         assert_eq!(m.cells[0], Cell { chip: b'0', attr: 0 });
         assert_eq!(m.cells[80], Cell { chip: b'8', attr: 0 });
         let c = &m.chars[0];
-        assert_eq!((c.x, c.y, c.dir, c.name.as_str(), c.gra.as_str(), c.layer, c.default), (4, 4, 'F', "me", "t_man", 12, 1));
+        assert_eq!(
+            (c.x, c.y, c.dir, c.name.as_str(), c.gra.as_str(), c.layer, c.default),
+            (4, 4, 'F', "me", "t_man", 12, 1)
+        );
         // UI は v6 の印で予想を使うか決める(#m57 の地図には付けない)
         assert_eq!(serde_json::to_value(&m).unwrap()["v6"], true);
     }
@@ -1180,8 +1195,14 @@ mod tests {
     #[test]
     fn v6_coordinates_of_10_or_more() {
         let mut p = Parser::new();
-        let m = only_map(feed_all(&mut p, v6_frame(21, 21, 0..21, &[(10, 10, "me"), (20, 13, "far")])));
-        assert_eq!(m.chars.iter().map(|c| (c.x, c.y)).collect::<Vec<_>>(), [(10, 10), (20, 13)]);
+        let m = only_map(feed_all(
+            &mut p,
+            v6_frame(21, 21, 0..21, &[(10, 10, "me"), (20, 13, "far")]),
+        ));
+        assert_eq!(
+            m.chars.iter().map(|c| (c.x, c.y)).collect::<Vec<_>>(),
+            [(10, 10), (20, 13)]
+        );
     }
 
     #[test]
@@ -1209,20 +1230,32 @@ mod tests {
         assert!(p.feed(b"#v6 I 1\teq=W\tit=2\twt=1\tmt=3\tfn=6\twp=10\top=12,30,0,0\tready=0\ttype=Weapon\twtype=Sword\tmat=Steel\telem=Fire\tname=Long sword").is_empty());
         assert!(p.feed(b"#v6 I 2").is_empty());
         let evs = p.feed(b"#v6 I .");
-        let [Event::Items { items }] = evs.as_slice() else { panic!("{evs:?}") };
+        let [Event::Items { items }] = evs.as_slice() else {
+            panic!("{evs:?}")
+        };
         assert_eq!(items.len(), 2);
         let w = items[0].as_ref().unwrap();
-        assert_eq!((w.eq.as_str(), w.it, w.wt, w.fn_, w.op[0], w.name.as_str()), ("W", 2, 1, 6, 12, "Long sword"));
+        assert_eq!(
+            (w.eq.as_str(), w.it, w.wt, w.fn_, w.op[0], w.name.as_str()),
+            ("W", 2, 1, 6, 12, "Long sword")
+        );
         assert_eq!(items[1], None);
         assert!(p.feed(b"#ex-inv I 1\teq=-\tit=6\tcount=3\tname=Wand").is_empty());
         let evs = p.feed(b"#ex-inv .");
-        let [Event::Bag { items }] = evs.as_slice() else { panic!("{evs:?}") };
+        let [Event::Bag { items }] = evs.as_slice() else {
+            panic!("{evs:?}")
+        };
         assert_eq!((items[0].count, items[0].name.as_str()), (Some(3), "Wand"));
-        assert_eq!(p.feed(b"#ex-inv no hand"), vec![Event::BagRefused { reason: "hand".into() }]);
+        assert_eq!(
+            p.feed(b"#ex-inv no hand"),
+            vec![Event::BagRefused { reason: "hand".into() }]
+        );
         // 名前のタグは除き、HTML では色にする
         p.feed(b"#ex-inv I 1\tname=/*color=red*/Ruby/*.*/ ring");
         let evs = p.feed(b"#ex-inv .");
-        let [Event::Bag { items }] = evs.as_slice() else { panic!("{evs:?}") };
+        let [Event::Bag { items }] = evs.as_slice() else {
+            panic!("{evs:?}")
+        };
         assert_eq!(items[0].name, "Ruby ring");
         assert!(items[0].html.contains("color:red"), "{}", items[0].html);
     }

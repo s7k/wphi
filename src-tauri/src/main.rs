@@ -820,7 +820,9 @@ fn select_menu(app: &tauri::AppHandle, id: &str) {
         exit_app(app);
         return;
     }
-    if menu::experiment(&mut settings::Settings::default(), id).is_some() || menu::set_layout(&mut settings::Settings::default(), id) {
+    if menu::experiment(&mut settings::Settings::default(), id).is_some()
+        || menu::set_layout(&mut settings::Settings::default(), id)
+    {
         let saved = settings_path(app).and_then(|p| {
             jsonfile::update(&p, |s: &mut settings::Settings| {
                 if let Some(v) = menu::experiment(s, id) {
