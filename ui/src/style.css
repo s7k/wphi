@@ -1498,13 +1498,6 @@ button > svg:only-child,
   cursor: pointer;
 }
 
-/* ボタンのアイコンの大きさ(button > svg)を使わず、ドット絵の大きさのまま描く */
-.bag-button > svg {
-  width: 32px;
-  height: 32px;
-  margin: 0;
-}
-
 /* カバンのボタンの左に並べる */
 .status-button-modern {
   right: 114px;
@@ -1564,18 +1557,6 @@ button > svg:only-child,
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 25%), inset 0 -2px 0 rgb(0 0 0 / 30%);
   cursor: pointer;
   filter: drop-shadow(0 1px 0 rgb(0 0 0 / 50%));
-}
-
-/* ボタンのアイコンの大きさ(button > svg)を使わず、ドット絵の大きさのまま描く */
-.bag-tile > svg {
-  width: 48px;
-  height: 48px;
-  margin: 0;
-  vertical-align: middle;
-}
-
-.bag-tile svg {
-  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 70%));
 }
 
 .bag-tile.empty {
@@ -1724,4 +1705,11 @@ button > svg:only-child,
 /* モダンの看板エディタは main 窓いっぱい。ログと priv の欄(z-index 4)より上に出す */
 .main-body.modern .board-editor {
   z-index: 5;
+}
+
+/* カバンの持ち物の絵(BagPanel.tsx の ItemIcon) */
+.item-icon {
+  display: block;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 70%));
 }

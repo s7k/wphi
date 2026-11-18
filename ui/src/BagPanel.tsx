@@ -3,27 +3,54 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { lightenColors } from "./logLines.ts";
 import { Search, X } from "lucide-react";
-import { ITEM_PIXELS, PALETTE, WEAPON_PIXELS } from "./pixelIcons.ts";
+import { PALETTE } from "./pixelIcons.ts";
 import type { ItemInfo } from "./protocol";
 
 /** 用途(IT_*)の番号 */
 const IT = { armor: 1, weapon: 2, food: 3, resource: 4, jewel: 5, charge: 6, accessory: 7, spellJewel: 8, evently: 12, scroll: 13, currency: 14 };
 
-/** 用途のドット絵の名前(pixelIcons.ts の ITEM_PIXELS) */
-const ITEM_PIXEL_NAME: Partial<Record<number, string>> = {
-  [IT.armor]: "armor",
-  [IT.food]: "food",
-  [IT.resource]: "resource",
-  [IT.jewel]: "jewel",
-  [IT.charge]: "charge",
-  [IT.accessory]: "accessory",
-  [IT.spellJewel]: "spellJewel",
-  [IT.scroll]: "scroll",
-  [IT.currency]: "currency",
+/**
+ * 持ち物とボタンの絵(itemIcons.png)。16x16 を横に並べた 1 枚で、武器の種類(WT_*)の 11 枚、用途(IT_*)の 10 枚、ステータスの札の順。
+ * 絵は Shade(Kurt Gabriel Sotelo)の CC0 の素材から選び、拳・鞭・円刃・ステータスの札だけ同じ描き方で描いた。双剣は刀を左右反転して重ねた。
+ * https://merchant-shade.itch.io/free-16x16-weapon-rpg-icons https://merchant-shade.itch.io/16x16-mixed-rpg-icons
+ */
+const ICONS_URL = new URL("./itemIcons.png", import.meta.url).href;
+const ICON_COUNT = 22;
+const WEAPON_COUNT = 11;
+/** 背負い袋。用途が「その他」の持ち物と、カバンのボタン */
+export const BAG_ICON = 20;
+export const STATUS_ICON = 21;
+/** 用途 → 絵の番号。無い用途は背負い袋 */
+const ITEM_ICON: Partial<Record<number, number>> = {
+  [IT.armor]: 11,
+  [IT.food]: 12,
+  [IT.resource]: 13,
+  [IT.jewel]: 14,
+  [IT.charge]: 15,
+  [IT.accessory]: 16,
+  [IT.spellJewel]: 17,
+  [IT.scroll]: 18,
+  [IT.currency]: 19,
 };
 
-const pixelsOf = (it: ItemInfo) =>
-  it.it === IT.weapon ? (WEAPON_PIXELS[it.wt] ?? WEAPON_PIXELS[1]) : ITEM_PIXELS[ITEM_PIXEL_NAME[it.it] ?? "other"];
+const iconOf = (it: ItemInfo) =>
+  it.it === IT.weapon ? (it.wt >= 0 && it.wt < WEAPON_COUNT ? it.wt : 1) : (ITEM_ICON[it.it] ?? BAG_ICON);
+
+/** 持ち物の絵。ぼやけないよう pixelated で拡大する */
+export function ItemIcon(props: { index: number; size: number }) {
+  return (
+    <span
+      className="item-icon"
+      style={{
+        width: props.size,
+        height: props.size,
+        backgroundImage: `url(${ICONS_URL})`,
+        backgroundSize: `${props.size * ICON_COUNT}px ${props.size}px`,
+        backgroundPosition: `${-props.index * props.size}px 0`,
+      }}
+    />
+  );
+}
 
 /** 16x16 のドット絵を、横に続く同じ色のドットを 1 つの四角にまとめた SVG で描く。ぼやけないよう crispEdges にする */
 export function Pixels(props: { rows: string[]; size: number }) {
@@ -114,7 +141,7 @@ function Tile(props: { item: ItemInfo | null; selected: boolean; onClick?: () =>
       title={[it.name, ...details(it)].join("\n")}
       onClick={props.onClick}
     >
-      <Pixels rows={pixelsOf(it)} size={48} />
+      <ItemIcon index={iconOf(it)} size={48} />
       {EQUIP_LABEL[it.eq] && <span className="bag-equip">{EQUIP_LABEL[it.eq]}</span>}
       {it.count !== undefined && <span className="bag-count">{it.count}</span>}
       {it.ready > 0 && <span className="bag-wait" />}

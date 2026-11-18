@@ -15,8 +15,7 @@ import { SENT_EVENT, type Sent } from "./keyInput";
 import { isNorthFix, isTextTarget, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
 import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskOptions, type Mods } from "./keys.ts";
 import { MAX_UNCONFIRMED, walkable, Walker } from "./walker.ts";
-import { BagPanel, Pixels } from "./BagPanel.tsx";
-import { BAG_PIXELS, STATUS_PIXELS } from "./pixelIcons.ts";
+import { BAG_ICON, BagPanel, ItemIcon, STATUS_ICON } from "./BagPanel.tsx";
 import { AskDialog } from "./AskDialog";
 import { alertBox, confirmBox, MessageDialogHost } from "./MessageDialog";
 import { popupTagMenu } from "./TagMenuPopup";
@@ -1257,7 +1256,7 @@ export function App() {
         {tab.sign && <SignCard lines={tab.sign} onClose={() => closeSign(tab.session)} />}
         {tab.items && !tab.bagOpen && (
           <button type="button" className="bag-button" title="カバン(持ち物とインベントリ)" onClick={() => openBag(tab.session)}>
-            <Pixels rows={BAG_PIXELS} size={32} />
+            <ItemIcon index={BAG_ICON} size={32} />
           </button>
         )}
         {/* モダンは地図の下のステータスの欄を出さないので、その「Status」と同じく check と look を送るボタンを置く */}
@@ -1268,7 +1267,7 @@ export function App() {
             title="ステータス(check と look)"
             onClick={() => sendLines(tab.session, "check\nlook")}
           >
-            <Pixels rows={STATUS_PIXELS} size={32} />
+            <ItemIcon index={STATUS_ICON} size={32} />
           </button>
         )}
         {tab.bagOpen && (
