@@ -98,12 +98,14 @@ const TABS: { label: string; match: (it: ItemInfo) => boolean }[] = [
   },
 ];
 
-/** 詳しい情報の行。数値の意味は用途で変わる(phi_magic/detect.rs の detect_item) */
+/** 詳しい情報の行。数値の意味は用途で変わる(phi_dm の phi_magic/detect.rs の detect_item。ER・Effect・S.E. は Detect の呼び名) */
 function details(it: ItemInfo): string[] {
   const kind = it.it === IT.weapon ? `${it.type} / ${it.wtype}` : it.type;
   const lines = [`${kind}・${it.mat}・属性 ${it.elem}`, `攻撃力 ${it.op[0]}・重さ ${it.wp}`];
   if (it.it === IT.armor) lines.push(`防御率 ${it.op[1]}%・魔法防御率 ${it.op[2]}%`);
-  if (it.it === IT.weapon) lines.push(`強化率 ${it.op[1]}%`);
+  if (it.it === IT.weapon) lines.push(`ER ${it.op[1]}%`);
+  if (it.effect !== undefined) lines.push(`Effect ${it.effect}`);
+  if (it.se !== undefined) lines.push(`${it.curse ? "Curse" : "S.E."} ${it.se}`);
   if (it.count !== undefined) lines.push(`残り ${it.count} 回`);
   if (it.ready > 0) lines.push(`使えるまで あと ${it.ready} 秒`);
   return lines;

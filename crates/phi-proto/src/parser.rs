@@ -99,6 +99,13 @@ pub struct Item {
     pub wtype: String,
     pub mat: String,
     pub elem: String,
+    /// op[2] の効果の名前(武器・資源・呪文の宝石・チャージ・アクセサリーだけ)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effect: Option<String>,
+    /// op[3] の特殊効果(S.E.)の名前。curse は持ち主に呪いとして効く物
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub se: Option<String>,
+    pub curse: bool,
     /// 名前。タグ(`/*color=red*/` など)を除いた物で、探す時と説明の文に使う
     pub name: String,
     /// 名前をタグの色と大きさを付けた HTML にした物(ログの行と同じ作り)。画面に出す
@@ -149,6 +156,9 @@ fn parse_item(fields: &str) -> Item {
             "wtype" => it.wtype = v.to_string(),
             "mat" => it.mat = v.to_string(),
             "elem" => it.elem = v.to_string(),
+            "effect" => it.effect = Some(v.to_string()),
+            "se" => it.se = Some(v.to_string()),
+            "curse" => it.curse = v == "1",
             "name" => {
                 it.name = strip_tags(v);
                 it.raw_name = v.to_string();
@@ -1227,7 +1237,7 @@ mod tests {
     #[test]
     fn v6_items_and_bag() {
         let mut p = Parser::new();
-        assert!(p.feed(b"#v6 I 1\teq=W\tit=2\twt=1\tmt=3\tfn=6\twp=10\top=12,30,0,0\tready=0\ttype=Weapon\twtype=Sword\tmat=Steel\telem=Fire\tname=Long sword").is_empty());
+        assert!(p.feed(b"#v6 I 1\teq=W\tit=2\twt=1\tmt=3\tfn=6\twp=10\top=12,30,0,0\tready=0\ttype=Weapon\twtype=Sword\tmat=Steel\telem=Fire\teffect=Fire\tse=Power\tcurse=1\tname=Long sword").is_empty());
         assert!(p.feed(b"#v6 I 2").is_empty());
         let evs = p.feed(b"#v6 I .");
         let [Event::Items { items }] = evs.as_slice() else {
@@ -1238,6 +1248,10 @@ mod tests {
         assert_eq!(
             (w.eq.as_str(), w.it, w.wt, w.fn_, w.op[0], w.name.as_str()),
             ("W", 2, 1, 6, 12, "Long sword")
+        );
+        assert_eq!(
+            (w.effect.as_deref(), w.se.as_deref(), w.curse),
+            (Some("Fire"), Some("Power"), true)
         );
         assert_eq!(items[1], None);
         assert!(p.feed(b"#ex-inv I 1\teq=-\tit=6\tcount=3\tname=Wand").is_empty());

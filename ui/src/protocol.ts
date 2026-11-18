@@ -122,6 +122,11 @@ export type ItemInfo = {
   wtype: string;
   mat: string;
   elem: string;
+  /** op[2] の効果の名前(武器・資源・呪文の宝石・チャージ・アクセサリーだけ) */
+  effect?: string;
+  /** op[3] の特殊効果(S.E.)の名前。curse は持ち主に呪いとして効く物 */
+  se?: string;
+  curse: boolean;
   /** タグを除いた名前(探す時と説明の文) */
   name: string;
   /** タグの色と大きさを付けた HTML の名前(画面に出す) */
