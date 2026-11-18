@@ -85,6 +85,11 @@ export class Predictor {
   private bumped: { dx: number; dy: number; at: number } | null = null;
   /** サーバが通した壁の文字のマス(隠し通路)。walk の座標で覚え、epoch が変わったら忘れる。自分が通った所だけ */
   private passed = new Set<string>();
+  /**
+   * サーバが断った、地図では通れる見た目のマス(透明な壁など)。walk の座標で覚え、揺らして止める。
+   * 1歩は送り続けるので、サーバが通したら消す。epoch が変わったら忘れる
+   */
+  private refused = new Set<string>();
   /** 隠し通路を通れた向き。同じ向きに続く壁の文字のマスも通れるとみなす。外れたら null */
   private tunnel: { dx: number; dy: number } | null = null;
   /** 移動を送ってから地図か「進めません」が届くまでの時間(ms)。新しい方の SAMPLES 個 */
@@ -259,6 +264,7 @@ export class Predictor {
     if (unit) {
       // 壁の文字のマスをサーバが通した。隠し通路として覚え、同じ向きに続く壁も通れるとみなす
       const to = { x: this.walked.x + dx, y: this.walked.y + dy };
+      this.refused.delete(`${to.x},${to.y}`);
       if (this.kindAt(to.x, to.y) === "wall") {
         this.passed.add(`${to.x},${to.y}`);
         this.tunnel = { dx, dy };
@@ -270,12 +276,15 @@ export class Predictor {
       this.guessed = [];
       this.epoch++;
       this.passed.clear();
+      this.refused.clear();
       this.tunnel = null;
     } else if (answered) {
       // 進めなかった。隠し通路の中とみなした1歩ならやめ、通れるか分からなかった所ならここで揺らす
       if (this.tunnel?.dx === answered.dx && this.tunnel?.dy === answered.dy) this.tunnel = null;
       const to = { x: this.walked.x + answered.dx, y: this.walked.y + answered.dy };
       if (this.kindAt(to.x, to.y) === "unknown") this.bumped = { dx: answered.dx, dy: answered.dy, at: this.now() };
+      // 通れる見た目でも断られたマスは覚え、次からは進んで戻らずにその場で揺らす
+      this.refused.add(`${to.x},${to.y}`);
     }
     const after = this.offset;
     const changed = before.dx !== after.dx || before.dy !== after.dy;
@@ -359,10 +368,13 @@ export class Predictor {
     const cx = me.x + x - (this.walked.x - this.moved.dx);
     const cy = me.y + y - (this.walked.y - this.moved.dy);
     if (cx < 0 || cx >= map.width || cy < 0 || cy >= map.height) return "unknown";
+    if (this.refused.has(`${x},${y}`)) return "solid";
     const chip = map.cells[cy * map.width + cx].chip;
     if (chip === UNKNOWN) return "unknown";
     if (WALLS.has(chip)) return "wall";
-    return BLOCKED.has(chip) ? "solid" : "open";
+    if (BLOCKED.has(chip)) return "solid";
+    // 他のキャラやオブジェの居るマスは、入れるかは居る物次第なので分からない所とする(自分は中央)
+    return map.chars.some((c) => c.x === cx && c.y === cy && (c.x !== me.x || c.y !== me.y)) ? "unknown" : "open";
   }
 
   /** 進んだとみなした分の先へ m で進む先が、最後の地図で set の地形か(#v6 G を送らないサーバ) */
@@ -385,6 +397,7 @@ export class Predictor {
     this.acked = false;
     this.bumped = null;
     this.passed.clear();
+    this.refused.clear();
     this.tunnel = null;
     this.moved = { dx: 0, dy: 0 };
     this.epoch++;

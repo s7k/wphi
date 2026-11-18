@@ -217,3 +217,47 @@ test("斜めのうち片方だけが壁なら、もう片方だけを縦横の1�
   w.keyDown("ArrowRight", "right", "none");
   assert.deepEqual(w.next(true, () => ["6"]), { keys: ["6"], mods: "none", ms: WALK_MS });
 });
+
+test("通れる見た目でサーバが断ったマス(透明な壁)は覚えて揺らし、サーバが通したら忘れる", () => {
+  let t = 0;
+  const p = new Predictor(() => t);
+  p.onMoved(0, 0);
+  p.onMap(null, grid([".....", ".....", ".....", ".....", "....."]));
+  // 1度目は進んだとみなし、断られて戻る
+  p.walkStep("go W", WALK_MS);
+  assert.deepEqual(p.offset, { dx: -1, dy: 0 });
+  p.onMoved(0, 0);
+  // 2度目からは進まずに揺らす
+  t = 100;
+  p.walkStep("go W", WALK_MS);
+  assert.deepEqual(p.offset, { dx: 0, dy: 0 });
+  assert.deepEqual(p.walk?.bump, { dx: -1, dy: 0, at: 100 });
+  // 斜めは壁に沿って滑らせる
+  assert.deepEqual(p.pick(["go N", "go W"]), ["go N"]);
+  // サーバが通した(居た物が退いた)ら忘れる
+  assert.equal(p.onMoved(-1, 0), true);
+  t = 200;
+  p.walkStep("go E", WALK_MS);
+  p.onMoved(1, 0);
+  p.walkStep("go W", WALK_MS);
+  assert.deepEqual(p.offset, { dx: -1, dy: 0 });
+});
+
+test("他のキャラやオブジェの居るマスへの1歩は、揺らさずに返事を待つ", () => {
+  let t = 0;
+  const p = new Predictor(() => t);
+  const map = grid([".....", ".....", ".....", ".....", "....."]);
+  const chair = { id: 1, x: 1, y: 2, dir: "F", name: "Chair", gra: "LANU_Rchair", status: 0, gigant: "#", layer: 12, default: 0x75 };
+  p.onMoved(0, 0);
+  p.onMap(null, { ...map, chars: [chair] });
+  p.walkStep("go W", WALK_MS);
+  assert.deepEqual(p.offset, { dx: 0, dy: 0 });
+  assert.equal(p.uncertain, true);
+  assert.equal(p.walk?.bump, undefined);
+  t = 60;
+  p.onMoved(0, 0);
+  assert.deepEqual(p.walk?.bump, { dx: -1, dy: 0, at: 60 });
+  // 断られたマスは覚えたので、次は待たずに揺らす
+  p.walkStep("go W", WALK_MS);
+  assert.equal(p.uncertain, false);
+});
