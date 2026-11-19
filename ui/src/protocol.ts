@@ -1,6 +1,7 @@
 // crates/phi-proto/src/parser.rs の Event と、src-tauri/src/session.rs の UiEvent の型。
 
-export type MapCell = { chip: number; attr: number };
+/** blocked は見た目と違って通れない印 (#v6 X)。自キャラの周りだけ届く */
+export type MapCell = { chip: number; attr: number; blocked?: boolean };
 
 export type Magnify = { w: number; h: number; z: number };
 
@@ -94,7 +95,10 @@ export type UiEvent =
   | EagleEyeEvent
   | { type: "worldTransfer" }
   /** #v6 G。v6 のサーバが go のたびに地図より先に送る、動いた差。進めなかった時は 0 0 */
-  | { type: "moved"; dx: number; dy: number }
+  /** reason は進めなかった理由か push (phi_dm の docs/dev/protocol-v6.md の「移動の返事」)。古いサーバは付けない */
+  | { type: "moved"; dx: number; dy: number; reason?: string }
+  /** #v6 J。go 以外で動いた */
+  | { type: "jumped" }
   /** #v6 I。手持ちの 8 個(空きは null) */
   | { type: "items"; items: (ItemInfo | null)[] }
   /** #v6 P。自分を先頭にした仲間の一覧。パーティに入っていなければ空 */

@@ -603,6 +603,28 @@ export function walkAt(samples: WalkSample[], t: number): { x: number; y: number
 }
 
 /**
+ * 1歩の時間の付いた位置 (#v6 G のサーバのスムーズ移動) を経路に足す。描くのは今より SLIDE_DELAY_MS 前 (t) の位置。
+ * 1歩は予定の時刻 at から at + ms まで滑らせる。前の1歩の残りはそのまま描き、続けて次の1歩を描くので、
+ * 状態が少し遅れて届いても止まらず、残りを急いで縮めることもない (#146)。
+ * at が t より前 (遅れすぎて届いた・外れを直す) なら、t の位置から残りを滑らせる
+ */
+export function timedWalk(samples: WalkSample[], t: number, at: number, ms: number, to: { x: number; y: number }, from: { x: number; y: number }): WalkSample[] {
+  const start = Math.max(at, t);
+  const end = Math.max(start + 16, at + ms);
+  const pos = samples.length ? walkAt(samples, start) : from;
+  // start より前の点のうち、t 以前は最後の 1 つだけ残せば t の位置を補間出来る
+  const before = samples.filter((s) => s.at < start);
+  let first = 0;
+  before.forEach((s, i) => {
+    if (s.at <= t) first = i;
+  });
+  return [...before.slice(first), { at: start, ...pos }, { at: end, ...to }];
+}
+
+/** スムーズ移動で描く位置を、今よりこれだけ前にする (ms)。main 窓から状態が届く遅れ (7〜26ms) を覆う */
+export const SLIDE_DELAY_MS = 30;
+
+/**
  * 自分の位置が前から何マス動いたか。ずらして見せる時だけ返す。
  * 世界が違う時(world に epoch を含めると、テレポートやタブの切り替えも)、動いていない時、3マス以上飛んだ時は null
  */

@@ -8,8 +8,17 @@ import type { MoveKey } from "./keys.ts";
 /** 縦横の1歩と斜めの1歩(2行)を滑らせる時間(ms)。サーバは 0.1 秒に1行ずつ処理するので、それより短くしない */
 export const WALK_MS = 100;
 export const WALK_DIAGONAL_MS = 200;
-/** 進んだとみなして返事の来ていない移動がこれ以上あれば、次の1歩を待つ。回線が遅い時にサーバより先へ行き過ぎない */
-export const MAX_UNCONFIRMED = 2;
+/**
+ * 返事の来ていない移動 (行) がこれ以上あれば、次の1歩を待つ。回線が遅い時にサーバより先へ行き過ぎない。
+ * 返事は「往復 + サーバのティック待ち (0〜100ms)」で届くので、2 では往復 100ms を超えると歩みが止まった (#146)。
+ * 斜めは 2 行と数える
+ */
+export const MAX_UNCONFIRMED = 3;
+/**
+ * 予定の時刻からこれより遅れて次の1歩を出す時は、拍を取り直す (返事待ちで止まった、離して押し直した等)。
+ * 20ms ごとに見回るので、それより長く取る
+ */
+const BEAT_SLACK_MS = 40;
 // 押しているかは keydown と keyup だけで決め、時間では離したとみなさない。OS のキーリピートは最後に押したキーにしか
 // 掛からないので、上を押したまま右を押して離すと、上の keydown は届かなくなる(v0.1.87 まではそこで 700ms 後に止まった)。
 // keyup が届かない時(窓のフォーカスが外れた時)は、呼ぶ側が clear() する
@@ -31,14 +40,20 @@ const DIRS: Partial<Record<MoveKey, { dx: number; dy: number }>> = {
 /** 歩くキーか */
 export const walkable = (key: MoveKey) => key in DIRS;
 
-export type Step<M> = { keys: MoveKey[]; mods: M; ms: number };
+/** 1歩。at は滑らせ始める予定の時刻。押している間は前の1歩の終わりと同じで、見回りの遅れを次へ持ち越さない */
+export type Step<M> = { keys: MoveKey[]; mods: M; ms: number; at: number };
 
 export class Walker<M> {
   /** 押しているキー(キーのコード → 向きと修飾キー、最後に届いた時刻) */
   private held = new Map<string, { key: MoveKey; mods: M }>();
   private follow: { keys: MoveKey[]; mods: M; at: number } | null = null;
-  /** 今の1歩を滑りきる時刻 */
+  /** 今の1歩を滑りきる時刻。次の1歩の予定の時刻でもある */
   private busyUntil = 0;
+  /**
+   * 最後に離したキーと時刻。予定の時刻より後に離したなら、その時刻にはまだ押していたので1歩を出す。
+   * 20ms ごとの見回りがいつ来たかで、押した時間が同じでも歩数が変わった (#146)
+   */
+  private released: { key: MoveKey; mods: M; at: number } | null = null;
   private now: () => number;
 
   constructor(now: () => number = () => performance.now()) {
@@ -50,6 +65,8 @@ export class Walker<M> {
   }
 
   keyUp(code: string) {
+    const h = this.held.get(code);
+    if (h && DIRS[h.key]) this.released = { ...h, at: this.now() };
     this.held.delete(code);
   }
 
@@ -61,30 +78,51 @@ export class Walker<M> {
   clear() {
     this.held.clear();
     this.follow = null;
+    this.released = null;
   }
 
   /**
    * 次の1歩。滑らせている途中か、歩く向きが無いか、canStep が false なら null。
    * pick は送るキーを絞る(斜めのうち壁の側を除く)。返した時は、その1歩を滑りきるまで次を返さない
    */
-  next(canStep: boolean, pick?: (keys: MoveKey[], mods: M) => MoveKey[]): Step<M> | null {
+  /**
+   * canStep は歩けるか。数なら、あと何行送れるか (斜めは 2 行要る)
+   */
+  next(canStep: boolean | number, pick?: (keys: MoveKey[], mods: M) => MoveKey[]): Step<M> | null {
     const now = this.now();
     if (now < this.busyUntil) return null;
     if (this.follow && now - this.follow.at > FOLLOW_EXPIRE_MS) this.follow = null;
-    const want = this.want();
-    if (!want || !canStep) return null;
+    // 予定の時刻に間に合っていれば、その時刻を1歩の始まりにする。遅れすぎていれば今から数え直す
+    const at = now - this.busyUntil <= BEAT_SLACK_MS ? this.busyUntil : now;
+    // 予定の時刻より後に離したキーは、その時刻にはまだ押していた
+    const late = this.released && this.released.at > this.busyUntil && at === this.busyUntil ? this.released : null;
+    const want = this.want() ?? (late && this.wantOf([late]));
+    if (!want) this.released = null;
+    if (!want || canStep === false || canStep === 0) return null;
     const keys = pick ? pick(want.keys, want.mods) : want.keys;
-    const step = { ...want, keys, ms: keys.length > 1 ? WALK_DIAGONAL_MS : WALK_MS };
-    this.busyUntil = now + step.ms;
+    if (typeof canStep === "number" && keys.length > canStep) return null;
+    this.released = null;
+    const step = { ...want, keys, ms: keys.length > 1 ? WALK_DIAGONAL_MS : WALK_MS, at };
+    this.busyUntil = at + step.ms;
     return step;
   }
 
   /** 押しているキーを足した向き。逆向きは打ち消す。キーが無ければ追尾移動の向き */
-  private want(): Step<M> | null {
+  private want(): Omit<Step<M>, "at"> | null {
+    const held = this.wantOf(this.held.values());
+    if (held) return held;
+    const f = this.follow;
+    if (!f) return null;
+    const keys = f.keys.filter(walkable);
+    return keys.length ? { keys, mods: f.mods, ms: keys.length > 1 ? WALK_DIAGONAL_MS : WALK_MS } : null;
+  }
+
+  /** キーを足した向き。逆向きは打ち消す */
+  private wantOf(hs: Iterable<{ key: MoveKey; mods: M }>): Omit<Step<M>, "at"> | null {
     let dx = 0;
     let dy = 0;
     let mods: M | null = null;
-    for (const h of this.held.values()) {
+    for (const h of hs) {
       const d = DIRS[h.key];
       if (!d) continue;
       dx += d.dx;
@@ -92,13 +130,8 @@ export class Walker<M> {
       mods = h.mods;
     }
     [dx, dy] = [Math.sign(dx), Math.sign(dy)];
-    if (mods !== null && (dx || dy)) {
-      const keys: MoveKey[] = [...(dy ? [dy < 0 ? "8" : "2"] : []), ...(dx ? [dx < 0 ? "4" : "6"] : [])] as MoveKey[];
-      return { keys, mods, ms: keys.length > 1 ? WALK_DIAGONAL_MS : WALK_MS };
-    }
-    const f = this.follow;
-    if (!f) return null;
-    const keys = f.keys.filter(walkable);
-    return keys.length ? { keys, mods: f.mods, ms: keys.length > 1 ? WALK_DIAGONAL_MS : WALK_MS } : null;
+    if (mods === null || !(dx || dy)) return null;
+    const keys: MoveKey[] = [...(dy ? [dy < 0 ? "8" : "2"] : []), ...(dx ? [dx < 0 ? "4" : "6"] : [])] as MoveKey[];
+    return { keys, mods, ms: keys.length > 1 ? WALK_DIAGONAL_MS : WALK_MS };
   }
 }

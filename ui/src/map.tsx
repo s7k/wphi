@@ -14,7 +14,7 @@ import { trace } from "./trace.ts";
 import { isNorthFix, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, sendLine, sendLines, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { predictedMap } from "./predict.ts";
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
-import { addWalk, CHIP_SIZE, MAP_TOP, selfPos, slideStep, viewArea, viewCover, viewFor, walkAt, walkDelay, type WalkSample } from "./mapRender";
+import { addWalk, CHIP_SIZE, MAP_TOP, selfPos, SLIDE_DELAY_MS, slideStep, timedWalk, viewArea, viewCover, viewFor, walkAt, walkDelay, type WalkSample } from "./mapRender";
 import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
 import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_OPEN_EVENT, type CondEvent, type MapChar, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
@@ -411,13 +411,9 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     }
     timed.current = here.ms > 0;
     if (timed.current) {
-      // 今見せている位置から、main 窓の1歩の終わる時刻に着くように滑らせる。届くのが遅れても跳ばない
-      const now = performance.timeOrigin + performance.now();
-      const from = walks.current.length ? walkAt(walks.current, now) : { x: s.x - step.dx, y: s.y - step.dy };
-      walks.current = [
-        { at: now, ...from },
-        { at: Math.max(now + 16, here.at + here.ms), x: s.x, y: s.y },
-      ];
+      // main 窓の1歩の予定の時刻から滑らせ、SLIDE_DELAY_MS 遅らせて描く。届くのが少し遅れても止まらず、急がない
+      const t = performance.timeOrigin + performance.now() - SLIDE_DELAY_MS;
+      walks.current = timedWalk(walks.current, t, here.at, here.ms, s, { x: s.x - step.dx, y: s.y - step.dy });
     } else walks.current = addWalk(walks.current, s);
     animate.current();
   }, [here?.world, here?.x, here?.y]);
@@ -440,7 +436,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
       const ws = walks.current;
       const last = ws[ws.length - 1];
       if (last) {
-        const d = walkAt(ws, now - (timed.current ? 0 : walkDelay(ws)));
+        const d = walkAt(ws, now - (timed.current ? SLIDE_DELAY_MS : walkDelay(ws)));
         if (d.x !== last.x || d.y !== last.y) [sx, sy, done] = [(last.x - d.x) * CHIP_SIZE, (last.y - d.y) * CHIP_SIZE, false];
         walkY = sy;
       }

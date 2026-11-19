@@ -343,14 +343,16 @@ export function App() {
       return;
     }
     // 通れるか分からない所への1歩は、返事が来るまで次を送らない
-    const canStep = predictor.current.unconfirmed < MAX_UNCONFIRMED && !predictor.current.uncertain;
+    // あと何行送れるか。斜めは 2 行要る
+    const room = predictor.current.uncertain ? 0 : Math.max(0, MAX_UNCONFIRMED - predictor.current.unconfirmed);
+    const canStep = room > 0;
     // 斜めのうち壁の側の向きは送らず、壁に沿って滑らせる
     const pick = (keys: MoveKey[], mods: Mods) => {
       const texts = keys.map((k) => moveCommand(k, mods, true));
       const kept = predictor.current.pick(texts);
       return keys.filter((_, i) => kept.includes(texts[i]));
     };
-    const s = walker.current.next(canStep, pick);
+    const s = walker.current.next(room, pick);
     // 返事を待って止まった時をトレースに残す(続く間は1回だけ)
     if (!canStep && !walkWaiting.current)
       trace(`walk wait unconfirmed=${predictor.current.unconfirmed} uncertain=${predictor.current.uncertain}`);
@@ -360,7 +362,7 @@ export function App() {
     closeSign(session);
     for (const k of s.keys) {
       const text = moveCommand(k, s.mods, true);
-      predictor.current.walkStep(text, s.ms);
+      predictor.current.walkStep(text, s.ms, s.at);
       sendLine(session, text);
     }
     sendMapState(session);
@@ -846,6 +848,8 @@ export function App() {
       }
       case "cond":
         s.cond = ev;
+        // 盲目の間は、自分以外のマスが '/' で届く。道として予想しない
+        if (session === activeRef.current) predictor.current.setBlind(ev.blind);
         break;
       case "party":
         s.party = ev.members.slice(1).map((m) => m.name);
@@ -1217,7 +1221,13 @@ export function App() {
           break;
         }
         case "moved":
-          if (session === activeRef.current && predictor.current.onMoved(ev.dx, ev.dy)) sendMapState(session);
+          if (session === activeRef.current && predictor.current.onMoved(ev.dx, ev.dy, ev.reason)) sendMapState(session);
+          break;
+        case "jumped":
+          if (session === activeRef.current) {
+            predictor.current.onJumped();
+            sendMapState(session);
+          }
           break;
         default:
           onMapEvent(session, ev);

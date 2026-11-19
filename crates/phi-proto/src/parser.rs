@@ -55,11 +55,17 @@ pub enum Event {
         state: WorldTransferState,
         server: String,
     },
-    /// `#v6 G dx dy`。v6 のサーバが go のたびに地図より先に送る、動いた差(東と南が正)。進めなかった時は 0 0
+    /// `#v6 G dx dy [語]`。v6 のサーバが go のたびに地図より先に送る、動いた差(東と南が正)。進めなかった時は 0 0。
+    /// 語は進めなかった理由(wall lock edge chr obj bind palsy busy)か、押して進んだ push。古いサーバは付けない
+    /// (phi_dm の docs/dev/protocol-v6.md の「移動の返事」)
     Moved {
         dx: i32,
         dy: i32,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
     },
+    /// `#v6 J`。go 以外(スイッチ・ゲート・罠など)で動いた。予想と覚えた通れる・通れないを捨てる
+    Jumped,
     /// `#v6 I` 〜 `#v6 I .`。手持ちの 8 個。空いた枠は None(phi_dm の docs/dev/protocol-v6.md の「持ち物とインベントリ」)
     Items {
         items: Vec<Option<Item>>,
@@ -348,6 +354,13 @@ pub struct Message {
 pub struct Cell {
     pub chip: u8,
     pub attr: u8,
+    /// 見た目と違って通れない(`#v6 X`)。自キャラの周りだけサーバが付ける
+    #[serde(skip_serializing_if = "is_false")]
+    pub blocked: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
@@ -485,6 +498,7 @@ impl EagleEyeAccum {
             self.grid[y as usize * MAX_EAGLE_EYE_COUNT + x] = Cell {
                 chip: raw[i],
                 attr: raw[i + 1],
+                blocked: false,
             };
         }
     }
@@ -558,6 +572,8 @@ pub struct Parser {
     /// `#v6 M` の幅と高さと、届いた `#v6 R` の行(行番号の位置)。`#v6 .` で全部揃っていれば地図にする
     v6_size: (u8, u8),
     v6_rows: Vec<Option<Vec<Cell>>>,
+    /// `#v6 X` で通れないと届いたマス (行, 列)。`#v6 .` で地図のマスに写す
+    v6_blocked: Vec<(usize, usize)>,
 
     eagle: EagleEyeAccum,
     mapset: Option<String>,
@@ -614,6 +630,10 @@ impl Parser {
             }
             if raw.starts_with(b"#v6 R ") {
                 self.parse_v6_r(raw);
+                return Vec::new();
+            }
+            if raw.starts_with(b"#v6 X ") {
+                self.parse_v6_x(raw);
                 return Vec::new();
             }
             let text = decode(raw);
@@ -802,11 +822,17 @@ impl Parser {
             return Vec::new();
         }
         if let Some(rest) = text.strip_prefix("#v6 G ") {
-            let mut it = rest.split_whitespace().map(str::parse::<i32>);
-            return match (it.next(), it.next()) {
-                (Some(Ok(dx)), Some(Ok(dy))) => vec![Event::Moved { dx, dy }],
+            let mut it = rest.split_whitespace();
+            let mut num = || it.next().and_then(|s| s.parse::<i32>().ok());
+            let (dx, dy) = (num(), num());
+            let reason = rest.split_whitespace().nth(2).map(str::to_string);
+            return match (dx, dy) {
+                (Some(dx), Some(dy)) => vec![Event::Moved { dx, dy, reason }],
                 _ => Vec::new(),
             };
+        }
+        if text.trim_end() == "#v6 J" {
+            return vec![Event::Jumped];
         }
         if let Some(rest) = text.strip_prefix("#v6 M ") {
             self.parse_v6_m(raw, rest);
@@ -971,7 +997,7 @@ impl Parser {
             chip.as_chunks::<2>()
                 .0
                 .iter()
-                .map(|&[chip, attr]| Cell { chip, attr })
+                .map(|&[chip, attr]| Cell { chip, attr, ..Default::default() })
                 .collect(),
         );
     }
@@ -1062,6 +1088,23 @@ impl Parser {
         self.map_dir = dir_to_num(raw[6]);
         self.v6_size = (w, h);
         self.v6_rows = vec![None; h as usize];
+        self.v6_blocked.clear();
+    }
+
+    /// `#v6 X NN ` の9バイトの後に W 文字。`x` のマスは見た目と違って通れない
+    fn parse_v6_x(&mut self, raw: &[u8]) {
+        let w = self.v6_size.0 as usize;
+        let row = std::str::from_utf8(&raw[6.min(raw.len())..8.min(raw.len())])
+            .ok()
+            .and_then(ascii_uint);
+        let (Some(row), Some(marks)) = (row, raw.get(9..9 + w)) else {
+            return;
+        };
+        for (x, &m) in marks.iter().enumerate() {
+            if m == b'x' {
+                self.v6_blocked.push((row as usize, x));
+            }
+        }
     }
 
     /// `#v6 R NN ` の9バイトの後に (chip, attr) が W 組並ぶ。NN は 10 進 2 桁の行番号で、0 が上の行
@@ -1078,7 +1121,7 @@ impl Parser {
                 chip.as_chunks::<2>()
                     .0
                     .iter()
-                    .map(|&[chip, attr]| Cell { chip, attr })
+                    .map(|&[chip, attr]| Cell { chip, attr, ..Default::default() })
                     .collect(),
             );
         }
@@ -1093,7 +1136,12 @@ impl Parser {
             self.abs_pos = None;
             return Vec::new();
         }
-        let cells = rows.into_iter().flatten().flatten().collect();
+        let mut cells: Vec<Cell> = rows.into_iter().flatten().flatten().collect();
+        for (y, x) in std::mem::take(&mut self.v6_blocked) {
+            if let Some(c) = cells.get_mut(y * w as usize + x) {
+                c.blocked = true;
+            }
+        }
         vec![Event::Map(self.build_map(w, h, cells, true))]
     }
 }
@@ -1292,14 +1340,29 @@ mod tests {
         }
     }
 
+    /// `#v6 X` の `x` のマスは blocked になり、次の地図では消える (phi_dm の #v6 X)
+    #[test]
+    fn v6_blocked_marks() {
+        let mut p = Parser::new();
+        let mut lines = v6_frame(5, 3, 0..3, &[]);
+        let end = lines.pop().unwrap();
+        lines.push(b"#v6 X 01 .x..x".to_vec());
+        lines.push(end);
+        let m = only_map(feed_all(&mut p, lines));
+        let blocked: Vec<usize> = m.cells.iter().enumerate().filter(|(_, c)| c.blocked).map(|(i, _)| i).collect();
+        assert_eq!(blocked, [6, 9]);
+        let m = only_map(feed_all(&mut p, v6_frame(5, 3, 0..3, &[])));
+        assert!(m.cells.iter().all(|c| !c.blocked));
+    }
+
     #[test]
     fn v6_solid_9x9() {
         let mut p = Parser::new();
         let m = only_map(feed_all(&mut p, v6_frame(9, 9, 0..9, &[(4, 4, "me")])));
         assert_eq!((m.width, m.height, m.dir, m.v6), (9, 9, 0, true));
         assert_eq!(m.cells.len(), 81);
-        assert_eq!(m.cells[0], Cell { chip: b'0', attr: 0 });
-        assert_eq!(m.cells[80], Cell { chip: b'8', attr: 0 });
+        assert_eq!(m.cells[0], Cell { chip: b'0', attr: 0, blocked: false });
+        assert_eq!(m.cells[80], Cell { chip: b'8', attr: 0, blocked: false });
         let c = &m.chars[0];
         assert_eq!(
             (c.x, c.y, c.dir, c.name.as_str(), c.gra.as_str(), c.layer, c.default),
@@ -1337,7 +1400,7 @@ mod tests {
         let mut p = Parser::new();
         let m = only_map(feed_all(&mut p, v6_frame(11, 7, 0..7, &[(5, 3, "me")])));
         assert_eq!((m.width, m.height, m.cells.len()), (11, 7, 77));
-        assert_eq!(m.cells[11], Cell { chip: b'1', attr: 0 });
+        assert_eq!(m.cells[11], Cell { chip: b'1', attr: 0, blocked: false });
         assert_eq!((m.chars[0].x, m.chars[0].y), (5, 3));
     }
 
@@ -1392,8 +1455,17 @@ mod tests {
     #[test]
     fn v6_moved() {
         let mut p = Parser::new();
-        assert_eq!(p.feed(b"#v6 G 0 -1"), vec![Event::Moved { dx: 0, dy: -1 }]);
-        assert_eq!(p.feed(b"#v6 G 0 0"), vec![Event::Moved { dx: 0, dy: 0 }]);
+        assert_eq!(p.feed(b"#v6 G 0 -1"), vec![Event::Moved { dx: 0, dy: -1, reason: None }]);
+        assert_eq!(p.feed(b"#v6 G 0 0"), vec![Event::Moved { dx: 0, dy: 0, reason: None }]);
+        assert_eq!(
+            p.feed(b"#v6 G 0 0 wall"),
+            vec![Event::Moved { dx: 0, dy: 0, reason: Some("wall".into()) }]
+        );
+        assert_eq!(
+            p.feed(b"#v6 G 1 0 push"),
+            vec![Event::Moved { dx: 1, dy: 0, reason: Some("push".into()) }]
+        );
+        assert_eq!(p.feed(b"#v6 J"), vec![Event::Jumped]);
         assert_eq!(p.feed(b"#v6 G x"), vec![]);
     }
 
@@ -1432,7 +1504,7 @@ mod tests {
             // 行優先で、右下のマスが最後に来る
             let last = e.cells[e.cells.len() - 1];
             assert_eq!((last.chip, last.attr), (w - 1, h - 1));
-            assert_eq!(e.cells[w as usize], Cell { chip: 0, attr: 1 });
+            assert_eq!(e.cells[w as usize], Cell { chip: 0, attr: 1, blocked: false });
         }
     }
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addWalk, arrangeRow, cellHash, drawRange, grassJitter, itemDrawRect, selfPos, SLIDE_MIN_MS, slideStep, treeJitter, viewArea, viewFor, walkAt, walkDelay } from "./mapRender.ts";
+import { addWalk, arrangeRow, cellHash, drawRange, grassJitter, itemDrawRect, selfPos, SLIDE_DELAY_MS, SLIDE_MIN_MS, slideStep, timedWalk, treeJitter, viewArea, viewFor, walkAt, walkDelay } from "./mapRender.ts";
 
 test("アイテムは Philly と同じく床の上端の8px上に描く(#41)", () => {
   const r = itemDrawRect(1, " ".charCodeAt(0), 32, 64);
@@ -110,4 +110,30 @@ test("木と草の揺らぎは、場所で決まり、範囲に収まる", () =>
     const g = grassJitter(h);
     assert.ok(g.x + 6 <= 32 && g.y + 7 <= 32);
   }
+});
+
+test("スムーズ移動の経路は、状態が少し遅れて届いても止まらず、急がずに一定の速さで滑る (#146)", () => {
+  // 1歩目は 0〜100、2歩目は 100〜200 の予定。2歩目の状態は 125 に届く (遅れ 25ms < SLIDE_DELAY_MS)
+  let ws = timedWalk([], -SLIDE_DELAY_MS, 0, 100, { x: 1, y: 0 }, { x: 0, y: 0 });
+  const xs: number[] = [];
+  for (let now = SLIDE_DELAY_MS; now <= 200 + SLIDE_DELAY_MS; now++) {
+    if (now === 125) ws = timedWalk(ws, now - SLIDE_DELAY_MS, 100, 100, { x: 2, y: 0 }, { x: 1, y: 0 });
+    xs.push(walkAt(ws, now - SLIDE_DELAY_MS).x);
+  }
+  // 1ms ごとの移動が、0 から 200 まで同じ (1 マス 100ms)。止まる所も、急ぐ所も無い
+  const steps = xs.slice(1).map((x, i) => x - xs[i]);
+  assert.ok(steps.every((d) => Math.abs(d - 0.01) < 1e-9), String(steps.filter((d) => Math.abs(d - 0.01) >= 1e-9)));
+  assert.equal(xs.at(-1), 2);
+});
+
+test("遅れすぎて届いた1歩と、外れを直す1歩は、今描いている位置から残りを滑らせ、跳ばない", () => {
+  let ws = timedWalk([], -SLIDE_DELAY_MS, 0, 100, { x: 1, y: 0 }, { x: 0, y: 0 });
+  const t = 160 - SLIDE_DELAY_MS;
+  const before = walkAt(ws, t);
+  // 2歩目 (予定 100〜200) が 160 に届いた。t の位置から 200 まで滑らせる
+  ws = timedWalk(ws, t, 100, 100, { x: 2, y: 0 }, { x: 1, y: 0 });
+  assert.deepEqual(walkAt(ws, t), before);
+  assert.deepEqual(walkAt(ws, 200), { x: 2, y: 0 });
+  // 古い点は t の位置を補間出来るだけ残す
+  assert.ok(ws.filter((s) => s.at < t).length <= 1);
 });

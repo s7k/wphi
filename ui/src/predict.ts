@@ -58,6 +58,15 @@ const LOCKED = new Set(["%", "{"].map((c) => c.charCodeAt(0)));
 const BLOCKED = new Set(["%", "{", "@", "T", "I", "|", "=", "#", "H"].map((c) => c.charCodeAt(0)));
 /** 隠し扉と同じ文字で届く壁。サーバが通した所は隠し通路として覚える */
 const WALLS = new Set(["#", "H"].map((c) => c.charCodeAt(0)));
+/** 盲目の時に、自分以外のマスをサーバが塗る文字。道ではない */
+const BLIND = "/".charCodeAt(0);
+/**
+ * #v6 G 0 0 の理由のうち、断られたマスを覚えない物。相手が動く (chr obj)、自分の状態 (bind palsy)、
+ * go を移動として処理しなかった (busy)。覚えると、治った後や相手が去った後に、通れる所で揺れた (#146)
+ */
+const PASSING = new Set(["chr", "obj", "bind", "palsy", "busy"]);
+/** 押して進んだ (push) の後、地図が来ないまま諦めるまでの時間 (ms) */
+const PUSH_WAIT_MS = 500;
 
 const sum = (ms: Move[]) => ms.reduce((o, m) => ({ dx: o.dx + m.dx, dy: o.dy + m.dy }), { dx: 0, dy: 0 });
 
@@ -95,6 +104,13 @@ export class Predictor {
   /** 移動を送ってから地図か「進めません」が届くまでの時間(ms)。新しい方の SAMPLES 個 */
   private samples: number[] = [];
   private lastGuess = -Infinity;
+  /** 盲目か (#cond)。自分以外のマスは '/' で届くので、通れるか分からない所とする */
+  private blind = false;
+  /**
+   * オブジェを押して進んだ (#v6 G … push) が、まだ地図が来ていない。押す前の古い地図をずらすと、オブジェが自分の
+   * マスに重なって見え、地図が来て前へ跳んだ (#146 の「オブジェに押し込まれる」)。地図が来るまで位置を進めない
+   */
+  private pushed: { dx: number; dy: number; at: number } | null = null;
   private now: () => number;
 
   constructor(now: () => number = () => performance.now()) {
@@ -155,10 +171,12 @@ export class Predictor {
    * スムーズ移動で1歩を送った時(ui/src/walker.ts)。返事を待たずに進んだとみなし、その位置まで ms で滑らせる。
    * 前に送って返事を待っている移動も、送った順を崩さないよう進んだとみなす側へ移す
    */
-  walkStep(text: string, ms: number) {
+  walkStep(text: string, ms: number, at?: number) {
     const m = /^go ([NESWnesw])$/.exec(text);
     if (!m) return;
     const now = this.now();
+    // 滑らせ始めるのは歩き方の予定の時刻。見回りの遅れで1歩ごとの始まりがずれると、地図が止まってから急いだ (#146)
+    const start = at ?? now;
     const before = this.replay();
     this.guessed.push(...this.queue.splice(0));
     const step: Move = { ...STEP[m[1].toLowerCase()], at: now };
@@ -168,9 +186,23 @@ export class Predictor {
     // 通れない所へは進まず、その場で揺らす。#v6 G 0 0 と順番を合わせる為、列には残す
     if (!r.unknown && !r.moved) this.bumped = { dx: step.dx, dy: step.dy, at: now };
     if (r.x !== before.x || r.y !== before.y) {
-      this.walkedAt = now;
+      this.walkedAt = start;
       this.walkMs = ms;
     }
+  }
+
+  /** 盲目になった・治った時 (#cond) */
+  setBlind(blind: boolean) {
+    this.blind = blind;
+  }
+
+  /** #v6 J。go 以外で動いた。覚えた通れる・通れないは別の場所の物なので捨て、滑らせずに次の地図を描く */
+  onJumped() {
+    this.epoch++;
+    this.passed.clear();
+    this.refused.clear();
+    this.tunnel = null;
+    this.bumped = null;
   }
 
   /** 返事を待っている移動があるか */
@@ -205,6 +237,7 @@ export class Predictor {
       // #v6 G は地図より先に届くので、地図は返事の来た移動を全部含む。返事の来ていない移動はそのまま。
       // 位置は使わないので、#ex-pos の届かない世界でもよい
       this.moved = { dx: 0, dy: 0 };
+      this.applyPush();
       return;
     }
     if (!pos) return;
@@ -252,7 +285,7 @@ export class Predictor {
    * #v6 G を受けた時。サーバは順に処理するので、一番古い返事の来ていない移動への返事。ずれが変われば true。
    * 1 マスより大きい差(スイッチやゲートで飛んだ)は、次の地図を待つ
    */
-  onMoved(dx: number, dy: number): boolean {
+  onMoved(dx: number, dy: number, reason?: string): boolean {
     const before = this.offset;
     this.acked = true;
     const answered = this.guessed.shift();
@@ -261,7 +294,12 @@ export class Predictor {
       if (m) this.measure(m);
     }
     const unit = Math.abs(dx) + Math.abs(dy) === 1;
-    if (unit) {
+    if (unit && reason === "push") {
+      // 押した後の地図が来るまで、位置を進めない (applyPush)
+      this.applyPush();
+      this.pushed = { dx, dy, at: this.now() };
+      this.tunnel = null;
+    } else if (unit) {
       // 壁の文字のマスをサーバが通した。隠し通路として覚え、同じ向きに続く壁も通れるとみなす
       const to = { x: this.walked.x + dx, y: this.walked.y + dy };
       this.refused.delete(`${to.x},${to.y}`);
@@ -282,9 +320,10 @@ export class Predictor {
       // 進めなかった。隠し通路の中とみなした1歩ならやめ、通れるか分からなかった所ならここで揺らす
       if (this.tunnel?.dx === answered.dx && this.tunnel?.dy === answered.dy) this.tunnel = null;
       const to = { x: this.walked.x + answered.dx, y: this.walked.y + answered.dy };
-      if (this.kindAt(to.x, to.y) === "unknown") this.bumped = { dx: answered.dx, dy: answered.dy, at: this.now() };
-      // 通れる見た目でも断られたマスは覚え、次からは進んで戻らずにその場で揺らす
-      this.refused.add(`${to.x},${to.y}`);
+      if (this.kindAt(to.x, to.y) === "unknown" && reason !== "busy")
+        this.bumped = { dx: answered.dx, dy: answered.dy, at: this.now() };
+      // 通れる見た目でも断られたマスは覚え、次からは進んで戻らずにその場で揺らす。一時的な理由なら覚えない
+      if (!reason || !PASSING.has(reason)) this.refused.add(`${to.x},${to.y}`);
     }
     const after = this.offset;
     const changed = before.dx !== after.dx || before.dy !== after.dy;
@@ -300,6 +339,11 @@ export class Predictor {
   tick(): boolean {
     const head = this.queue[0];
     const now = this.now();
+    // 押した後の地図が来なければ、諦めて進める
+    if (this.pushed && now - this.pushed.at > PUSH_WAIT_MS) {
+      this.applyPush();
+      return true;
+    }
     if (this.acked) {
       const oldest = this.guessed[0] ?? head;
       if (oldest && now - oldest.at > MOVED_GIVE_UP_MS) {
@@ -331,6 +375,16 @@ export class Predictor {
     this.walkedAt = now;
     this.walkMs = STEP_MS;
     return true;
+  }
+
+  /** 押して進んだ分を、確かめた位置に足す */
+  private applyPush() {
+    const p = this.pushed;
+    if (!p) return;
+    this.pushed = null;
+    this.walked = { x: this.walked.x + p.dx, y: this.walked.y + p.dy };
+    this.walkedAt = this.now();
+    this.walkMs = STEP_MS;
   }
 
   /** #v6 G で確かめた位置から、返事の来ていない移動を今の地図でなぞる。通れるか分からない所の手前で止める */
@@ -369,8 +423,11 @@ export class Predictor {
     const cy = me.y + y - (this.walked.y - this.moved.dy);
     if (cx < 0 || cx >= map.width || cy < 0 || cy >= map.height) return "unknown";
     if (this.refused.has(`${x},${y}`)) return "solid";
-    const chip = map.cells[cy * map.width + cx].chip;
-    if (chip === UNKNOWN) return "unknown";
+    const cell = map.cells[cy * map.width + cx];
+    // サーバが付けた、見た目と違って通れない印 (#v6 X。見た目が道のバリアーなど)
+    if (cell.blocked) return "solid";
+    const chip = cell.chip;
+    if (chip === UNKNOWN || (this.blind && chip === BLIND)) return "unknown";
     if (WALLS.has(chip)) return "wall";
     if (BLOCKED.has(chip)) return "solid";
     // 他のキャラやオブジェの居るマスは、入れるかは居る物次第なので分からない所とする(自分は中央)
@@ -390,6 +447,7 @@ export class Predictor {
   }
 
   reset() {
+    this.pushed = null;
     this.queue = [];
     this.guessed = [];
     this.base = null;
