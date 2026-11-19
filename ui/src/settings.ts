@@ -83,3 +83,18 @@ export function shortcutText(
   const text = (inList ? s.listShortcuts : s.shortcuts)[Number(f[1]) - 8];
   return text ? unescape(text) : null;
 }
+
+/** base から変えた項目の名前 */
+export function changedKeys(base: Settings, edited: Settings): (keyof Settings)[] {
+  return (Object.keys(edited) as (keyof Settings)[]).filter((k) => JSON.stringify(edited[k]) !== JSON.stringify(base[k]));
+}
+
+/**
+ * 今の設定 current に、設定の画面で変えた項目 keys だけを edited から重ねる。
+ * 写しを丸ごと保存すると、画面を開いている間に表示メニューで変えた値 (窓の形など) を元に戻した (#138)
+ */
+export function mergeChanged(current: Settings, edited: Settings, keys: (keyof Settings)[]): Settings {
+  const next: Settings = { ...current };
+  for (const k of keys) (next as Record<string, unknown>)[k] = edited[k];
+  return next;
+}

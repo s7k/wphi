@@ -2,7 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { confirmBox } from "./MessageDialog";
-import { clampZoom, MAP_ZOOMS, type Settings } from "./settings.ts";
+import { changedKeys, clampZoom, MAP_ZOOMS, mergeChanged, type Settings } from "./settings.ts";
 import { Import, Save, X } from "lucide-react";
 
 export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings) => void; onClose: () => void }) {
@@ -11,15 +11,14 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
   // 写しを丸ごと保存すると、開いている間に表示メニューで変えた値を元に戻した (#138)
   const [base, setBase] = useState(props.settings);
   const [message, setMessage] = useState("");
-  const changed = (Object.keys(s) as (keyof Settings)[]).filter((k) => JSON.stringify(s[k]) !== JSON.stringify(base[k]));
+  const changed = changedKeys(base, s);
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setS((p) => ({ ...p, [k]: v }));
   const setAt = (k: "shortcuts" | "listShortcuts", i: number, v: string) =>
     setS((p) => ({ ...p, [k]: p[k].map((x, j) => (j === i ? v : x)) }));
 
   async function save(edited: Settings) {
     try {
-      let next: Settings = { ...props.settings };
-      for (const k of changed) (next as Record<string, unknown>)[k] = edited[k];
+      let next = mergeChanged(props.settings, edited, changed);
       next = { ...next, mapZoom: clampZoom(next.mapZoom), mapZoomM57: clampZoom(next.mapZoomM57 || next.mapZoom) };
       setS(next);
       setBase(next);

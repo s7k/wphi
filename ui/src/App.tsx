@@ -39,6 +39,8 @@ import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
 import { LogFind } from "./LogFind";
 import { lightenColors, pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
+import { createLogWriter } from "./logSave.ts";
+import { characterTarget, needsCloseConfirm } from "./tabs.ts";
 import { ArrowDownToLine, Check, FolderOpen, Import, Megaphone, MessageSquare, Layers, Plug, Plus, Save, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
 
 // src-tauri/src/characters.rs の Store
@@ -121,32 +123,8 @@ function systemOk(message: string): string {
   return `<font class="class_system_ok">${escapeHtml(message)}</font>`;
 }
 
-/** ログを利用者の地域の日付のファイルに足す。保存先のパスを返す。
- * 1つ前の書き込みが終わってから書く。並行に書くと、行の順序が入れ替わり、ヘッダが二重になる(#65) */
-let logQueue: Promise<unknown> = Promise.resolve();
-/** まだ書き始めていない分。前の書き込みを待つ間に届いた行は、ここへ足して 1 回で書く (#122) */
-let logBatch: { key: string; lines: string[]; done: Promise<string | void> } | null = null;
-function saveLog(label: string, line: string, asHtml: boolean): Promise<string | void> {
-  const d = new Date();
-  const date = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-  const key = `${label}\n${date}\n${asHtml}`;
-  if (logBatch?.key === key) {
-    logBatch.lines.push(line);
-    return logBatch.done;
-  }
-  const lines = [line];
-  const batch: NonNullable<typeof logBatch> = {
-    key,
-    lines,
-    done: logQueue.then(() => {
-      if (logBatch === batch) logBatch = null;
-      return invoke<string>("append_log", { label, date, lines, asHtml }).catch((e) => console.error(e));
-    }),
-  };
-  logBatch = batch;
-  logQueue = batch.done;
-  return batch.done;
-}
+/** ログを利用者の地域の日付のファイルに足す。保存先のパスを返す (ui/src/logSave.ts) */
+const saveLog = createLogWriter((args) => invoke<string>("append_log", args));
 
 /** 右クリックした時の、選んだ行(選んでいなければ押した行)。選んだ範囲がログ欄の外なら押した行 */
 function linesAt(lines: LogLine[], target: Element): LogLine[] {
@@ -1083,10 +1061,10 @@ export function App() {
   /** 登録したキャラを開く。タブがあればそのタブへ移り、切れていれば同じタブで繋ぎ直す。無ければ接続する。
    * 一覧の「接続」からも同じにする。新しいタブを作ると、同じキャラのタブが二重に開いた (#133) */
   function openCharacter(label: string) {
-    const open = tabsRef.current.find((t) => t.label === label);
-    if (!open) return void connect(label);
-    setActive(open.session);
-    if (open.closed) void connect(label, open.session);
+    const target = characterTarget(tabsRef.current, label);
+    if (target.kind === "connect") return void connect(label);
+    setActive(target.session);
+    if (target.kind === "reconnect") void connect(label, target.session);
   }
 
   async function connect(label: string, replace?: number) {
@@ -1270,7 +1248,7 @@ export function App() {
   /** 接続中のタブは、閉じる前に確かめる。切断してログと priv の会話も捨てるので、× の押し間違いで失う (#135) */
   function askClose(session: number) {
     const t = tabsRef.current.find((x) => x.session === session);
-    if (!t || t.closed) return close(session);
+    if (!t || !needsCloseConfirm(t)) return close(session);
     void confirmBox(`「${t.label}」を切断してタブを閉じます。\nログと priv の会話も消えます。よろしいですか？`).then(
       (ok) => {
         if (ok) close(session);
