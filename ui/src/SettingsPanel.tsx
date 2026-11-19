@@ -84,6 +84,10 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
           系統魔法の後に、外した武器を装備し直す(チャット場ではオフを勧める)
         </label>
         <label>
+          <input type="checkbox" checked={s.autoConnect} onChange={(e) => set("autoConnect", e.target.checked)} />
+          起動した時に、前回開いていたタブのキャラへ自動で接続する
+        </label>
+        <label>
           <input type="checkbox" checked={s.masterMagicMenu} onChange={(e) => set("masterMagicMenu", e.target.checked)} />
           超魔法メニューを、マスターでなくても出す(サーバの権限ファイルでマスターになった時)
         </label>

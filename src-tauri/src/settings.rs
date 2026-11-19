@@ -60,6 +60,8 @@ pub struct Settings {
     pub map_variety: bool,
     /// マップのキャラの上に、発言の吹き出しと HP・MP の増減を出す。表示のメニューで切り替える(Philly に無い)
     pub map_effects: bool,
+    /// 起動した時に、前回開いていたタブのキャラへ接続する(Philly に無い)
+    pub auto_connect: bool,
 }
 
 impl Default for Settings {
@@ -90,6 +92,7 @@ impl Default for Settings {
             modern: true,
             map_variety: true,
             map_effects: true,
+            auto_connect: true,
         }
     }
 }

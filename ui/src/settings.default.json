@@ -35,5 +35,6 @@
   "singleWindow": false,
   "modern": true,
   "mapVariety": true,
-  "mapEffects": true
+  "mapEffects": true,
+  "autoConnect": true
 }

@@ -44,6 +44,8 @@ export type Settings = {
   mapVariety: boolean;
   /** マップのキャラの上に、発言の吹き出しと HP・MP の増減を出す(表示のメニュー) */
   mapEffects: boolean;
+  /** 起動した時に、前回開いていたタブのキャラへ接続する */
+  autoConnect: boolean;
 };
 
 /** 表示のメニューでチェックの付く項目を切り替えた時と、設定を保存した時に、Rust が設定の全体を全部の窓へ送る */

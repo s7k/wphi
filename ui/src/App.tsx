@@ -262,7 +262,10 @@ export function App() {
     invoke<string>("log_css")
       .then((css) => setLogCss(scopeLogCss(css)))
       .catch((e) => console.error(e));
-    reload().then((s) => s?.openTabs.forEach((label) => connect(label)));
+    // 自動接続を切ってあれば、タブを開かずにキャラの一覧から選んで貰う
+    Promise.all([reload(), invoke<Settings>("get_settings").catch(() => DEFAULT_SETTINGS)]).then(([s, st]) => {
+      if (st.autoConnect) s?.openTabs.forEach((label) => connect(label));
+    });
   }, []);
 
   // 開いているタブを保存する。起動直後の空の一覧で上書きしないよう、最初のタブが開くまで待つ
