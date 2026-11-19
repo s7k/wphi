@@ -186,6 +186,14 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
             "#ex-inv I 5\teq=-\tit=13\twt=0\tmt=0\tfn=0\twp=1\top=0,0,0,0\tready=0\ttype=Scroll\twtype=claw\tmat=Leather\telem=None\tname=Old map",
             "#ex-inv .",
         ],
+        "party-end" => &["#v6 P ."],
+        // 仲間の一覧(#v6 P)。Kotone は3マス東、Haru は5マス東の1マス南
+        "party" => &[
+            "#v6 P 1\tname=Mirai\tarea=はじまりの草原\tdx=0\tdy=0\tidle=0\tlag=1\thp=1820\tmhp=2400\tmp=960\tmmp=1200\tcond=-------",
+            "#v6 P 2\tname=Kotone\tarea=はじまりの草原\tdx=3\tdy=0\tidle=4\tlag=2\thp=1310\tmhp=1500\tmp=380\tmmp=1600\tcond=-------",
+            "#v6 P 3\tname=Haru\tarea=はじまりの草原\tdx=5\tdy=1\tidle=75\tlag=3\thp=420\tmhp=2100\tmp=150\tmmp=600\tcond=*-----*",
+            "#v6 P .",
+        ],
         // 看板を読んだ時(#more 〜 #end-more)
         "sign" => &[
             "#more",
@@ -271,7 +279,16 @@ fn main() {
                 let scene = query(q).remove("scene").unwrap_or_default();
                 (
                     "application/json",
-                    Some(to_events(effect_lines(&scene)).to_string().into_bytes()),
+                    // near は Kotone の隣(西)へ寄った地図、back は元の所の地図(パーティの画面を撮る時)
+                    Some(
+                        to_events(match scene.as_str() {
+                            "near" => frame(8, 8, b'R'),
+                            "back" => frame(6, 8, b'R'),
+                            _ => effect_lines(&scene),
+                        })
+                        .to_string()
+                        .into_bytes(),
+                    ),
                 )
             }
             "/download_items" => {

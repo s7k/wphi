@@ -97,10 +97,35 @@ export type UiEvent =
   | { type: "moved"; dx: number; dy: number }
   /** #v6 I。手持ちの 8 個(空きは null) */
   | { type: "items"; items: (ItemInfo | null)[] }
+  /** #v6 P。自分を先頭にした仲間の一覧。パーティに入っていなければ空 */
+  | { type: "party"; members: PartyMember[] }
   /** #ex-inv。インベントリ(預かり所)の中身。名前の順で、取り出す番号は 1 から */
   | { type: "bag"; items: ItemInfo[] }
   /** #ex-inv no。出し入れ出来なかった理由 */
   | { type: "bagRefused"; reason: string };
+
+/** 仲間 1 人(phi_dm の docs/dev/protocol-v6.md の「仲間の一覧」。Party eye の情報に HP・MP・状態異常を足した物) */
+export type PartyMember = {
+  /** サーバのキャラ番号 */
+  no: number;
+  name: string;
+  html: string;
+  area: string;
+  /** 自分から見た位置の差(東と南が正)。階が違えば無い */
+  dx?: number;
+  dy?: number;
+  /** 放置の秒数と、遅延(0.1 秒単位) */
+  idle: number;
+  lag?: number;
+  hp: number;
+  mhp: number;
+  mp: number;
+  mmp: number;
+  cond: Omit<CondEvent, "type">;
+};
+
+/** 地図の上の仲間を選んで、main 窓に仲間の一覧を開かせる。map 窓 → main 窓 */
+export const PARTY_OPEN_EVENT = "phi-party-open";
 
 /** 持ち物 1 個(phi_dm の docs/dev/protocol-v6.md の「持ち物とインベントリ」) */
 export type ItemInfo = {
@@ -171,6 +196,8 @@ export type MapState = {
    * epoch が変わったら(タブの切り替え・テレポート)前の位置とは比べない。at は位置が変わった時刻
    * (performance.timeOrigin + performance.now() の ms。窓をまたいで比べる)。スムーズ移動が使う
    */
+  /** 仲間の名前(タグを除く。自分は除く)。地図のキャラを選んだ時に、誘うか一覧を開くかを決める */
+  party?: string[];
   walk?: { x: number; y: number; epoch: number; at: number; ms: number; bump?: { dx: number; dy: number; at: number } };
 };
 

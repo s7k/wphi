@@ -11,12 +11,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { assetUrl } from "./asset";
 import { drawMap, type ImageRefs } from "./drawMap";
 import { trace } from "./trace.ts";
-import { isNorthFix, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, sendLine, type ForwardedKey, type ForwardedMouse } from "./keyInput";
+import { isNorthFix, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, sendLine, sendLines, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { predictedMap } from "./predict.ts";
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
 import { addWalk, CHIP_SIZE, MAP_TOP, selfPos, slideStep, viewArea, viewCover, viewFor, walkAt, walkDelay, type WalkSample } from "./mapRender";
 import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
-import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, type CondEvent, type MapChar, type MapListAction, type MapState, type StatusEvent } from "./protocol";
+import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_OPEN_EVENT, type CondEvent, type MapChar, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
 import { hideOnClose, useImages, useScreenshot } from "./windowUtil";
 import { findChar, MAP_POP_EVENT, type Pop, type PopKind } from "./mapPop.ts";
@@ -293,7 +293,41 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     const skin = d && SKIN_CURSOR[d.keys.join()];
     setCursor(d ? (skin ? `url("${assetUrl("cursor", { name: skin })}"), ${d.cursor}` : d.cursor) : "default");
   };
+  // 隣(上下左右)のキャラを左クリックすると、誘うか仲間の一覧を開くメニューを出す。
+  // join は向いている先の相手しか誘えないので、その向きを向いてから送る。回転マップは画面の上が前
+  const [charMenu, setCharMenu] = useState<{ left: number; top: number; name: string; turn: string | null } | null>(null);
+  useEffect(() => {
+    if (!charMenu) return;
+    const close = () => setCharMenu(null);
+    const key = (e: KeyboardEvent) => e.key === "Escape" && close();
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", key);
+    };
+  }, [charMenu]);
+  const neighborAt = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const dx = Math.round(((e.clientX - r.left) / zoom - (me.x + 0.5) * CHIP_SIZE) / CHIP_SIZE);
+    const dy = Math.round(((e.clientY - r.top) / zoom - MAP_TOP - (me.y + 0.5) * CHIP_SIZE) / CHIP_SIZE);
+    if (Math.abs(dx) + Math.abs(dy) !== 1) return null;
+    const c = chars.find((ch) => ch.x === me.x + dx && ch.y === me.y + dy && stripTags(ch.name));
+    if (!c) return null;
+    const turns = northFix ? { "0,-1": "n", "1,0": "e", "0,1": "s", "-1,0": "w" } : { "0,-1": null, "1,0": "r", "0,1": "b", "-1,0": "l" };
+    const area = mapArea.current!.getBoundingClientRect();
+    return { left: e.clientX - area.left, top: e.clientY - area.top, name: stripTags(c.name), turn: turns[`${dx},${dy}` as keyof typeof turns] };
+  };
   const onMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button === 0 && !follow && state) {
+      const n = neighborAt(e);
+      if (n) {
+        e.stopPropagation();
+        // window の mousedown で閉じる前に開くと、すぐ閉じてしまう
+        setTimeout(() => setCharMenu(n));
+        return;
+      }
+    }
     if (e.button === 1) {
       // 中ボタンの自動スクロールと貼り付けを止める
       e.preventDefault();
@@ -597,6 +631,32 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
             onContextMenu={(e) => e.preventDefault()}
           />
           {popEls}
+          {charMenu && state && (
+            <div className="char-menu" style={{ left: charMenu.left, top: charMenu.top }} onMouseDown={(e) => e.stopPropagation()}>
+              <div className="char-menu-name">{charMenu.name}</div>
+              {state.party?.includes(charMenu.name) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    emitTo("main", PARTY_OPEN_EVENT).catch(console.error);
+                    setCharMenu(null);
+                  }}
+                >
+                  パーティの一覧
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    sendLines(state.session, charMenu.turn ? `turn ${charMenu.turn}\njoin` : "join");
+                    setCharMenu(null);
+                  }}
+                >
+                  パーティに誘う
+                </button>
+              )}
+            </div>
+          )}
           {follow && <div className="map-follow">追尾移動中(中クリックか左クリックで止める)</div>}
         </div>
         {!props.modern && (

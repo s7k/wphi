@@ -16,6 +16,7 @@ import { isNorthFix, isTextTarget, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, type For
 import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskOptions, type Mods, type MoveKey } from "./keys.ts";
 import { MAX_UNCONFIRMED, walkable, Walker } from "./walker.ts";
 import { BAG_ICON, BagPanel, ItemIcon, STATUS_ICON } from "./BagPanel.tsx";
+import { PartyHud, PartyPanel } from "./PartyPanel.tsx";
 import { AskDialog } from "./AskDialog";
 import { alertBox, confirmBox, MessageDialogHost } from "./MessageDialog";
 import { popupTagMenu } from "./TagMenuPopup";
@@ -33,7 +34,7 @@ import { ListOverlay } from "./ListOverlay";
 import { listNo, listOk, moreNo, moveListCursor, receiveList, type ListFlow, type ListState } from "./list.ts";
 import { trace } from "./trace.ts";
 import { PREDICT_TICK_MS, Predictor } from "./predict.ts";
-import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, TRANSFER_NO, TRANSFER_YES, type ItemInfo, type MapListAction, type MapState, type UiEvent } from "./protocol";
+import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type ItemInfo, type MapListAction, type PartyMember, type MapState, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
 import { LogFind } from "./LogFind";
@@ -83,6 +84,9 @@ type Tab = {
   bag?: ItemInfo[] | null;
   bagOpen?: boolean;
   bagMessage?: string;
+  /** 仲間の一覧(#v6 P。自分が先頭)。パーティに入っていなければ空 */
+  party?: PartyMember[];
+  partyOpen?: boolean;
 };
 
 /**
@@ -562,6 +566,10 @@ export function App() {
         update(session, (t) => ({ ...t, bagOpen: false }));
         return true;
       }
+      if (e.type === "keydown" && e.code === "Escape" && tabsRef.current.find((t) => t.session === session)?.partyOpen) {
+        update(session, (t) => ({ ...t, partyOpen: false }));
+        return true;
+      }
       const ctx = keyContext(mapStates.current.get(session), settingsRef.current.fullKeyMove);
       // リスト表示中は、番号・取り消し・カーソルのキーを移動より先に見る(Philly の KeyDown は KeyBindListMode が先)。
       // フルキー移動の 7・8・9 やテンキーの 2・4・6・8、上下の矢印は、リスト表示中は番号とカーソルになる
@@ -767,7 +775,13 @@ export function App() {
         updateList(session, (l) => ({ ...l, checked: l.checked.map((c, i) => (i === a.index ? !c : c)) }));
       else closeListAndSend(session, listOk(a.type === "pick" ? { ...list, checked: [], cursor: a.index } : list));
     });
+    // 地図の上の仲間を選んだ時(map.tsx)
+    const partyOpen = listen(PARTY_OPEN_EVENT, () => {
+      const session = activeRef.current;
+      if (session !== null) update(session, (t) => ({ ...t, partyOpen: true }));
+    });
     return () => {
+      partyOpen.then((f) => f());
       document.removeEventListener("keydown", onDom);
       document.removeEventListener("keyup", onDom);
       window.removeEventListener(SENT_EVENT, onSentDom);
@@ -799,6 +813,9 @@ export function App() {
       }
       case "cond":
         s.cond = ev;
+        break;
+      case "party":
+        s.party = ev.members.slice(1).map((m) => m.name);
         break;
       case "mode":
         s.mode = ev;
@@ -1092,6 +1109,10 @@ export function App() {
         case "items":
           update(session, (t) => ({ ...t, items: ev.items }));
           break;
+        case "party":
+          update(session, (t) => ({ ...t, party: ev.members }));
+          onMapEvent(session, ev);
+          break;
         case "bag":
           update(session, (t) => ({ ...t, bag: ev.items, bagMessage: "" }));
           break;
@@ -1299,6 +1320,18 @@ export function App() {
           >
             <ItemIcon index={STATUS_ICON} size={32} />
           </button>
+        )}
+        {!!tab.party?.length && !tab.partyOpen && !tab.bagOpen && (
+          <PartyHud members={tab.party} onOpen={() => update(tab.session, (t) => ({ ...t, partyOpen: true, bagOpen: false }))} />
+        )}
+        {tab.partyOpen && !tab.bagOpen && (
+          <PartyPanel
+            members={tab.party ?? []}
+            onBye={() =>
+              void confirmBox("パーティを抜けます。\nよろしいですか？").then((ok) => ok && sendLine(tab.session, "bye"))
+            }
+            onClose={() => update(tab.session, (t) => ({ ...t, partyOpen: false }))}
+          />
         )}
         {tab.bagOpen && (
           <BagPanel

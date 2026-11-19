@@ -55,6 +55,25 @@ await page.keyboard.press("Escape");
 await page.locator(".phi-log").focus();
 await page.keyboard.press("Escape");
 
+// パーティ。隣の Kotone を左クリックして誘うメニューを出し、その後に仲間の一覧の行を流す
+await page.evaluate(() => window.guideEffect("near"));
+await page.waitForTimeout(400);
+const near = await page.locator(".map-area canvas").boundingBox();
+await page.mouse.click(near.x + near.width / 2 + 32, near.y + near.height / 2 - 4);
+await page.waitForTimeout(300);
+await shot("party-menu");
+await page.keyboard.press("Escape");
+await page.evaluate(() => window.guideEffect("back"));
+await page.evaluate(() => window.guideEffect("party"));
+await page.waitForTimeout(400);
+await shot("party-hud");
+await page.locator(".party-hud").click();
+await page.waitForTimeout(300);
+await shot("party");
+await page.keyboard.press("Escape");
+await page.evaluate(() => window.guideEffect("party-end"));
+await page.waitForTimeout(300);
+
 // 看板を読んだ時の札
 await page.evaluate(() => window.guideEffect("sign"));
 await page.waitForTimeout(400);

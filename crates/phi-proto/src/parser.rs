@@ -64,6 +64,11 @@ pub enum Event {
     Items {
         items: Vec<Option<Item>>,
     },
+    /// `#v6 P` 〜 `#v6 P .`。自分を先頭にした仲間の一覧。パーティに入っていなければ空
+    /// (phi_dm の docs/dev/protocol-v6.md の「仲間の一覧」)
+    Party {
+        members: Vec<PartyMember>,
+    },
     /// `#ex-inv I` 〜 `#ex-inv .`。インベントリ(預かり所)の中身。名前の順で、取り出す番号は 1 から
     Bag {
         items: Vec<Item>,
@@ -72,6 +77,32 @@ pub enum Event {
     BagRefused {
         reason: String,
     },
+}
+
+/// 仲間 1 人(`#v6 P` の欄。Party eye と同じ情報に HP・MP・状態異常を足した物)
+#[derive(Debug, Clone, PartialEq, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PartyMember {
+    /// サーバのキャラ番号
+    pub no: i64,
+    /// タグを除いた名前と、タグの色を付けた HTML
+    pub name: String,
+    pub html: String,
+    pub area: String,
+    /// 自分から見た位置の差(東と南が正)。階が違えば None
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dx: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dy: Option<i32>,
+    /// 放置の秒数と、遅延(0.1 秒単位。分からなければ None)
+    pub idle: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lag: Option<i64>,
+    pub hp: i64,
+    pub mhp: i64,
+    pub mp: i64,
+    pub mmp: i64,
+    pub cond: Cond,
 }
 
 /// 持ち物 1 個(`#v6 I` と `#ex-inv I` の欄)
@@ -168,6 +199,33 @@ fn parse_item(fields: &str) -> Item {
         }
     }
     it
+}
+
+/// `#v6 P` の番号の後ろの欄(タブで区切った キー=値)を読む
+fn parse_party_member(no: i64, fields: &str) -> PartyMember {
+    let mut m = PartyMember { no, ..Default::default() };
+    for f in fields.split('\t') {
+        let Some((k, v)) = f.split_once('=') else { continue };
+        let num = || v.trim().parse::<i64>().unwrap_or(0);
+        match k {
+            "name" => {
+                m.name = strip_tags(v);
+                m.html = crate::tag_to_html::to_html(v, &crate::tag_to_html::LogOptions::default());
+            }
+            "area" => m.area = strip_tags(v),
+            "dx" => m.dx = Some(num() as i32),
+            "dy" => m.dy = Some(num() as i32),
+            "idle" => m.idle = num(),
+            "lag" => m.lag = Some(num()),
+            "hp" => m.hp = num(),
+            "mhp" => m.mhp = num(),
+            "mp" => m.mp = num(),
+            "mmp" => m.mmp = num(),
+            "cond" => m.cond = cond_flags(v),
+            _ => {}
+        }
+    }
+    m
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize)]
@@ -492,6 +550,8 @@ pub struct Parser {
     /// `#v6 I` で届いた手持ちの枠(`#v6 I .` で Items にする)と、`#ex-inv I` で届いたインベントリの中身
     items: Vec<Option<Item>>,
     bag: Vec<Item>,
+    /// `#v6 P` で届いた仲間(`#v6 P .` で Party にする)
+    party: Vec<PartyMember>,
     /// `#v6 M` の幅と高さと、届いた `#v6 R` の行(行番号の位置)。`#v6 .` で全部揃っていれば地図にする
     v6_size: (u8, u8),
     v6_rows: Vec<Option<Vec<Cell>>>,
@@ -679,6 +739,18 @@ impl Parser {
         }
         if raw.starts_with(b"#v6 O ") {
             self.parse_m57_o(raw, 6, 2);
+            return Vec::new();
+        }
+        if let Some(rest) = text.strip_prefix("#v6 P ") {
+            if rest.trim() == "." {
+                return vec![Event::Party {
+                    members: std::mem::take(&mut self.party),
+                }];
+            }
+            let (no, fields) = rest.split_once('\t').unwrap_or((rest, ""));
+            if let Ok(no) = no.trim().parse::<i64>() {
+                self.party.push(parse_party_member(no, fields));
+            }
             return Vec::new();
         }
         if let Some(rest) = text.strip_prefix("#v6 I ") {
@@ -1043,8 +1115,13 @@ fn parse_status(text: &str) -> Status {
 }
 
 fn parse_cond(text: &str) -> Cond {
+    cond_flags(text.get(6..).unwrap_or(""))
+}
+
+/// 毒・麻痺・恐慌・混乱・狂暴・沈黙・盲目の順の7文字(`*` が有効)
+fn cond_flags(text: &str) -> Cond {
     let mut flags = [false; 7];
-    for (slot, ch) in flags.iter_mut().zip(text.chars().skip(6).take(7)) {
+    for (slot, ch) in flags.iter_mut().zip(text.chars().take(7)) {
         *slot = ch == '*';
     }
     let [poison, palsy, panic, confuse, berserk, silence, blind] = flags;
@@ -1239,6 +1316,14 @@ mod tests {
         let mut p = Parser::new();
         assert!(p.feed(b"#v6 I 1\teq=W\tit=2\twt=1\tmt=3\tfn=6\twp=10\top=12,30,0,0\tready=0\ttype=Weapon\twtype=Sword\tmat=Steel\telem=Fire\teffect=Fire\tse=Power\tcurse=1\tname=Long sword").is_empty());
         assert!(p.feed(b"#v6 I 2").is_empty());
+        assert!(p.feed(b"#v6 P 3\tname=/*color=red*/Wilt/*.*/\tarea=Town\tdx=-2\tdy=1\tidle=65\tlag=3\thp=90\tmhp=100\tmp=5\tmmp=50\tcond=*-----*").is_empty());
+        assert!(p.feed(b"#v6 P 7\tname=Ann\tarea=Cave\tidle=0\thp=1\tmhp=2\tmp=3\tmmp=4\tcond=-------").is_empty());
+        let evs = p.feed(b"#v6 P .");
+        let [Event::Party { members }] = evs.as_slice() else { panic!() };
+        assert_eq!((members[0].no, members[0].name.as_str(), members[0].dx, members[0].dy, members[0].lag), (3, "Wilt", Some(-2), Some(1), Some(3)));
+        assert!(members[0].cond.poison && members[0].cond.blind && !members[0].cond.palsy);
+        assert_eq!((members[1].dx, members[1].lag, members[1].mmp), (None, None, 4));
+        assert_eq!(p.feed(b"#v6 P ."), vec![Event::Party { members: vec![] }]);
         let evs = p.feed(b"#v6 I .");
         let [Event::Items { items }] = evs.as_slice() else {
             panic!("{evs:?}")
