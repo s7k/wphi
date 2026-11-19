@@ -73,9 +73,9 @@ export function PartyPanel(props: { members: PartyMember[]; onBye: () => void; o
 }
 
 /** 閉じている間に出す小さな一覧(自分を除く仲間の名前、HP と MP の細いバー、状態異常)。押すと窓を開く */
-export function PartyHud(props: { members: PartyMember[]; onOpen: () => void }) {
+export function PartyHud(props: { members: PartyMember[]; besidePriv: boolean; onOpen: () => void }) {
   return (
-    <button type="button" className="party-hud" title="パーティ(押すと開く)" onClick={props.onOpen}>
+    <button type="button" className={props.besidePriv ? "party-hud beside-priv" : "party-hud"} title="パーティ(押すと開く)" onClick={props.onOpen}>
       {props.members.slice(1).map((m) => (
         <div key={m.no} className="party-hud-row">
           <div className="party-name">

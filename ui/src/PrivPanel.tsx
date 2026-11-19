@@ -1,7 +1,7 @@
 // priv の画面(Philly の PrivForm)。相手の組ごとに会話を分ける。
 // Philly は相手ごとに別窓を開くが、窓の配置は P4 で決めるので、今は main 窓の右に置く。
 import { useState, type KeyboardEvent } from "react";
-import { partnersKey, type User } from "./priv.ts";
+import { convLabel, partnersKey, type User } from "./priv.ts";
 import { LogLines } from "./LogLineList";
 import type { LogLine } from "./logLines.ts";
 import { MessagesSquare, X } from "lucide-react";
@@ -52,7 +52,7 @@ export function PrivPanel(props: {
               className={key === props.active ? "active" : c.unread ? "unread" : undefined}
               onClick={() => props.onSelect(key)}
             >
-              {c.to.join("・")}
+              {convLabel(c.to)}
             </button>
           );
         })}
@@ -62,7 +62,7 @@ export function PrivPanel(props: {
       </div>
       <input
         className="priv-input"
-        placeholder={conv ? `${conv.to.join("・")} へ` : "下の一覧で相手を選んでください"}
+        placeholder={conv ? `${convLabel(conv.to)} へ` : "下の一覧で相手を選んでください"}
         disabled={!conv}
         onKeyDown={onKeyDown}
       />

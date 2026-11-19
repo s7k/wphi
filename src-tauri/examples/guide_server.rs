@@ -193,6 +193,8 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
             "#v6 P 2\tname=Kotone\tarea=はじまりの草原\tdx=3\tdy=0\tidle=4\tlag=2\thp=1310\tmhp=1500\tmp=380\tmmp=1600\tcond=-------",
             "#v6 P 3\tname=Haru\tarea=はじまりの草原\tdx=5\tdy=1\tidle=75\tlag=3\thp=420\tmhp=2100\tmp=150\tmmp=600\tcond=*-----*",
             "#v6 P .",
+            "\"Kotone\" > 北の池で集合しましょう",
+            "\"Haru\" > 毒を受けたので、少し休みます",
         ],
         // 看板を読んだ時(#more 〜 #end-more)
         "sign" => &[

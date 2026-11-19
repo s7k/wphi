@@ -28,7 +28,7 @@ import { DownloadPanel } from "./DownloadPanel";
 import { MapView, type MapPlace } from "./map";
 import { SettingsPanel } from "./SettingsPanel";
 import { NewCharacter, WorldSelect } from "./NewCharacter";
-import { capConvs, partnersKey, privLines, privPartners, upsertConv, usersFromEvent, type User } from "./priv.ts";
+import { capConvs, PARTY_CONV, partnersKey, privLines, privPartners, upsertConv, usersFromEvent, type User } from "./priv.ts";
 import { PrivPanel, type PrivConv } from "./PrivPanel";
 import { ListOverlay } from "./ListOverlay";
 import { listNo, listOk, moreNo, moveListCursor, receiveList, type ListFlow, type ListState } from "./list.ts";
@@ -887,7 +887,7 @@ export function App() {
    * Philly の既定は GtOnly=on(> のある行だけ)、Loud=off(大声では点滅しない)
    */
   function notifyTalk(session: number, channel: string, html: string, noFlash: boolean) {
-    if (channel !== "talk" && channel !== "priv") return;
+    if (channel !== "talk" && channel !== "priv" && channel !== "party") return;
     const loud = /^(?:<[^>]*>)*\(/.test(html);
     if (session !== activeRef.current) update(session, (t) => (t.unread ? t : { ...t, unread: true }));
     // DM の発言などは点滅させない(Philly の NotFlashRegexp.ini。Rust 側で照合する)
@@ -912,6 +912,25 @@ export function App() {
       );
       const active = t.privActive ?? key;
       return { ...t, privs: capConvs(privs, active), privOpen: true, privActive: active };
+    });
+  }
+
+  /**
+   * 仲間の発言を priv の欄のパーティの会話に足す。priv と違い、画面は開かない(仲間の発言は多く、ログにも出る為)。
+   * open は、パーティに入った時に空の会話を作る為
+   */
+  function addParty(session: number, html?: string) {
+    update(session, (t) => {
+      const key = partnersKey([PARTY_CONV]);
+      // #v6 P は地図の周期で届くので、会話が既にあれば何も変えない(描き直さない)
+      if (html === undefined && t.privs.some((c) => c.to[0] === PARTY_CONV)) return t;
+      const privs = upsertConv(t.privs, [PARTY_CONV], (c) => {
+        const conv = c ?? { to: [PARTY_CONV], lines: [], unread: false };
+        if (html === undefined) return conv;
+        const line = shownTime(timePrefix()) + html;
+        return { ...conv, lines: pushLine(conv.lines, line), unread: !(t.privOpen && t.privActive === key) };
+      });
+      return { ...t, privs: capConvs(privs, t.privActive ?? key), privActive: t.privActive ?? key };
     });
   }
 
@@ -958,6 +977,11 @@ export function App() {
 
   /** priv を送る。先に #ulist で番号を取り直す(Philly の PrivForm.cpp の SendPrivMessage) */
   async function sendPriv(session: number, to: string[], text: string): Promise<boolean> {
+    // パーティの会話は、入力欄の Ctrl+Enter と同じく先頭に + を付けて仲間へ送る
+    if (to[0] === PARTY_CONV) {
+      sendLine(session, `+${text}`);
+      return true;
+    }
     const key = partnersKey(to);
     const conv = tabsRef.current.find((t) => t.session === session)?.privs.find((c) => partnersKey(c.to) === key);
     if (conv?.confirm) {
@@ -1052,6 +1076,7 @@ export function App() {
           signLines.current.get(session)?.push(ev.html);
           notifyTalk(session, ev.channel, ev.html, !!ev.noFlash);
           if (ev.channel === "priv" && ev.from) addPriv(session, ev.from, ev.html);
+          if (ev.channel === "party") addParty(session, ev.html);
           if (ev.raw) {
             // 唱えた呪文を覚える為、表でないタブの行も通す
             const pops = popsFromLine(ev.raw, popState);
@@ -1111,6 +1136,7 @@ export function App() {
           break;
         case "party":
           update(session, (t) => ({ ...t, party: ev.members }));
+          if (ev.members.length) addParty(session);
           onMapEvent(session, ev);
           break;
         case "bag":
@@ -1322,7 +1348,7 @@ export function App() {
           </button>
         )}
         {!!tab.party?.length && !tab.partyOpen && !tab.bagOpen && (
-          <PartyHud members={tab.party} onOpen={() => update(tab.session, (t) => ({ ...t, partyOpen: true, bagOpen: false }))} />
+          <PartyHud members={tab.party} besidePriv={!!tab.privOpen} onOpen={() => update(tab.session, (t) => ({ ...t, partyOpen: true, bagOpen: false }))} />
         )}
         {tab.partyOpen && !tab.bagOpen && (
           <PartyPanel

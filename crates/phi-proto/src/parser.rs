@@ -329,6 +329,8 @@ pub enum Channel {
     Priv,
     /// `#user` に載っているプレイヤーの発言。
     Talk,
+    /// 仲間だけへの発言(`"名前" > 本文`。サーバの TLK_PARTY)。
+    Party,
     System,
 }
 
@@ -633,6 +635,13 @@ impl Parser {
         {
             let from = text[1..end].to_string();
             return vec![message(Channel::Priv, text, Some(from))];
+        }
+        // "\"名前\" > 本文" はパーティの発言
+        if raw[0] == b'"'
+            && let Some(end) = text[1..].find("\" > ").map(|e| e + 1)
+        {
+            let from = strip_tags(&text[1..end]);
+            return vec![message(Channel::Party, text, Some(from))];
         }
         // "名前 > 本文" で名前が #user にあればプレイヤーの発言。NPC と DM の案内は載っていない
         if let Some(idx) = text.find(" > ").filter(|&i| i > 0) {
@@ -1182,6 +1191,18 @@ fn split_ws_max(s: &str, max: usize) -> Vec<&str> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn party_talk() {
+        let mut p = super::Parser::default();
+        let evs = p.feed("\"/*color=red*/Wilt/*.*/\" > 集合".as_bytes());
+        let [super::Event::Message(m)] = evs.as_slice() else { panic!() };
+        assert_eq!((m.channel, m.from.as_deref()), (super::Channel::Party, Some("Wilt")));
+        // 引用符で始まっても、" > が無ければ普通のログ
+        let evs = p.feed(b"\"quoted\" text");
+        let [super::Event::Message(m)] = evs.as_slice() else { panic!() };
+        assert_eq!(m.channel, super::Channel::Log);
+    }
+
     use super::*;
 
     /// 看板の本文に書かれたコマンドを実行しない(Philly と同じ)
