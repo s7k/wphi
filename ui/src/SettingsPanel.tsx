@@ -28,6 +28,10 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
       <div className="board-title">設定</div>
       <div className="settings-body">
         <label>
+          <input type="checkbox" checked={s.autoConnect} onChange={(e) => set("autoConnect", e.target.checked)} />
+          起動した時に、前回開いていたタブのキャラへ自動で接続する
+        </label>
+        <label>
           <input type="checkbox" checked={s.fullKeyMove} onChange={(e) => set("fullKeyMove", e.target.checked)} />
           フルキーの 789 uio jkl m をテンキーとして使う(フルキー移動)
         </label>
@@ -82,10 +86,6 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
             onChange={(e) => set("autoEquipSystemMagic", e.target.checked)}
           />
           系統魔法の後に、外した武器を装備し直す(チャット場ではオフを勧める)
-        </label>
-        <label>
-          <input type="checkbox" checked={s.autoConnect} onChange={(e) => set("autoConnect", e.target.checked)} />
-          起動した時に、前回開いていたタブのキャラへ自動で接続する
         </label>
         <label>
           <input type="checkbox" checked={s.masterMagicMenu} onChange={(e) => set("masterMagicMenu", e.target.checked)} />
