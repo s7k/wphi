@@ -37,7 +37,7 @@ await button("接続").first().click();
 await page.waitForFunction(() => window.guideReady === true, null, { timeout: 30000 });
 await page.waitForTimeout(800);
 await shot("priv");
-await page.locator(".priv-head button").click();
+await page.locator(".priv-window-head button[title^='閉じる']").click();
 await page.waitForTimeout(300);
 // 持ち物の行を流し、右上にカバンのボタンを出してから全体を撮る
 await page.evaluate(() => window.guideEffect("bag"));
@@ -67,6 +67,11 @@ await page.evaluate(() => window.guideEffect("back"));
 await page.evaluate(() => window.guideEffect("party"));
 await page.waitForTimeout(400);
 await shot("party-hud");
+// 入力欄の上のパーティのタブ
+await page.getByRole("tab", { name: "パーティ" }).click();
+await page.waitForTimeout(300);
+await shot("party-chat");
+await page.getByRole("tab", { name: "全体" }).click();
 await page.locator(".party-hud").click();
 await page.waitForTimeout(300);
 await shot("party");
@@ -144,7 +149,7 @@ await shot("settings");
 const classic = await open("");
 await classic.getByRole("button", { name: "接続", exact: true }).first().click();
 await classic.waitForFunction(() => window.guideReady === true, null, { timeout: 30000 });
-await classic.locator(".priv-head button").click();
+await classic.locator(".priv-window-head button[title^='閉じる']").click();
 await classic.waitForTimeout(500);
 await shotOf(classic)("classic");
 

@@ -1835,3 +1835,94 @@ button > svg:only-child,
 .char-menu button:hover {
   background: rgb(255 255 255 / 15%);
 }
+
+/* 入力欄の上の「全体」「パーティ」のタブ(App.tsx の InputEditor) */
+.chat-tabs {
+  display: flex;
+  margin-right: 6px;
+}
+
+.chat-tabs button {
+  padding: 0 10px;
+  border: 1px outset #fff;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.chat-tabs button[aria-selected="true"] {
+  border-style: inset;
+  background: #c0bcb4;
+  font-weight: bold;
+}
+
+.chat-tabs button.unread {
+  background: #ffd0d0;
+}
+
+.main.modern .chat-tabs button {
+  color: #ddd;
+  border-color: #555;
+}
+
+.main.modern .chat-tabs button[aria-selected="true"] {
+  background: #4a544a;
+  color: #fff;
+}
+
+.main.modern .chat-tabs button.unread {
+  background: #7a3a3a;
+  color: #fff;
+}
+
+/* priv の相手ごとの窓(PrivPanel.tsx の PrivWindow)。main 窓の本文の中に浮かべる */
+.priv-window {
+  position: absolute;
+  width: 300px;
+  height: 260px;
+  display: flex;
+  flex-direction: column;
+  background: #d4d0c8;
+  border: 2px outset #fff;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 35%);
+}
+
+.priv-window.min {
+  height: auto;
+}
+
+.priv-window-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  font-weight: bold;
+  color: #fff;
+  background: #0a246a;
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+
+.priv-window-head.unread {
+  background: #a02020;
+}
+
+.priv-window-head span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.priv-window-head button {
+  display: grid;
+  place-items: center;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.priv-window-head svg {
+  width: 14px;
+  height: 14px;
+}

@@ -10,6 +10,7 @@ test("発言の前処理", () => {
   assert.equal(prepareLine("*叫ぶ", plain), "/**/*叫ぶ");
   assert.equal(prepareLine("叫ぶ", { ...plain, loud: true }), "*叫ぶ");
   assert.equal(prepareLine("みんな", { ...plain, ctrl: true }), "+みんな");
+  assert.equal(prepareLine("*仲間だけ", { ...plain, ctrl: true }), "+*仲間だけ");
   assert.equal(prepareLine("", plain), null);
   assert.equal(prepareLine("", { ...plain, lastLine: false }), "/**/");
 });

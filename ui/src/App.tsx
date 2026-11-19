@@ -28,8 +28,8 @@ import { DownloadPanel } from "./DownloadPanel";
 import { MapView, type MapPlace } from "./map";
 import { SettingsPanel } from "./SettingsPanel";
 import { NewCharacter, WorldSelect } from "./NewCharacter";
-import { capConvs, PARTY_CONV, partnersKey, privLines, privPartners, upsertConv, usersFromEvent, type User } from "./priv.ts";
-import { PrivPanel, type PrivConv } from "./PrivPanel";
+import { capConvs, partnersKey, privLines, privPartners, upsertConv, usersFromEvent, type User } from "./priv.ts";
+import { PrivLauncher, PrivWindow, type PrivConv } from "./PrivPanel";
 import { ListOverlay } from "./ListOverlay";
 import { listNo, listOk, moreNo, moveListCursor, receiveList, type ListFlow, type ListState } from "./list.ts";
 import { trace } from "./trace.ts";
@@ -67,8 +67,8 @@ type Tab = {
   /** #user の一覧(priv の番号に使う) */
   users: User[];
   privs: PrivConv[];
+  /** priv の会話と相手を選ぶ欄を開いているか。会話そのものは相手ごとの窓(PrivConv の open) */
   privOpen: boolean;
-  privActive: string | null;
   /** ログを保存しているか(Philly の LogAutoSave。タブごとに切り替える) */
   logSave: boolean;
   /** 裏にいる間に発言か priv が届いた */
@@ -87,7 +87,16 @@ type Tab = {
   /** 仲間の一覧(#v6 P。自分が先頭)。パーティに入っていなければ空 */
   party?: PartyMember[];
   partyOpen?: boolean;
+  /** 仲間の発言("名前" > 本文)の行。入力欄の上のパーティのタブで出す */
+  partyLines: LogLine[];
+  /** パーティのタブを選んでいるか(Enter の発言が仲間だけに届き、ログ欄にパーティの発言だけを出す) */
+  partyMode?: boolean;
+  /** 全体のタブを見ている間に仲間の発言が届いた */
+  partyUnread?: boolean;
 };
+
+/** priv の窓を一番前に出す時の重なりの順 */
+const topZ = (convs: PrivConv[]) => Math.max(0, ...convs.map((c) => c.z ?? 0)) + 1;
 
 /**
  * リストの受信の状態。受信の順番に関わるので、再描画を待たない ref で持つ。
@@ -895,10 +904,13 @@ export function App() {
       getCurrentWindow().requestUserAttention(UserAttentionType.Informational).catch(console.error);
   }
 
-  /** 受けた priv を相手の組の会話に足す。会話が無ければ作り、priv の画面を開く(Philly.ini の PopupPrivForm) */
+  /**
+   * 受けた priv を相手の組の会話に足し、その窓を開く(Philly.ini の PopupPrivForm)。
+   * 畳んでいる窓は畳んだまま、見出しに未読の印を付ける
+   */
   function addPriv(session: number, from: string, html: string) {
-    // priv が届いて画面が開く時も、相手の一覧を取り直す
-    if (!tabsRef.current.find((t) => t.session === session)?.privOpen) requestUlist(session);
+    // 返信する時の為に、相手の一覧を取り直す
+    requestUlist(session);
     update(session, (t) => {
       const to = privPartners(from, html, t.self);
       if (to.length === 0) return t;
@@ -906,32 +918,22 @@ export function App() {
       const line = shownTime(timePrefix()) + html;
       const privs = upsertConv(t.privs, to, (c) =>
         c
-          ? { ...c, lines: pushLine(c.lines, line), unread: t.privActive !== key }
+          ? { ...c, lines: pushLine(c.lines, line), open: true, unread: !!c.min }
           : // 送り主は /*to=*/ で宛先を好きに足せるので、返信が知らない相手にも届く(Philly と同じ)。初めて送る前に確かめる(#53)
-            { to, lines: pushLine([], line), unread: true, confirm: to.length > 1 },
+            { to, lines: pushLine([], line), unread: false, confirm: to.length > 1, open: true, z: topZ(t.privs) },
       );
-      const active = t.privActive ?? key;
-      return { ...t, privs: capConvs(privs, active), privOpen: true, privActive: active };
+      return { ...t, privs: capConvs(privs, key) };
     });
   }
 
-  /**
-   * 仲間の発言を priv の欄のパーティの会話に足す。priv と違い、画面は開かない(仲間の発言は多く、ログにも出る為)。
-   * open は、パーティに入った時に空の会話を作る為
-   */
-  function addParty(session: number, html?: string) {
-    update(session, (t) => {
-      const key = partnersKey([PARTY_CONV]);
-      // #v6 P は地図の周期で届くので、会話が既にあれば何も変えない(描き直さない)
-      if (html === undefined && t.privs.some((c) => c.to[0] === PARTY_CONV)) return t;
-      const privs = upsertConv(t.privs, [PARTY_CONV], (c) => {
-        const conv = c ?? { to: [PARTY_CONV], lines: [], unread: false };
-        if (html === undefined) return conv;
-        const line = shownTime(timePrefix()) + html;
-        return { ...conv, lines: pushLine(conv.lines, line), unread: !(t.privOpen && t.privActive === key) };
-      });
-      return { ...t, privs: capConvs(privs, t.privActive ?? key), privActive: t.privActive ?? key };
-    });
+  /** 相手の組 key の会話の窓を f で書き換える */
+  const updateConv = (session: number, key: string, f: (c: PrivConv, t: Tab) => PrivConv) =>
+    update(session, (t) => ({ ...t, privs: t.privs.map((c) => (partnersKey(c.to) === key ? f(c, t) : c)) }));
+
+  /** 仲間の発言をパーティのタブの行に足す。全体のタブを見ていれば、パーティのタブに未読の印を付ける */
+  function addParty(session: number, html: string) {
+    const line = shownTime(timePrefix()) + html;
+    update(session, (t) => ({ ...t, partyLines: pushLine(t.partyLines, line), partyUnread: !t.partyMode }));
   }
 
   // #ulist はセッションごとに 10 秒に1回まで(PrivForm.cpp の RequestUlistWait)。
@@ -977,11 +979,6 @@ export function App() {
 
   /** priv を送る。先に #ulist で番号を取り直す(Philly の PrivForm.cpp の SendPrivMessage) */
   async function sendPriv(session: number, to: string[], text: string): Promise<boolean> {
-    // パーティの会話は、入力欄の Ctrl+Enter と同じく先頭に + を付けて仲間へ送る
-    if (to[0] === PARTY_CONV) {
-      sendLine(session, `+${text}`);
-      return true;
-    }
     const key = partnersKey(to);
     const conv = tabsRef.current.find((t) => t.session === session)?.privs.find((c) => partnersKey(c.to) === key);
     if (conv?.confirm) {
@@ -1135,8 +1132,8 @@ export function App() {
           update(session, (t) => ({ ...t, items: ev.items }));
           break;
         case "party":
-          update(session, (t) => ({ ...t, party: ev.members }));
-          if (ev.members.length) addParty(session);
+          // パーティを抜けたら、パーティのタブから全体へ戻す
+          update(session, (t) => ({ ...t, party: ev.members, partyMode: ev.members.length ? t.partyMode : false }));
           onMapEvent(session, ev);
           break;
         case "bag":
@@ -1207,7 +1204,7 @@ export function App() {
         users: [],
         privs: [],
         privOpen: false,
-        privActive: null,
+        partyLines: [],
         logSave: false,
         unread: false,
         hurt: false,
@@ -1384,7 +1381,12 @@ export function App() {
             }}
           >
             {/* 検索中は最下行へ戻さない。戻すと、見つけた行が新しいログで流れる */}
-            <LogView key={tab.session} lines={tab.lines} follow={logFollow && !findOpen} light={settings.modern} />
+            <LogView
+              key={`${tab.session}${tab.partyMode ? "p" : ""}`}
+              lines={tab.partyMode ? tab.partyLines : tab.lines}
+              follow={logFollow && !findOpen}
+              light={settings.modern}
+            />
           </div>
           {findOpen && (
             <LogFind
@@ -1433,31 +1435,50 @@ export function App() {
           )}
         </div>
         {tabs
-          .filter((p) => p.privOpen)
+          .filter((p) => p.privOpen || p.privs.some((c) => c.open))
           .map((p) => (
             <div key={p.session} style={{ display: p.session === tab.session ? "contents" : "none" }}>
-              <PrivPanel
-                convs={p.privs}
-                active={p.privActive}
-                users={p.users}
-                self={p.self}
-                onSelect={(key) =>
-                  update(p.session, (t) => ({
-                    ...t,
-                    privActive: key,
-                    privs: t.privs.map((c) => (partnersKey(c.to) === key ? { ...c, unread: false } : c)),
-                  }))
-                }
-                onOpen={(to) =>
-                  update(p.session, (t) => ({
-                    ...t,
-                    privs: upsertConv(t.privs, to, (c) => c ?? { to: [...to].sort(), lines: [], unread: false }),
-                    privActive: partnersKey(to),
-                  }))
-                }
-                onSend={(to, text) => sendPriv(p.session, to, text)}
-                onClose={() => update(p.session, (t) => ({ ...t, privOpen: false }))}
-              />
+              {p.privOpen && (
+                <PrivLauncher
+                  convs={p.privs}
+                  users={p.users}
+                  self={p.self}
+                  onShow={(key) => updateConv(p.session, key, (c, t) => ({ ...c, open: true, min: false, unread: false, z: topZ(t.privs) }))}
+                  onOpen={(to) =>
+                    update(p.session, (t) => ({
+                      ...t,
+                      privs: upsertConv(t.privs, to, (c) => ({
+                        ...(c ?? { to: [...to].sort(), lines: [], unread: false }),
+                        open: true,
+                        min: false,
+                        z: topZ(t.privs),
+                      })),
+                    }))
+                  }
+                  onClose={() => update(p.session, (t) => ({ ...t, privOpen: false }))}
+                />
+              )}
+              {p.privs
+                .filter((c) => c.open)
+                .map((c, i) => {
+                  const key = partnersKey(c.to);
+                  return (
+                    <PrivWindow
+                      key={key}
+                      conv={c}
+                      index={i}
+                      onSend={(text) => sendPriv(p.session, c.to, text)}
+                      onFront={() =>
+                        updateConv(p.session, key, (c, t) =>
+                          (c.z ?? 0) >= topZ(t.privs) - 1 && !c.unread ? c : { ...c, unread: false, z: topZ(t.privs) },
+                        )
+                      }
+                      onMove={(x, y) => updateConv(p.session, key, (c) => ({ ...c, x, y }))}
+                      onMin={(min) => updateConv(p.session, key, (c) => ({ ...c, min, unread: false }))}
+                      onClose={() => updateConv(p.session, key, (c) => ({ ...c, open: false, unread: false }))}
+                    />
+                  );
+                })}
             </div>
           ))}
         </div>
@@ -1491,6 +1512,8 @@ export function App() {
           }}
           onOpenLogDir={() => invoke("open_log_dir", { label: tab.label }).catch((e) => append(tab.session, systemNg(String(e))))}
           onPriv={() => togglePriv(tab.session)}
+          party={tab.party?.length || tab.partyMode ? { mode: !!tab.partyMode, unread: !!tab.partyUnread } : null}
+          onPartyMode={(on) => update(tab.session, (t) => ({ ...t, partyMode: on, partyUnread: on ? false : t.partyUnread }))}
           session={tab.session}
           sessions={tabs.filter((t) => !t.closed).map((t) => t.session)}
           disabled={tab.closed}
@@ -1596,6 +1619,9 @@ function InputEditor(props: {
   sessions: number[];
   disabled: boolean;
   onPriv: () => void;
+  /** パーティに入っている間だけ出す、入力欄の上の「全体」「パーティ」のタブ */
+  party: { mode: boolean; unread: boolean } | null;
+  onPartyMode: (on: boolean) => void;
   logSave: boolean;
   onLogSave: (on: boolean) => void;
   onOpenLogDir: () => void;
@@ -1617,7 +1643,12 @@ function InputEditor(props: {
     if (now - lastSend.current < 100) return;
     lastSend.current = now;
     const line = caretLine(ta.value, ta.selectionStart);
-    const text = prepareLine(line.text, { ctrl, loud: loud && !allTab, lastLine: line.index + 1 >= line.count });
+    // パーティのタブでは、Ctrl+Enter と同じく仲間だけへ送る
+    const text = prepareLine(line.text, {
+      ctrl: ctrl || !!props.party?.mode,
+      loud: loud && !allTab,
+      lastLine: line.index + 1 >= line.count,
+    });
     if (text === null) return;
     const deliver = () => {
       if (allTab) props.sessions.forEach((s) => sendLine(s, text));
@@ -1730,6 +1761,22 @@ function InputEditor(props: {
         </div>
       )}
       <div className="input-toolbar">
+        {props.party && (
+          <div className="chat-tabs" role="tablist">
+            <button role="tab" aria-selected={!props.party.mode} onClick={() => props.onPartyMode(false)}>
+              全体
+            </button>
+            <button
+              role="tab"
+              aria-selected={props.party.mode}
+              className={props.party.unread ? "unread" : undefined}
+              title="仲間だけに発言し、仲間の発言だけを出す"
+              onClick={() => props.onPartyMode(true)}
+            >
+              パーティ
+            </button>
+          </div>
+        )}
         <label className={loud ? "toggle on" : "toggle"}>
           <input
             type="checkbox"

@@ -56,8 +56,3 @@ export function privLines(to: string[], text: string, users: User[], self: strin
   return { lines, failed };
 }
 
-/** priv の欄のパーティの会話の宛先。名前に使えない制御文字で始め、キャラの名前と重ならないようにする */
-export const PARTY_CONV = "\u0001party";
-
-/** 会話の札に出す名前 */
-export const convLabel = (to: string[]) => (to[0] === PARTY_CONV ? "パーティ" : to.join("・"));
