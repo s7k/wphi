@@ -1567,9 +1567,10 @@ button > svg:only-child,
   color: #fff;
   border: 1px solid rgb(0 0 0 / 60%);
   border-radius: 8px;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 25%), inset 0 -2px 0 rgb(0 0 0 / 30%);
+  /* 影は box-shadow だけで付ける。filter: drop-shadow はタイルとアイコンの数だけ画面外へ描いて合成するので、
+     品が多いと WebView2 が重い (#116) */
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 25%), inset 0 -2px 0 rgb(0 0 0 / 30%), 0 1px 0 rgb(0 0 0 / 50%);
   cursor: pointer;
-  filter: drop-shadow(0 1px 0 rgb(0 0 0 / 50%));
 }
 
 .bag-tile.empty {
@@ -1747,7 +1748,6 @@ button > svg:only-child,
 .item-icon {
   display: block;
   image-rendering: pixelated;
-  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 70%));
 }
 
 /* 仲間の一覧(PartyPanel.tsx)。閉じている間は右上のボタンの下に小さく出す */

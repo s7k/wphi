@@ -696,7 +696,7 @@ async fn append_log(
     app: tauri::AppHandle,
     label: String,
     date: String,
-    html: String,
+    lines: Vec<String>,
     as_html: bool,
 ) -> Result<String, String> {
     if date.len() != 8 || !date.bytes().all(|b| b.is_ascii_digit()) {
@@ -704,10 +704,11 @@ async fn append_log(
     }
     let dir = log_dir(&app, &label)?;
     // テキストで保存する時(Philly の LogSaveHtml=off)は、タグを除いた文字だけを <日付>.txt に書く
+    // UI は書き込みを待つ間に届いた行をまとめて渡す (#122)
     let (path, line) = if as_html {
-        (dir.join(format!("{date}.html")), format!("<div>{html}</div>\n"))
+        (dir.join(format!("{date}.html")), lines.iter().map(|h| format!("<div>{h}</div>\n")).collect::<String>())
     } else {
-        (dir.join(format!("{date}.txt")), format!("{}\n", html_to_text(&html)))
+        (dir.join(format!("{date}.txt")), lines.iter().map(|h| format!("{}\n", html_to_text(h))).collect::<String>())
     };
     // 開いたファイルは覚えておき、1行ごとに開き直さない(#65)。UI が1つ前の書き込みを待ってから呼ぶので、順番は保たれる
     static OPEN: std::sync::Mutex<Vec<(std::path::PathBuf, std::fs::File)>> = std::sync::Mutex::new(Vec::new());

@@ -108,7 +108,8 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     });
     // 開いた直後の状態を main 窓に求める
     unlisten.then(() => emitTo("main", "phi-map-ready", place));
-    const timer = setInterval(() => setFrame((f) => f ^ 1), ANIMATION_MS);
+    // 窓を隠している間は描き直さない (#123)
+    const timer = setInterval(() => document.hidden || setFrame((f) => f ^ 1), ANIMATION_MS);
     return () => {
       unlisten.then((f) => f());
       clearInterval(timer);
@@ -503,7 +504,8 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
       const wide = { x: v.x - SLIDE_MARGIN, y: v.y - SLIDE_MARGIN, w: v.w + 2 * SLIDE_MARGIN, h: v.h + 2 * SLIDE_MARGIN };
       for (const part of ["back", "front"] as const) {
         const l = ls[part];
-        [l.width, l.height] = [w + 2 * m, h + 2 * m];
+        // 同じ値でも入れ直すと領域を確保し直すので、大きさが変わった時だけ入れる (#121)
+        if (l.width !== w + 2 * m || l.height !== h + 2 * m) [l.width, l.height] = [w + 2 * m, h + 2 * m];
         const lc = l.getContext("2d")!;
         lc.setTransform(1, 0, 0, 1, 0, 0);
         lc.imageSmoothingEnabled = false;

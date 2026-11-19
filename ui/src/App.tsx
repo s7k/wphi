@@ -51,6 +51,8 @@ const INPUT_MENU_EVENT = "phi-input-menu";
 
 /** 最後の #user からこれだけ何も届かなければ、#ulist の返事が届き終わった事にする */
 const ULIST_QUIET_MS = 300;
+/** 看板 (#more 〜 #end-more) 1 枚の行の上限 (#120) */
+const SIGN_MAX_LINES = 500;
 
 type Tab = {
   session: number;
@@ -122,14 +124,28 @@ function systemOk(message: string): string {
 /** ログを利用者の地域の日付のファイルに足す。保存先のパスを返す。
  * 1つ前の書き込みが終わってから書く。並行に書くと、行の順序が入れ替わり、ヘッダが二重になる(#65) */
 let logQueue: Promise<unknown> = Promise.resolve();
+/** まだ書き始めていない分。前の書き込みを待つ間に届いた行は、ここへ足して 1 回で書く (#122) */
+let logBatch: { key: string; lines: string[]; done: Promise<string | void> } | null = null;
 function saveLog(label: string, line: string, asHtml: boolean): Promise<string | void> {
   const d = new Date();
   const date = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-  const p = logQueue.then(() =>
-    invoke<string>("append_log", { label, date, html: line, asHtml }).catch((e) => console.error(e)),
-  );
-  logQueue = p;
-  return p;
+  const key = `${label}\n${date}\n${asHtml}`;
+  if (logBatch?.key === key) {
+    logBatch.lines.push(line);
+    return logBatch.done;
+  }
+  const lines = [line];
+  const batch: NonNullable<typeof logBatch> = {
+    key,
+    lines,
+    done: logQueue.then(() => {
+      if (logBatch === batch) logBatch = null;
+      return invoke<string>("append_log", { label, date, lines, asHtml }).catch((e) => console.error(e));
+    }),
+  };
+  logBatch = batch;
+  logQueue = batch.done;
+  return batch.done;
 }
 
 /** 右クリックした時の、選んだ行(選んでいなければ押した行)。選んだ範囲がログ欄の外なら押した行 */
@@ -1073,7 +1089,11 @@ export function App() {
       switch (ev.type) {
         case "log":
           append(session, ev.html, ev.raw);
-          signLines.current.get(session)?.push(ev.html);
+          {
+            // #end-more が来ないまま続くと貯め続けるので、看板 1 枚の分に抑える (#120)
+            const sign = signLines.current.get(session);
+            if (sign && sign.length < SIGN_MAX_LINES) sign.push(ev.html);
+          }
           notifyTalk(session, ev.channel, ev.html, !!ev.noFlash);
           if (ev.channel === "priv" && ev.from) addPriv(session, ev.from, ev.html);
           if (ev.channel === "party") addParty(session, ev.html);
@@ -1246,6 +1266,7 @@ export function App() {
     listFlows.current.delete(session);
     lastUlist.current.delete(session);
     pendingLines.current.delete(session);
+    signLines.current.delete(session);
     const wait = ulistWaits.current.get(session);
     if (wait) window.clearTimeout(wait.timer);
     ulistWaits.current.delete(session);
@@ -1384,21 +1405,29 @@ export function App() {
             }}
           >
             {/* 検索中は最下行へ戻さない。戻すと、見つけた行が新しいログで流れる */}
-            <LogView
-              key={`${tab.session}${tab.partyMode ? "p" : ""}`}
-              lines={tab.partyMode ? tab.partyLines : tab.lines}
-              follow={logFollow && !findOpen}
-              light={settings.modern}
-            />
+            {/* タブごとに残して隠す。作り直すと最大 2000 行を描き直し、モダンでは全行の色を読み直す (#118) */}
+            {tabs.map((t) => (
+              <div
+                key={`${t.session}${t.partyMode ? "p" : ""}`}
+                className={t.session === tab.session ? "log-shown" : undefined}
+                style={{ display: t.session === tab.session ? "contents" : "none" }}
+              >
+                <LogView
+                  lines={t.partyMode ? t.partyLines : t.lines}
+                  follow={logFollow && !findOpen}
+                  light={settings.modern}
+                />
+              </div>
+            ))}
           </div>
           {findOpen && (
             <LogFind
               key={tab.session}
-              log={() => document.querySelector(".log-area .phi-log")}
+              log={() => document.querySelector(".log-area .log-shown .phi-log")}
               lines={tab.lines}
               onClose={() => {
                 setFindOpen(false);
-                document.querySelector<HTMLElement>(".log-area .phi-log")?.focus();
+                document.querySelector<HTMLElement>(".log-area .log-shown .phi-log")?.focus();
               }}
             />
           )}
@@ -1709,7 +1738,7 @@ function InputEditor(props: {
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     // Esc でログ欄へ移り、キーを操作に使う(Philly の移動モード)
     if (e.key === "Escape" && !e.nativeEvent.isComposing) {
-      document.querySelector<HTMLElement>(".phi-log")?.focus();
+      document.querySelector<HTMLElement>(".log-area .log-shown .phi-log")?.focus();
       return;
     }
     // 最後の行で ↓ を押したら、その行を追加発言にする(Philly の InputEditKeyDown)

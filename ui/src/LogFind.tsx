@@ -20,12 +20,15 @@ export function LogFind(props: { log: () => HTMLElement | null; lines: LogLine[]
     const q = query.toLowerCase();
     const all = [...(props.log()?.querySelectorAll<HTMLElement>("[data-line]") ?? [])];
     const found = q ? all.filter((el) => (el.textContent ?? "").toLowerCase().includes(q)) : [];
-    for (const el of all) el.classList.toggle(HIT, found.includes(el));
+    // 行が届く度に動くので、照合は Set で行い、印は変わる行だけ付け外す (#117)
+    const set = new Set(found);
+    for (const el of all) if (el.classList.contains(HIT) !== set.has(el)) el.classList.toggle(HIT);
     setHits(found);
     // 最初は一番新しい行
-    setCurrent((c) => (c && found.includes(c) ? c : (found.at(-1) ?? null)));
-    return () => all.forEach((el) => el.classList.remove(HIT));
+    setCurrent((c) => (c && set.has(c) ? c : (found.at(-1) ?? null)));
   }, [query, props.lines]);
+  // 閉じたら印を外す
+  useEffect(() => () => props.log()?.querySelectorAll(`.${HIT}`).forEach((el) => el.classList.remove(HIT)), []);
 
   useEffect(() => {
     if (!current) return;
