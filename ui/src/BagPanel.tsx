@@ -79,6 +79,12 @@ export function Pixels(props: { rows: string[]; size: number }) {
   );
 }
 
+/**
+ * カバンの中を 1 ページに並べる数。品が 85 個のカバンを開くと Windows の窓全体が固まり、OS ごとメモリを食い尽くした。
+ * 原因は未特定で、Linux の Chromium では再現しない。並べるタイルの数を品の数に依らず抑える
+ */
+const PAGE = 40;
+
 /** 属性(FN_*)の色。無・地・光・風・霊・水・火・鏡・プリズム・虹 */
 const ELEMENT_COLOR = ["#59606a", "#9a6b3c", "#c9a227", "#3f9d8e", "#7d5bc4", "#3577c4", "#c4482f", "#8d98a6", "#c45aa8", "rainbow"];
 
@@ -166,6 +172,7 @@ export function BagPanel(props: {
   const [sel, setSel] = useState<{ where: "hand" | "bag"; i: number } | null>(null);
   const [tab, setTab] = useState(0);
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
   // 手持ちの枠は 8 個に揃える
   const hand = Array.from({ length: 8 }, (_, i) => props.items[i] ?? null);
   // カバンは番号(1 から)を保ったまま、タブと検索で絞る
@@ -176,6 +183,8 @@ export function BagPanel(props: {
         .filter(({ it }) => TABS[tab].match(it) && it.name.toLowerCase().includes(query.trim().toLowerCase())),
     [props.bag, tab, query],
   );
+  const pages = Math.max(1, Math.ceil(shown.length / PAGE));
+  const at = Math.min(page, pages - 1);
   const picked = sel?.where === "hand" ? hand[sel.i] : sel ? (props.bag?.[sel.i - 1] ?? null) : null;
   const detail = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -204,13 +213,29 @@ export function BagPanel(props: {
         <div className="bag-title">カバンの中{props.bag ? ` (${props.bag.length})` : ""}</div>
         <div className="bag-tabs" role="tablist">
           {TABS.map((t, i) => (
-            <button key={t.label} type="button" role="tab" aria-selected={tab === i} onClick={() => setTab(i)}>
+            <button
+              key={t.label}
+              type="button"
+              role="tab"
+              aria-selected={tab === i}
+              onClick={() => {
+                setTab(i);
+                setPage(0);
+              }}
+            >
               {t.label}
             </button>
           ))}
           <label className="bag-search">
             <Search size={14} />
-            <input value={query} placeholder="名前で探す" onChange={(e) => setQuery(e.target.value)} />
+            <input
+              value={query}
+              placeholder="名前で探す"
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(0);
+              }}
+            />
           </label>
         </div>
         <div className="bag-grid bag-store">
@@ -219,11 +244,24 @@ export function BagPanel(props: {
           ) : shown.length === 0 ? (
             <p className="bag-note">{props.bag.length ? "当てはまる物がありません" : "カバンは空です"}</p>
           ) : (
-            shown.map(({ it, no }) => (
+            shown.slice(at * PAGE, (at + 1) * PAGE).map(({ it, no }) => (
               <Tile key={no} item={it} selected={sel?.where === "bag" && sel.i === no} onClick={() => setSel({ where: "bag", i: no })} />
             ))
           )}
         </div>
+        {pages > 1 && (
+          <div className="bag-pages">
+            <button type="button" disabled={at === 0} onClick={() => setPage(at - 1)}>
+              前へ
+            </button>
+            <span>
+              {at + 1} / {pages}
+            </span>
+            <button type="button" disabled={at === pages - 1} onClick={() => setPage(at + 1)}>
+              次へ
+            </button>
+          </div>
+        )}
         {picked && sel && (
           <div className="bag-detail" ref={detail}>
             {/* html は phi-proto の tag_to_html がエスケープ済みで作ったもの。札と同じく色を白へ寄せる */}
