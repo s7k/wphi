@@ -64,7 +64,13 @@ pub fn items(ini: &str) -> Vec<Item> {
 }
 
 pub fn fetch(url: &str) -> Result<Vec<u8>, String> {
-    ureq::get(url)
+    // ureq の既定はタイムアウトが無く、配布元が応答しないと世界の一覧が出ないままになる (#125)
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(std::time::Duration::from_secs(60)))
+        .build()
+        .into();
+    agent
+        .get(url)
         .call()
         .and_then(|mut r| r.body_mut().with_config().limit(MAX_BYTES).read_to_vec())
         .map_err(|e| format!("{url} を取れません: {e}"))

@@ -242,8 +242,9 @@ fn load_sounds(app: &tauri::AppHandle) -> sounds::Sounds {
 
 /// Philly フォルダの `*.chara/.phirc` を登録する。登録した表示名を返す。
 /// フォルダは覚えておき、以後の画像もここから先に探す。
+// async でないコマンドはメインスレッドで動き、フォルダを読む間は全部の窓が止まる (#128)
 #[tauri::command]
-fn import_philly(
+async fn import_philly(
     app: tauri::AppHandle,
     folder: String,
     assets: State<'_, Mutex<Arc<Assets>>>,
@@ -409,8 +410,7 @@ async fn download_item(app: tauri::AppHandle, id: String) -> Result<usize, Strin
         .find(|i| i.id == id)
         .ok_or("一覧に無い物です")?;
     let n = fetch_item(&app, item).await?;
-    use tauri::Manager;
-    reload_assets(app.clone(), app.state())?;
+    reload_assets_now(&app)?;
     Ok(n)
 }
 
@@ -959,9 +959,15 @@ async fn open_character_dir(app: tauri::AppHandle, label: String) -> Result<(), 
 /// グラキャッシュ初期化(Philly の InitializeGraCache。#82)。画像を探し直し、map 窓と EagleEye に読み直させる。
 /// 置いた画像は、起動し直さなくてもこれで使われる
 #[tauri::command]
-fn reload_assets(app: tauri::AppHandle, assets: State<'_, Mutex<Arc<Assets>>>) -> Result<(), String> {
+async fn reload_assets(app: tauri::AppHandle) -> Result<(), String> {
+    reload_assets_now(&app)
+}
+
+/// 画像を読み直す。download_item からも呼ぶ
+fn reload_assets_now(app: &tauri::AppHandle) -> Result<(), String> {
+    let assets = app.state::<Mutex<Arc<Assets>>>();
     use tauri::Emitter;
-    *assets.lock().unwrap() = Arc::new(load_assets(&app)?);
+    *assets.lock().unwrap() = Arc::new(load_assets(app)?);
     let _ = app.emit("phi-assets-reload", ());
     Ok(())
 }

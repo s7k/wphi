@@ -163,10 +163,16 @@ impl Inflate {
         let mut pos = 0;
         loop {
             out.reserve(raw.len() * 4 + 4096);
-            let before = z.total_in();
-            z.decompress_vec(&raw[pos..], &mut out, flate2::FlushDecompress::Sync)
+            let (before, before_out) = (z.total_in(), out.len());
+            let st = z
+                .decompress_vec(&raw[pos..], &mut out, flate2::FlushDecompress::Sync)
                 .map_err(|e| e.to_string())?;
             pos += (z.total_in() - before) as usize;
+            // 圧縮の終わり (StreamEnd) の後ろにバイトが来ると、入力も出力も進まずに回り続ける (#124)。
+            // phi_dm は終わらせずに送り続けるので、終わりが来たら壊れた流れとして切る
+            if st == flate2::Status::StreamEnd && pos < raw.len() || (pos < raw.len() && out.len() == before_out && z.total_in() == before) {
+                return Err("圧縮した流れの後ろに余分なデータがあります".into());
+            }
             // 出力の領域が余ったまま返ったら、届いた分を出し切っている
             if pos == raw.len() && out.len() < out.capacity() {
                 return Ok(out);
@@ -254,8 +260,8 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
         .iter()
         .flat_map(|l| line_bytes(l))
         .collect();
-    if let Err(e) = stream.write_all(&login_bytes).await {
-        return emit(error(format!("送信に失敗しました: {e}")));
+    if !put(&mut stream, &login_bytes).await {
+        return emit(error("送信に失敗しました".into()));
     }
 
     let mut lines = LineBuffer::new();
@@ -336,7 +342,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                 {
                     if !reply.is_empty() {
                         let bytes: Vec<u8> = reply.drain(..).flat_map(|l| line_bytes(&l)).collect();
-                        let _ = stream.write_all(&bytes).await;
+                        let _ = put(&mut stream, &bytes).await;
                     }
                     // 移動の間に UI が送った行は捨てる(Philly の RejectMainThreadSend)。
                     // 送信キューが閉じたら(タブを閉じた)移動をやめる。待たないと、閉じたタブのキャラが移動先へログインする(#71)
@@ -356,13 +362,13 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                         };
                         match timeout(TRANSFER_TIMEOUT, answer).await.unwrap_or(Some(false)) {
                             None => {
-                                let _ = stream.write_all(&line_bytes("#x")).await;
+                                let _ = put(&mut stream, &line_bytes("#x")).await;
                                 // UI が切った時も、切れた事を知らせる(知らせないとタブが接続中のまま残る)
                                 return emit(closed());
                             }
                             Some(false) => {
                                 emit(system(false, "世界移動をやめました"));
-                                let _ = stream.write_all(&line_bytes("#no-srv")).await;
+                                let _ = put(&mut stream, &line_bytes("#no-srv")).await;
                                 last_recv = Instant::now();
                                 continue;
                             }
@@ -376,7 +382,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     };
                     match moved {
                         None => {
-                            let _ = stream.write_all(&line_bytes("#x")).await;
+                            let _ = put(&mut stream, &line_bytes("#x")).await;
                             // UI が切った時も、切れた事を知らせる(知らせないとタブが接続中のまま残る)
                             return emit(closed());
                         }
@@ -415,7 +421,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     }
                 }
                 None => {
-                    let _ = stream.write_all(&line_bytes("#x")).await;
+                    let _ = put(&mut stream, &line_bytes("#x")).await;
                     // UI が切った時も、切れた事を知らせる(知らせないとタブが接続中のまま残る)
                     return emit(closed());
                 }
@@ -508,14 +514,14 @@ async fn transfer(
         Some(c) => c,
         None => {
             emit(system(false, "転送先の世界が見つかりません"));
-            let _ = src.write_all(&line_bytes("#no-srv")).await;
+            let _ = put(src, &line_bytes("#no-srv")).await;
             return None;
         }
     };
 
     emit(system(true, "転送先世界に転送準備要求..."));
     let mut dst_lines = LineBuffer::new();
-    let reserved = dst.write_all(&line_bytes(&format!("#reserve {id}"))).await.is_ok()
+    let reserved = put(&mut dst, &line_bytes(&format!("#reserve {id}"))).await
         && wait_line(
             &mut dst,
             &mut dst_lines,
@@ -527,7 +533,7 @@ async fn transfer(
         )
         .await;
     if !reserved {
-        let _ = src.write_all(&line_bytes("#no-srv")).await;
+        let _ = put(src, &line_bytes("#no-srv")).await;
         emit(system(
             false,
             "転送準備失敗。転送先の世界で同時接続数をオーバーしている可能性があります。",
@@ -537,7 +543,7 @@ async fn transfer(
 
     emit(system(true, "転送元世界に転送要求..."));
     let trans = format!("#trans {host} {port}");
-    let accepted = src.write_all(&line_bytes(&trans)).await.is_ok()
+    let accepted = put(src, &line_bytes(&trans)).await
         && wait_line(
             src,
             src_lines,
@@ -549,7 +555,7 @@ async fn transfer(
         )
         .await;
     if !accepted {
-        let _ = src.write_all(&line_bytes("#ch-srv-no")).await;
+        let _ = put(src, &line_bytes("#ch-srv-no")).await;
         emit(system(false, "転送失敗"));
         // 移動先は断った理由(持ち込めないアイテムなど)を、#reserve を送ったこちらの接続へ書く。
         // 移動元の行より前に起きた事なので先に処理する。移動先のコマンドは移動元の物として扱わない為、# の行は捨てる
@@ -562,7 +568,7 @@ async fn transfer(
         .chain(login_lines(None, view))
         .flat_map(|l| line_bytes(&l))
         .collect();
-    if dst.write_all(&after).await.is_err() {
+    if !put(&mut dst, &after).await {
         emit(system(false, "転送先世界への送信に失敗しました"));
         return None;
     }
@@ -688,6 +694,11 @@ fn error(message: String) -> UiEvent {
     UiEvent::Ui(UiOnly::Error { message })
 }
 
+/// WRITE_TIMEOUT までに書けたら真。世界移動の確かめや移動の間も、読まない相手で止まり続けない為 (#127)
+async fn put<W: tokio::io::AsyncWrite + Unpin>(w: &mut W, b: &[u8]) -> bool {
+    matches!(timeout(WRITE_TIMEOUT, w.write_all(b)).await, Ok(Ok(())))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -729,6 +740,19 @@ mod tests {
         got.extend(inf.feed(&wire[cut..cut + 20]).unwrap());
         got.extend(inf.feed(&wire[cut + 20..]).unwrap());
         assert_eq!(got, b"#ex-map style=solid\n#ex-switch compress=deflate\n#v6 G 0 -1\n");
+    }
+
+    /// 圧縮の終わりの後ろにバイトが来ても、回り続けずに切る (#124)
+    #[test]
+    fn inflate_rejects_bytes_after_stream_end() {
+        use flate2::{Compress, Compression, FlushCompress};
+        let mut z = Compress::new(Compression::default(), true);
+        let mut packed = Vec::with_capacity(256);
+        z.compress_vec(b"hello\n", &mut packed, FlushCompress::Finish).unwrap();
+        let mut wire = b"#ex-switch compress=deflate\n".to_vec();
+        wire.extend_from_slice(&packed);
+        wire.extend_from_slice(b"garbage after end");
+        assert!(Inflate::new().feed(&wire).is_err());
     }
 
     use tokio::{

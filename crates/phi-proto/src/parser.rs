@@ -527,6 +527,7 @@ impl EagleEyeAccum {
 }
 
 /// リストの行の上限。実際のリストは数十行。
+/// 終わりの行が来るまで貯める一覧の行数の上限にも使う。カバン・仲間・ユーザ・名前の倍率にも使う (#129)
 const MAX_LIST_LINES: usize = 1000;
 /// 1フレームのキャラの上限。15x15 のマップに 1マス数人でも足りる。
 const MAX_MAP_CHARS: usize = 1000;
@@ -757,7 +758,9 @@ impl Parser {
                 }];
             }
             let (no, fields) = rest.split_once('\t').unwrap_or((rest, ""));
-            if let Ok(no) = no.trim().parse::<i64>() {
+            if let Ok(no) = no.trim().parse::<i64>()
+                && self.party.len() < MAX_LIST_LINES
+            {
                 self.party.push(parse_party_member(no, fields));
             }
             return Vec::new();
@@ -791,7 +794,9 @@ impl Parser {
                     reason: reason.trim().to_string(),
                 }];
             }
-            if let Some((_, fields)) = rest.strip_prefix("I ").and_then(|r| r.split_once('\t')) {
+            if let Some((_, fields)) = rest.strip_prefix("I ").and_then(|r| r.split_once('\t'))
+                && self.bag.len() < MAX_LIST_LINES
+            {
                 self.bag.push(parse_item(fields));
             }
             return Vec::new();
@@ -914,9 +919,11 @@ impl Parser {
         if name.is_empty() {
             return None;
         }
+        let full = self.ulist.len() >= MAX_LIST_LINES;
         match self.ulist.iter_mut().find(|(n, _)| *n == name) {
             Some(entry) => entry.1 = no,
-            None => self.ulist.push((name, no)),
+            None if !full => self.ulist.push((name, no)),
+            None => {}
         }
         let users = self
             .ulist
@@ -943,9 +950,11 @@ impl Parser {
             return;
         }
         let magnify = Magnify { w, h, z };
+        let full = self.name_magnify.len() >= MAX_LIST_LINES;
         match self.name_magnify.iter_mut().find(|(n, _)| n == name) {
             Some(entry) => entry.1 = magnify,
-            None => self.name_magnify.push((name.to_string(), magnify)),
+            None if !full => self.name_magnify.push((name.to_string(), magnify)),
+            None => {}
         }
     }
 
