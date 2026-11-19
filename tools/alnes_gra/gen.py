@@ -1,4 +1,4 @@
-"""Alnes の世界の採取の場と家畜のキャラグラ (96x160) を描く。
+"""Alnes の世界の採取の場、家畜、町の飾りのキャラグラ (96x160) を描く。
 
 行 = 向き (後/右/前/左)、列 = [小0][小1][大0][大1] (小は 16x32、大は 32x32)。sushi_gra と同じ並び。
 同梱の PCGL のキャラグラ (1 枚に 80〜100 色、左上からの光、毛や葉の細かい凹凸) に絵柄を合わせる為、
@@ -52,6 +52,12 @@ MAT = {
     'petal': ramp((170, 160, 150), (240, 236, 226), (255, 255, 255)),
     'bee': ramp((60, 40, 0), (240, 190, 30), (255, 240, 140)),
     'wood': ramp((44, 28, 16), (104, 70, 40), (170, 126, 80)),
+    'paper': ramp((150, 136, 108), (232, 222, 196), (255, 252, 236)),
+    'ink': ramp((30, 24, 20), (70, 58, 50), (110, 96, 84)),
+    'seal': ramp((90, 10, 10), (190, 40, 36), (250, 120, 100)),
+    'palm': ramp((96, 64, 30), (160, 118, 66), (214, 178, 116)),
+    'frond': ramp((24, 64, 26), (66, 140, 56), (156, 214, 110)),
+    'date': ramp((70, 26, 10), (150, 64, 26), (226, 140, 72)),
 }
 
 
@@ -257,7 +263,55 @@ def sheep(f, side):
     return cv.image()
 
 
-DRAW = {'wheat': wheat, 'cabbage': cabbage, 'carrot': carrot, 'herb': herb, 'beehive': beehive, 'ore': ore}
+def board(f):
+    """依頼の掲示板。2 本の柱に板を渡し、依頼の紙を何枚か留める"""
+    cv = Canvas()
+    for x in (7, 24):
+        cv.line(x, 8, x, 30, 'wood', z0=0, w=2, seed=x)
+    for y in range(9, 22):   # 板 (横に木目)
+        for x in range(6, 27):
+            cv.plot(x, y, 2, 'wood', .55 + .2 * ((y % 3) == 0) - .25 * (x > 22) + .1 * (x < 9), .25, 5)
+    for y in (7, 8):   # 屋根
+        for x in range(5 - (8 - y), 28 + (8 - y)):
+            cv.plot(x, y, 3, 'wood', .35 + .15 * (y == 7), .2, 6)
+    for i, (x0, y0, w, hgt) in enumerate(((8, 10, 6, 7), (15, 11, 5, 6), (21, 10, 4, 8), (11, 17, 6, 4))):
+        for y in range(y0, y0 + hgt):   # 紙。左上を明るく
+            for x in range(x0, x0 + w):
+                cv.plot(x, y, 4, 'paper', .95 - .4 * (x - x0) / w - .3 * (y - y0) / hgt, .12, i)
+        for y in range(y0 + 2, y0 + hgt - 1, 2):   # 字
+            for x in range(x0 + 1, x0 + w - 1):
+                if h(x, y, i) > .35:
+                    cv.plot(x, y, 5, 'ink', .5, .2, i)
+        cv.plot(x0 + w // 2, y0, 6, 'seal', .8)   # 留め釘
+    return cv.image()
+
+
+def datepalm(f):
+    """棗椰子。節のある細い幹に羽の様な葉を広げ、房の実を下げる"""
+    cv = Canvas()
+    ground(cv, 'soil', 6)
+    for k in range(10):   # 幹は節ごとに少し太さと明るさを変える
+        y = 27 - k * 1.7
+        x = 16 + math.sin(k * .3) * 1.2
+        cv.ellipsoid(x, y, 2.2 - k * .05, 1.2, 'palm', z0=k * .2, rz=2, bump=.3, seed=k)
+    top = (17.5, 9)
+    for i in range(8):   # 葉。先へ行くほど垂れる
+        a = math.pi * (-1.05 + i * .3) + (f * .05 if i % 2 else -f * .05)
+        for k in range(12):
+            t = k / 11
+            x = top[0] + math.cos(a) * 13 * t
+            y = top[1] + math.sin(a) * 9 * t + 5 * t * t
+            cv.ellipsoid(x, y, 1.3 - .5 * t, .9, 'frond', z0=6 + math.sin(a) * -2, rz=1, bump=.35, seed=i * 20 + k)
+            if k % 2 and k > 2:   # 小葉
+                cv.plot(int(x), int(y + 1.5), 6, 'frond', .45, .2, i)
+    for j, dx in enumerate((-2.5, 2.5)):   # 実の房
+        for k in range(5):
+            cv.ellipsoid(top[0] + dx + (k % 2) * 1.2 - .6, top[1] + 3 + k * 1.1, 1, .9, 'date', z0=9, rz=1, bump=.2, seed=j * 9 + k)
+    return cv.image()
+
+
+DRAW = {'wheat': wheat, 'cabbage': cabbage, 'carrot': carrot, 'herb': herb, 'beehive': beehive, 'ore': ore,
+        'board': board, 'datepalm': datepalm}
 
 
 def tile(name, f, row):
