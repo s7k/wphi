@@ -250,8 +250,15 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
             tune(&s);
             s
         }
-        Ok(Err(e)) => return emit(error(format!("接続出来ません: {e}"))),
-        Err(_) => return emit(error("接続がタイムアウトしました".into())),
+        // 失敗した時も closed() を送る。送らないとタブが接続中のまま残り、「接続」で繋ぎ直せない (#131)
+        Ok(Err(e)) => {
+            emit(error(format!("接続出来ません: {e}")));
+            return emit(closed());
+        }
+        Err(_) => {
+            emit(error("接続がタイムアウトしました".into()));
+            return emit(closed());
+        }
     };
     let mut view = login.view;
     // 最後に送った `#ex-map view=`。型が変わった時(北固定から回転へなど)と、窓の大きさが変わった時に送り直す
@@ -261,7 +268,8 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
         .flat_map(|l| line_bytes(l))
         .collect();
     if !put(&mut stream, &login_bytes).await {
-        return emit(error("送信に失敗しました".into()));
+        emit(error("送信に失敗しました".into()));
+        return emit(closed());
     }
 
     let mut lines = LineBuffer::new();
@@ -829,6 +837,23 @@ mod tests {
             ]
         );
         drop(tx);
+    }
+
+    /// 繋がらなかった時も、エラーの後に切断を知らせる。知らせないとタブが接続中のまま残る (#131)
+    #[tokio::test]
+    async fn refused_connect_reports_closed() {
+        // 開いてすぐ閉じたポートは、繋ぐと断られる
+        let port = TcpListener::bind("127.0.0.1:0").await.unwrap().local_addr().unwrap().port();
+        let (_tx, rx) = mpsc::channel(8);
+        let mut events: Vec<Value> = Vec::new();
+        run(
+            Login { host: "127.0.0.1".into(), port, id: "ID".into(), view: None },
+            rx,
+            |ev| events.push(serde_json::to_value(ev).unwrap()),
+        )
+        .await;
+        assert_eq!(events.len(), 2, "{events:?}");
+        assert_eq!(events[1], json!({"type": "connection", "state": "closed"}));
     }
 
     async fn read_line(r: &mut BufReader<tokio::net::tcp::OwnedReadHalf>) -> String {

@@ -9,7 +9,7 @@ export const EDIT_MAX_LINE = 100;
  * - 空行は `/**\/` にして送る。ただし最後の行の空行は送らない
  * - 大声モードなら先頭に `*`
  * - 大声モードでないのに先頭が `*` なら `/**\/` を前置して大声にしない
- * - Ctrl+Enter とパーティのタブはパーティー発言(先頭に `+`)。`*` で始まっても `+` を付ける
+ * - Ctrl+Enter とパーティのタブはパーティの発言(先頭に `+`)。`*` で始まっても `+` を付ける
  */
 export function prepareLine(text: string, opts: { ctrl: boolean; loud: boolean; lastLine: boolean }): string | null {
   if (text.length === 0) return opts.lastLine ? null : "/**/";

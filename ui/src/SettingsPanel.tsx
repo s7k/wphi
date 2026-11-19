@@ -1,20 +1,28 @@
 // 設定画面(Philly は Philly.ini を直接書き換える)。
 import { invoke } from "@tauri-apps/api/core";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { confirmBox } from "./MessageDialog";
 import { clampZoom, MAP_ZOOMS, type Settings } from "./settings.ts";
 import { Import, Save, X } from "lucide-react";
 
 export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings) => void; onClose: () => void }) {
   const [s, setS] = useState(props.settings);
+  // 開いた時か保存した時の値。変えた項目を見分け、保存の時にそれだけを今の設定に重ねる。
+  // 写しを丸ごと保存すると、開いている間に表示メニューで変えた値を元に戻した (#138)
+  const [base, setBase] = useState(props.settings);
   const [message, setMessage] = useState("");
+  const changed = (Object.keys(s) as (keyof Settings)[]).filter((k) => JSON.stringify(s[k]) !== JSON.stringify(base[k]));
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setS((p) => ({ ...p, [k]: v }));
   const setAt = (k: "shortcuts" | "listShortcuts", i: number, v: string) =>
     setS((p) => ({ ...p, [k]: p[k].map((x, j) => (j === i ? v : x)) }));
 
-  async function save(next: Settings) {
+  async function save(edited: Settings) {
     try {
+      let next: Settings = { ...props.settings };
+      for (const k of changed) (next as Record<string, unknown>)[k] = edited[k];
       next = { ...next, mapZoom: clampZoom(next.mapZoom), mapZoomM57: clampZoom(next.mapZoomM57 || next.mapZoom) };
       setS(next);
+      setBase(next);
       await invoke("save_settings", { settings: next });
       props.onSaved(next);
       setMessage("保存しました");
@@ -22,6 +30,20 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
       setMessage(String(e));
     }
   }
+
+  /** 保存していない変更があれば、捨ててよいか確かめてから閉じる (#138) */
+  function close() {
+    if (changed.length === 0) return props.onClose();
+    void confirmBox("保存していない変更があります。\n保存せずに閉じますか？").then((ok) => ok && props.onClose());
+  }
+  // Esc でも閉じる。他の画面 (札・カバン) と同じ
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.isComposing && !document.querySelector(".ask-backdrop")) close();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   return (
     <div className="settings-panel">
@@ -31,6 +53,10 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
           <input type="checkbox" checked={s.autoConnect} onChange={(e) => set("autoConnect", e.target.checked)} />
           起動した時に、前回開いていたタブのキャラへ自動で接続する
         </label>
+        {/* 画面の形などは表示メニューにだけあり、ここを探して見つからなかった (#137) */}
+        <p className="settings-note">
+          画面の形(モダン・クラシック)、地図を滑らかに動かす、吹き出しの演出、木と草の揺らぎは、メニューの「表示」で切り替えます。
+        </p>
         <label>
           <input type="checkbox" checked={s.fullKeyMove} onChange={(e) => set("fullKeyMove", e.target.checked)} />
           フルキーの 789 uio jkl m をテンキーとして使う(フルキー移動)
@@ -147,6 +173,7 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
             invoke<Settings>("import_philly_settings")
               .then((next) => {
                 setS(next);
+                setBase(next);
                 props.onSaved(next);
                 setMessage("Philly.ini から取り込んで保存しました");
               })
@@ -156,7 +183,7 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
           <Import />
           Philly.ini から取り込む
         </button>
-        <button onClick={props.onClose}>
+        <button onClick={close}>
           <X />
           閉じる
         </button>

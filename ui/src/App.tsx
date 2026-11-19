@@ -235,6 +235,12 @@ export function App() {
     };
   }, []);
   const [error, setError] = useState("");
+  /** 失敗を知らせる。キャラの一覧の上と、タブを開いていれば今のタブのログにも出す。一覧の上だけだと、
+   * タブを見ている間は「＋」を押すまで見えない (#134) */
+  const fail = (message: string) => {
+    setError(message);
+    if (activeRef.current !== null) append(activeRef.current, systemNg(message));
+  };
   // 画像の保存(#82)。map 窓と EagleEye が保存して、場所を知らせてくる
   useEffect(() => {
     const unlisten = listen<{ kind: string; path?: string; error?: string }>("phi-ss-saved", (e) => {
@@ -259,7 +265,7 @@ export function App() {
         return s;
       })
       .catch((e) => {
-        setError(String(e));
+        fail(String(e));
         return null;
       });
 
@@ -691,36 +697,35 @@ export function App() {
       if (id === "next-tab") return nextTab();
       if (id === "prev-tab") return nextTab(-1);
       // 登録したキャラ(#78)。タブがあればそのタブへ、無ければ接続する
-      if (id.startsWith("char:")) {
-        const label = id.slice("char:".length);
-        const open = tabsRef.current.find((t) => t.label === label);
-        return open ? setActive(open.session) : void connect(label);
-      }
+      if (id.startsWith("char:")) return openCharacter(id.slice("char:".length));
       // 接続・切断(#77)。全〜はタブ上の全キャラ
       const tabsNow = tabsRef.current;
       if (id === "all-connect") return tabsNow.filter((t) => t.closed).forEach((t) => connect(t.label, t.session));
       if (id === "all-disconnect") return tabsNow.filter((t) => !t.closed).forEach((t) => disconnect(t.session));
       if (id === "all-force-close") return tabsNow.filter((t) => !t.closed).forEach((t) => forceClose(t.session));
       if (id === "new-tab") return setActive(null);
+      if (id === "bag-open") return session === null ? undefined : openBag(session);
+      if (id === "party-open")
+        return session === null ? undefined : update(session, (t) => ({ ...t, partyOpen: true, bagOpen: false }));
       if (id === "download") return setDownloadOpen(true);
-      if (id === "open-config-dir") return void invoke("open_config_dir").catch((e) => setError(String(e)));
+      if (id === "open-config-dir") return void invoke("open_config_dir").catch((e) => fail(String(e)));
       if (id === "trace")
         return void invoke<boolean>("trace_on")
           .then((v) => invoke<string | null>("set_trace", { on: !v }))
           .then((path) => alertBox(path ? `時刻の記録を始めました。\n${path}` : "時刻の記録を止めました。"))
-          .catch((e) => setError(String(e)));
+          .catch((e) => fail(String(e)));
       if (id === "debug")
         return void invoke<boolean>("toggle_debug")
           .then((on) => alertBox(on ? "デバッグ表示を始めました。" : "デバッグ表示を止めました。"))
-          .catch((e) => setError(String(e)));
+          .catch((e) => fail(String(e)));
       if (id === "version") return void getVersion().then((v) => alertBox(`WPHI ${v}`));
       // ツール(#82)
-      if (id === "reload-gra") return void invoke("reload_assets").catch((e) => setError(String(e)));
+      if (id === "reload-gra") return void invoke("reload_assets").catch((e) => fail(String(e)));
       if (id === "safety")
         return void confirmBox("窓の位置と大きさを初期化します。\nよろしいですか？").then(
           (ok) => ok && invoke("reset_windows").catch(console.error),
         );
-      if (id === "guide") return void openUrl("https://s7k.github.io/wphi/guide/").catch((e) => setError(String(e)));
+      if (id === "guide") return void openUrl("https://s7k.github.io/wphi/guide/").catch((e) => fail(String(e)));
       if (id === "update-check")
         return void getVersion()
           .then(async (v) => {
@@ -728,14 +733,14 @@ export function App() {
             if (!r) return alertBox(`WPHI ${v} は最新です。`);
             if (await confirmBox(`新しい版 ${r.version} があります。\nダウンロードのページを開きますか？`)) await openUrl(r.url);
           })
-          .catch((e) => setError(`新しい版を確かめる事が出来ません: ${e}`));
+          .catch((e) => fail(`新しい版を確かめる事が出来ません: ${e}`));
       if (session === null) return;
       // 入力欄のツールバーと同じ切り替え。状態は InputEditor が持つ
       if (INPUT_MENU.includes(id)) return void window.dispatchEvent(new CustomEvent(INPUT_MENU_EVENT, { detail: id }));
       if (id === "priv") return togglePriv(session);
       if (id === "log-find") return setFindOpen(true);
       const label = tabsRef.current.find((t) => t.session === session)?.label ?? "";
-      if (id === "open-char-dir") return void invoke("open_character_dir", { label }).catch((e) => setError(String(e)));
+      if (id === "open-char-dir") return void invoke("open_character_dir", { label }).catch((e) => fail(String(e)));
       if (id === "ss-map" || id === "ss-eagleeye")
         return void emit("phi-ss", { kind: id.slice(3), label, to: mapPlace() }).catch(console.error);
       if (id === "talk-add") {
@@ -759,7 +764,7 @@ export function App() {
       if (id === "connect") return cur?.closed ? void connect(cur.label, session) : undefined;
       if (id === "disconnect") return cur?.closed ? undefined : disconnect(session);
       if (id === "force-close") return cur?.closed ? undefined : forceClose(session);
-      if (id === "close-tab") return close(session);
+      if (id === "close-tab") return askClose(session);
       if (id.startsWith("mm:")) return runMaster(id, session);
       // 選んだ項目はチェックが勝手に切り替わるので、今のモードに付け直す。サーバが切り替えたら地図を受けた時にまた付け直す
       if (["map-turn", "map-solid"].includes(id)) syncViewChecks(true);
@@ -1015,7 +1020,7 @@ export function App() {
       if (!t) return;
       const { lines, failed } = privLines(to, text, t.users, t.self);
       lines.forEach((l) => sendLine(session, l));
-      for (const name of failed) append(session, systemNg(`「${name}」さんに送信できませんでした。`));
+      for (const name of failed) append(session, systemNg(`「${name}」さんに送信出来ませんでした。`));
     });
     return true;
   }
@@ -1071,6 +1076,15 @@ export function App() {
    * 接続する。replace を渡すと、そのタブ(切れたタブ)で接続し直し、ログと priv はそのまま残す(Philly の 接続。#77)。
    * 渡さなければ新しいタブを開く
    */
+  /** 登録したキャラを開く。タブがあればそのタブへ移り、切れていれば同じタブで繋ぎ直す。無ければ接続する。
+   * 一覧の「接続」からも同じにする。新しいタブを作ると、同じキャラのタブが二重に開いた (#133) */
+  function openCharacter(label: string) {
+    const open = tabsRef.current.find((t) => t.label === label);
+    if (!open) return void connect(label);
+    setActive(open.session);
+    if (open.closed) void connect(label, open.session);
+  }
+
   async function connect(label: string, replace?: number) {
     // connect が返る前に届いた分は貯めておき、タブを作ってから流す。Channel は onmessage の無い間に届いた分を捨てる(#70)
     const early: UiEvent[] = [];
@@ -1080,7 +1094,7 @@ export function App() {
     try {
       session = await invoke<number>("connect", { label, onEvent: channel });
     } catch (e) {
-      setError(`${label}: ${e}`);
+      fail(`${label}: ${e}`);
       return;
     }
     // 吹き出しと増減(ui/src/mapPop.ts)の為に、前の行から引き継ぐ物
@@ -1128,7 +1142,12 @@ export function App() {
           // Philly と同じく、自分で切った時とサーバから切れた時で行を分ける(Character.cpp・PersonalThread.cpp)
           const mine = userClosing.current.delete(session);
           if (!tabsRef.current.find((t) => t.session === session)?.closed)
-            append(session, mine ? systemOk("--- 切断しました ---") : systemNg("サーバーから切断されました。"));
+            if (mine) append(session, systemOk("--- 切断しました ---"));
+            else {
+              // 1 行目は Philly と同じ文言 (docs/04-client-spec.md)。繋ぎ直し方は次の行に出す (#132)
+              append(session, systemNg("サーバーから切断されました。"));
+              append(session, systemNg("ファイルのメニューの「接続」で繋ぎ直せます。"));
+            }
           update(session, (t) => ({ ...t, closed: true }));
           break;
         }
@@ -1238,6 +1257,17 @@ export function App() {
     early.splice(0).forEach(handle);
   }
 
+  /** 接続中のタブは、閉じる前に確かめる。切断してログと priv の会話も捨てるので、× の押し間違いで失う (#135) */
+  function askClose(session: number) {
+    const t = tabsRef.current.find((x) => x.session === session);
+    if (!t || t.closed) return close(session);
+    void confirmBox(`「${t.label}」を切断してタブを閉じます。\nログと priv の会話も消えます。よろしいですか？`).then(
+      (ok) => {
+        if (ok) close(session);
+      },
+    );
+  }
+
   function close(session: number) {
     invoke("disconnect", { session }).catch((e) => console.error(e));
     setTabs((ts) => ts.filter((t) => t.session !== session));
@@ -1341,7 +1371,7 @@ export function App() {
           }
         />
       )}
-      <TabBar tabs={tabs} active={active} onSelect={setActive} onClose={close} onSettings={() => setSettingsOpen(true)} />
+      <TabBar tabs={tabs} active={active} onSelect={setActive} onClose={askClose} onSettings={() => setSettingsOpen(true)} />
       {tab ? (
         <div className={settings.modern ? "main-body modern" : settings.singleWindow ? "main-body single" : "main-body"}>
         {settings.singleWindow && !settings.modern && mapPane && <MapPane />}
@@ -1435,7 +1465,7 @@ export function App() {
             <LogMenu
               at={logMenu}
               settings={settings}
-              onCopy={(text) => copyToClipboard(text).catch((e) => setError(String(e)))}
+              onCopy={(text) => copyToClipboard(text).catch((e) => fail(String(e)))}
               onToInput={(text) => {
                 const ta = document.querySelector<HTMLTextAreaElement>(".input-line");
                 if (!ta) return;
@@ -1451,7 +1481,7 @@ export function App() {
               onToggle={(key) => {
                 const next = { ...settings, [key]: !settings[key] };
                 setSettings(next);
-                invoke("save_settings", { settings: next }).catch((e) => setError(String(e)));
+                invoke("save_settings", { settings: next }).catch((e) => fail(String(e)));
               }}
               onClose={() => setLogMenu(null)}
             />
@@ -1469,7 +1499,8 @@ export function App() {
         {tabs
           .filter((p) => p.privOpen || p.privs.some((c) => c.open))
           .map((p) => (
-            <div key={p.session} style={{ display: p.session === tab.session ? "contents" : "none" }}>
+            // priv の窓は前に出す度に z が増えるので、層に閉じ込めてカバンや設定、確かめるダイアログを覆わないようにする (#140)
+            <div key={p.session} className="priv-layer" style={{ display: p.session === tab.session ? undefined : "none" }}>
               {p.privOpen && (
                 <PrivLauncher
                   convs={p.privs}
@@ -1520,7 +1551,7 @@ export function App() {
           error={error}
           onConnect={(label) => {
             setError("");
-            connect(label);
+            openCharacter(label);
           }}
           onChanged={() => {
             setError("");
@@ -1573,7 +1604,15 @@ function TabBar(props: {
       {props.tabs.map((t) => (
         <span
           key={t.session}
-          className={t.session === props.active ? "tab active" : t.unread ? "tab unread" : "tab"}
+          className={[
+            "tab",
+            t.session === props.active ? "active" : t.unread ? "unread" : "",
+            // 切れたタブは見た目で分かるようにする。モダンは状態欄を出さないので、他に知る手段が無い (#132)
+            t.closed ? "closed" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          title={t.closed ? "切断中。ファイルのメニューの「接続」で繋ぎ直せます" : undefined}
         >
           <button className="tab-label" onClick={() => props.onSelect(t.session)}>
             {t.session !== props.active && t.hurt && (
@@ -1641,7 +1680,7 @@ const LogView = memo(function LogView(props: { lines: LogLine[]; follow: boolean
 
 /**
  * 入力欄(Philly の InputEdit)。Philly と同じ複数行のエディタで、Enter はカーソルの行を送り、送った行は欄に残す。
- * Ctrl+Enter はパーティー発言、Shift+Enter は改行。
+ * Ctrl+Enter はパーティの発言、Shift+Enter は改行。
  * value を React に持たせない。ログが届くたびの再描画で value を書き戻すと、WebKitGTK が変換中の文字を消す
  */
 function InputEditor(props: {
@@ -1894,7 +1933,16 @@ function CharacterList(props: {
                   <Plug />
                   接続
                 </button>
-                <button onClick={() => run(invoke("delete_character", { label: c.label }))}>
+                <button
+                  onClick={() =>
+                    // キャラ ID のファイルも消すので、ID を控えていないとそのキャラに入れなくなる (#130)
+                    void confirmBox(
+                      `「${c.label}」を一覧から削除します。\nキャラ ID も消え、元に戻せません。よろしいですか？`,
+                    ).then((ok) => {
+                      if (ok) run(invoke("delete_character", { label: c.label }));
+                    })
+                  }
+                >
                   <Trash2 />
                   削除
                 </button>

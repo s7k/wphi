@@ -59,6 +59,12 @@ body {
   background: #fff;
 }
 
+/* 切断したタブ (#132) */
+.tab.closed .tab-label {
+  color: #888;
+  text-decoration: line-through;
+}
+
 /* 裏にいる間に発言か priv が届いたタブ */
 .tab.unread {
   background: #ffd0d0;
@@ -850,6 +856,12 @@ body {
   z-index: 15;
 }
 
+.settings-note {
+  margin: 0;
+  font-size: 12px;
+  color: #666;
+}
+
 .settings-body {
   flex: 1;
   overflow-y: auto;
@@ -1525,7 +1537,7 @@ button > svg:only-child,
   top: 12px;
   right: 16px;
   bottom: 12px;
-  z-index: 7;
+  z-index: 11;
   /* 手持ちの 8 個が 1 行に並ぶ幅 */
   width: min(548px, calc(100% - 32px));
   display: flex;
@@ -1829,7 +1841,7 @@ button > svg:only-child,
 /* 地図の隣のキャラを左クリックした時のメニュー(map.tsx) */
 .char-menu {
   position: absolute;
-  z-index: 8;
+  z-index: 12;
   display: flex;
   flex-direction: column;
   min-width: 120px;
@@ -1899,6 +1911,19 @@ button > svg:only-child,
 }
 
 /* priv の相手ごとの窓(PrivPanel.tsx の PrivWindow)。main 窓の本文の中に浮かべる */
+/* priv の窓と欄の層。中の z は層の外へ出ない。カバン (11) と地図のメニュー (12) より下 (#140) */
+.priv-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  isolation: isolate;
+  pointer-events: none;
+}
+
+.priv-layer > * {
+  pointer-events: auto;
+}
+
 .priv-window {
   position: absolute;
   width: 300px;

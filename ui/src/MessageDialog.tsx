@@ -16,23 +16,21 @@ export const confirmBox = (message: string) =>
 export const alertBox = (message: string) =>
   new Promise<void>((resolve) => (show ? show({ message, confirm: false, resolve: () => resolve() }) : resolve()));
 
-/** App に1つ置く。開いている間に次が来たら、前のを取り消して出す */
+/** App に1つ置く。開いている間に次が来たら、待たせて順に出す。前のを黙って「いいえ」にすると、
+ * 世界移動の確かめの最中に新しい版の知らせが来た時に、移動を断った事になった (#141) */
 export function MessageDialogHost() {
-  const [req, setReq] = useState<Request | null>(null);
+  const [queue, setQueue] = useState<Request[]>([]);
   useEffect(() => {
-    show = (r) =>
-      setReq((prev) => {
-        prev?.resolve(false);
-        return r;
-      });
+    show = (r) => setQueue((q) => [...q, r]);
     return () => {
       show = null;
     };
   }, []);
+  const req = queue[0];
   if (!req) return null;
   const answer = (ok: boolean) => {
     req.resolve(ok);
-    setReq(null);
+    setQueue((q) => q.slice(1));
   };
   return (
     <div className="ask-backdrop">

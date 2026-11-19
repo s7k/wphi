@@ -231,6 +231,10 @@ export function BagPanel(props: {
             <input
               value={query}
               placeholder="名前で探す"
+              // 入力欄のキーは App の Esc で閉じる処理に届かないので、ここで閉じる (#143)
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && !e.nativeEvent.isComposing) props.onClose();
+              }}
               onChange={(e) => {
                 setQuery(e.target.value);
                 setPage(0);
