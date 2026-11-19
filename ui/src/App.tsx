@@ -673,6 +673,10 @@ export function App() {
           .then((v) => invoke<string | null>("set_trace", { on: !v }))
           .then((path) => alertBox(path ? `時刻の記録を始めました。\n${path}` : "時刻の記録を止めました。"))
           .catch((e) => setError(String(e)));
+      if (id === "debug")
+        return void invoke<boolean>("toggle_debug")
+          .then((on) => alertBox(on ? "デバッグ表示を始めました。" : "デバッグ表示を止めました。"))
+          .catch((e) => setError(String(e)));
       if (id === "version") return void getVersion().then((v) => alertBox(`WPHI ${v}`));
       // ツール(#82)
       if (id === "reload-gra") return void invoke("reload_assets").catch((e) => setError(String(e)));

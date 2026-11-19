@@ -307,6 +307,9 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     if crate::trace::on() {
                         crate::trace::write(&format!("recv {}", crate::trace::head(&String::from_utf8_lossy(&line))));
                     }
+                    if debug_on() && line.starts_with(b"#") {
+                        emit(debug_line("←", &codec::decode(&line)));
+                    }
                     // 系統魔法の前に外した装備のリストなどは出さない(#4。Philly も #more の外だけで見る)
                     let now = std::time::Instant::now();
                     if !parser.in_more()
@@ -432,6 +435,9 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
         if want_view != sent_view {
             reply.extend(want_view.clone());
             sent_view = want_view;
+        }
+        if debug_on() {
+            reply.iter().for_each(|l| emit(debug_line("→", l)));
         }
         let bytes: Vec<u8> = reply.iter().flat_map(|l| line_bytes(l)).collect();
         if !bytes.is_empty() {
@@ -626,6 +632,29 @@ async fn wait_line(
             skipped.push(line);
         }
     }
+}
+
+static DEBUG: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// デバッグ表示(ツールのメニュー)。オンの間は、受けた # の行と送った行をログに灰色で出す
+pub fn debug_on() -> bool {
+    DEBUG.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub fn set_debug(on: bool) {
+    DEBUG.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn debug_line(dir: &str, text: &str) -> UiEvent {
+    let text = phi_proto::tag_to_html::escape_html(text);
+    UiEvent::Ui(UiOnly::Log {
+        channel: Channel::System,
+        html: format!(r#"<font color="gray">{dir} {text}</font>"#),
+        from: None,
+        text: String::new(),
+        raw: String::new(),
+        no_flash: true,
+    })
 }
 
 /// クライアントが出すログの行(Philly の AddSysMessageOk / AddSysMessageNg)。

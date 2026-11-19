@@ -916,6 +916,13 @@ fn set_view_checks(app: tauri::AppHandle, turn: bool) {
     }
 }
 
+/// デバッグ表示を切り替える。切り替えた後の状態を返す
+#[tauri::command]
+fn toggle_debug() -> bool {
+    session::set_debug(!session::debug_on());
+    session::debug_on()
+}
+
 #[tauri::command]
 fn trace_on() -> bool {
     trace::on()
@@ -1169,6 +1176,7 @@ fn main() {
             set_trace,
             set_view_checks,
             trace_on,
+            toggle_debug,
             trace
         ])
         .run(tauri::generate_context!())
