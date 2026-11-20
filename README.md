@@ -23,10 +23,6 @@ Linux の AppImage は FUSE(Ubuntu では `libfuse2`)が要る。無い時は `A
 新しい版が出ると、起動した時に知らせる。
 自動では入れ替えないので、知らせに従って新しい版を取り直す。
 
-消す時は、zip の物は展開したフォルダを消す。
-インストーラで入れた物は、Windows の「設定」→「アプリ」→「インストールされているアプリ」の WPHI から消す。
-設定とキャラの登録は設定フォルダに残るので、要らなければそのフォルダも消す。
-
 ## 始め方
 
 画像付きの使い方は[利用者ガイド](https://s7k.github.io/wphi/guide/)にある。
@@ -173,28 +169,5 @@ cp /tmp/icons/{32x32.png,128x128.png,128x128@2x.png,icon.icns,icon.ico,icon.png}
 
 ## ライセンス
 
-コードは MIT ([LICENSE](LICENSE))。
+コードは MIT。
 同梱のグラフィックスのライセンスは [resources/phi/README.md](resources/phi/README.md) に従う。
-
-## Code signing policy
-
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
-
-Windows の配布物 (インストーラと zip の中の WPHI.exe) は、このリポジトリの GitHub Actions (`.github/workflows/build.yml`) がタグの push でビルドした物だけに署名する。
-手元でビルドした物には署名しない。
-署名はリリースごとに、下の承認者が SignPath で承認してから行う。
-
-- Committers and reviewers: [s7k](https://github.com/s7k)
-- Approvers: [s7k](https://github.com/s7k)
-
-承認者以外からの変更 (pull request) は、Committers が読んでから取り込む。
-
-## Privacy policy
-
-WPHI は、利用者が指示した場合を除き、利用者の情報を外へ送らない。
-外へつなぐのは次の 2 つだけ。
-
-- 利用者が接続先に選んだ PHI のサーバ。キャラ ID と、ゲームの中の操作を送る
-- 新しい版の有無を確かめる為の GitHub の API (`https://api.github.com/repos/s7k/wphi/releases/latest`)。送るのは通常の HTTP の要求だけで、利用者の情報は含めない
-
-This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it, except the PHI server the user connects to and the GitHub API that checks for a new version.

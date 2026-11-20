@@ -73,38 +73,6 @@ jobs:
           done
           ls -l out
 
-      # Windows の配布物に SignPath で署名する (README の Code signing policy)。
-      # 署名の前の物を Artifact に置き、SignPath に渡して、署名した物で out を置き換える。
-      # SignPath の設定 (リポジトリの Variables の SIGNPATH_ORGANIZATION_ID と Secrets の SIGNPATH_API_TOKEN) が無い間は飛ばす。
-      # 署名はリリースごとに SignPath の画面で承認するまで待つ
-      - name: 署名の前の物を置く
-        id: unsigned
-        if: runner.os == 'Windows' && vars.SIGNPATH_ORGANIZATION_ID != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: wphi-windows-unsigned
-          path: out/*
-          if-no-files-found: error
-      - name: SignPath で署名する
-        if: steps.unsigned.outcome == 'success'
-        uses: signpath/github-action-submit-signing-request@v1
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: wphi
-          signing-policy-slug: release-signing
-          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
-          wait-for-completion: true
-          wait-for-completion-timeout-in-seconds: 86400
-          output-artifact-directory: out-signed
-      - name: 署名した物に置き換える
-        if: steps.unsigned.outcome == 'success'
-        shell: bash
-        run: |
-          rm -rf out
-          mv out-signed out
-          ls -l out
-
       - uses: actions/upload-artifact@v4
         with:
           name: wphi-${{ matrix.package }}
