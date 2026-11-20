@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath の Artifact configuration。SignPath の画面のプロジェクトに貼る (リポジトリのこのファイルは控え)。
+     ビルド (.github/workflows/build.yml) が渡す GitHub の Artifact は zip なので、一番外は zip-file。
+     中身はインストーラと、インストールせずに使う zip。zip の中の WPHI.exe にも署名する -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="WPHI_*_x64-setup.exe" product-name="WPHI">
+      <authenticode-sign/>
+    </pe-file>
+    <zip-file path="WPHI-*-windows.zip">
+      <pe-file path="WPHI/WPHI.exe" product-name="WPHI">
+        <authenticode-sign/>
+      </pe-file>
+    </zip-file>
+  </zip-file>
+</artifact-configuration>
