@@ -58,6 +58,8 @@ const INPUT_MENU_EVENT = "phi-input-menu";
 
 /** 最後の #user からこれだけ何も届かなければ、#ulist の返事が届き終わった事にする */
 const ULIST_QUIET_MS = 300;
+/** 裏のタブでついて行く時、1 歩送ってから移動の返事も地図も届かなければ、次を送るまで待つ上限 (ms) */
+const FOLLOW_PENDING_MS = 600;
 /** 看板 (#more 〜 #end-more) 1 枚の行の上限 (#120) */
 const SIGN_MAX_LINES = 500;
 
@@ -351,7 +353,8 @@ export function App() {
   const walkHalted = useRef(false);
   const walking = (session: number) => settingsRef.current.smoothMove && predicting(session) && predictor.current.confirms;
   /** ついて行っている仲間と、ゲートの覚え (ui/src/follow.ts の followGoal) */
-  const follows = useRef(new Map<number, { name: string; mem: FollowMemory; lastSend: number }>());
+  /** pending は裏のタブで 1 歩送った時刻。移動の返事か地図が届くまで次を送らない */
+  const follows = useRef(new Map<number, { name: string; mem: FollowMemory; lastSend: number; pending?: number }>());
   const startFollow = (session: number, name: string) => {
     follows.current.set(session, { name, mem: {}, lastSend: 0 });
     update(session, (t) => ({ ...t, following: name }));
@@ -359,15 +362,20 @@ export function App() {
   };
   const stopFollow = (session: number, message?: string) => {
     if (!follows.current.delete(session)) return;
-    walker.current.clear();
+    if (session === activeRef.current) walker.current.clear();
     update(session, (t) => ({ ...t, following: null }));
     append(session, systemOk(message ?? "ついて行くのをやめました。"));
   };
-  /** ついて行く 1 回分。見回り (PREDICT_TICK_MS) ごとに呼ぶ。次の 1 歩をスムーズ移動の歩き方か go で送る */
+  /**
+   * ついて行く 1 回分。見回り (PREDICT_TICK_MS) ごとに、ついて行っている全部のタブについて呼ぶ。
+   * 表のタブは位置の予想を使い、スムーズ移動の歩き方か go で送る。裏のタブは最後に届いた地図から決め、
+   * 1 歩送ったら移動の返事か地図が届くまで待つ (位置の予想は表のタブの分しか無い)
+   */
   const followTick = (session: number | null) => {
     if (session === null) return;
     const f = follows.current.get(session);
     if (!f) return;
+    if (session !== activeRef.current) return followBackground(session, f);
     const s = mapStates.current.get(session);
     const raw = s?.map;
     const walk = predictor.current.walk;
@@ -395,6 +403,27 @@ export function App() {
     // 1 歩ずつ地図が変わる時は、前の移動の返事を待ち、FOLLOW_MS に 1 歩まで
     if (predictor.current.waiting || now - f.lastSend < FOLLOW_MS) return;
     f.lastSend = now;
+    sendMove(session, moveCommand(step, "none", true));
+  };
+  /** 裏のタブのついて行く 1 回分。ゲートで飛んだかの判断は省く (歩いた位置を確かめる予想が無い) */
+  const followBackground = (session: number, f: { name: string; mem: FollowMemory; lastSend: number; pending?: number }) => {
+    const raw = mapStates.current.get(session)?.map;
+    if (!raw?.v6 || !isNorthFix(raw)) {
+      if (raw) stopFollow(session, "ついて行けるのは、v6 のサーバで北固定の地図の時だけです。");
+      return;
+    }
+    const party = tabsRef.current.find((t) => t.session === session)?.party ?? [];
+    if (!party.some((m) => m.name === f.name)) return stopFollow(session, `${f.name} はパーティにいません。ついて行くのをやめました。`);
+    const now = performance.now();
+    if (f.pending !== undefined && now - f.pending < FOLLOW_PENDING_MS) return;
+    const me = selfPos(raw.width, raw.height, false);
+    const g = followGoal(f.mem, targetPos(raw, f.name, party), undefined, me, now);
+    if (g.lost) return stopFollow(session, `${f.name} を見失いました。ついて行くのをやめました。`);
+    if (!g.goal) return;
+    const step = followStep(raw, g.goal, g.onto);
+    if (!step || step === "arrived" || now - f.lastSend < FOLLOW_MS) return;
+    f.lastSend = now;
+    f.pending = now;
     sendMove(session, moveCommand(step, "none", true));
   };
   /** 押しているキーと追尾移動の向きで、次の1歩を送る。前の1歩を滑らせている間と、返事の来ていない移動が多い間は送らない */
@@ -444,7 +473,8 @@ export function App() {
     if (active === null) return;
     const timer = setInterval(() => {
       if (predictor.current.tick()) sendMapState(activeRef.current);
-      followTick(activeRef.current);
+      // 裏のタブのキャラも、ついて行く間は歩く
+      for (const session of [...follows.current.keys()]) followTick(session);
       stepWalker(activeRef.current);
     }, PREDICT_TICK_MS);
     return () => {
@@ -909,11 +939,14 @@ export function App() {
   function onMapEvent(session: number, ev: UiEvent) {
     const s = mapStates.current.get(session) ?? { session, mapset: "" };
     switch (ev.type) {
-      case "map":
+      case "map": {
         s.map = ev;
+        const f = follows.current.get(session);
+        if (f) f.pending = undefined;
         trace("main map");
         if (session === activeRef.current) predictor.current.onMap(ev.pos ? `${ev.pos.x},${ev.pos.y}` : null, ev);
         break;
+      }
       case "status": {
         // 裏のタブで HP か MP が減ったら、タブに印を付ける
         const old = s.status;
@@ -1314,9 +1347,14 @@ export function App() {
           }
           break;
         }
-        case "moved":
+        case "moved": {
           if (session === activeRef.current && predictor.current.onMoved(ev.dx, ev.dy, ev.reason)) sendMapState(session);
+          // 裏のタブでついて行く時、進めなかった返事 (0 0) なら地図は来ないので、ここで次を送れるようにする。
+          // 進んだ時は、その後の地図が届くまで待つ (古い地図で次の 1 歩を決めない)
+          const f = follows.current.get(session);
+          if (f && ev.dx === 0 && ev.dy === 0) f.pending = undefined;
           break;
+        }
         case "jumped":
           if (session === activeRef.current) {
             predictor.current.onJumped();
