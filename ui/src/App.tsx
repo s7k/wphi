@@ -371,8 +371,9 @@ export function App() {
     const s = mapStates.current.get(session);
     const raw = s?.map;
     const walk = predictor.current.walk;
-    if (!raw?.v6 || !isNorthFix(raw) || !walk) {
-      if (raw) stopFollow(session, "ついて行けるのは、移動の返事 (#v6 G) を送る v6 のサーバで、北固定の地図の時だけです。");
+    // walk (#v6 G で確かめた歩いた位置) はログインしてから一度歩くまで無い。無くても歩き始め、ゲートの判断だけ省く
+    if (!raw?.v6 || !isNorthFix(raw)) {
+      if (raw) stopFollow(session, "ついて行けるのは、v6 のサーバで北固定の地図の時だけです。");
       return;
     }
     const party = tabsRef.current.find((t) => t.session === session)?.party ?? [];

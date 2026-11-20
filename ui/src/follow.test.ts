@@ -79,3 +79,11 @@ test("見失って LOST_MS 経ったら、やめる", () => {
   followGoal(mem, { x: 5, y: 3 }, walk, me, LOST_MS + 2);
   assert.equal(followGoal(mem, null, walk, me, LOST_MS + 3).lost, false);
 });
+
+test("自分の歩いた位置がまだ分からない (ログインしてから一度も歩いていない) 時も、見えている仲間へ向かう", () => {
+  const me = { x: 3, y: 3 };
+  const mem = {};
+  assert.deepEqual(followGoal(mem, { x: 6, y: 3 }, undefined, me, 0), { goal: { x: 6, y: 3 }, onto: false, lost: false });
+  assert.equal(followGoal(mem, null, undefined, me, 1).lost, false);
+  assert.equal(followGoal(mem, null, undefined, me, LOST_MS + 2).lost, true);
+});

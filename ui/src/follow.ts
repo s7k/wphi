@@ -92,10 +92,16 @@ export type FollowMemory = { last?: WalkPos; gate?: WalkPos; lostAt?: number };
 export function followGoal(
   mem: FollowMemory,
   target: Pos | null,
-  walk: WalkPos,
+  walk: WalkPos | undefined,
   me: Pos,
   now: number,
 ): { goal: Pos | null; onto: boolean; lost: boolean } {
+  // 自分の歩いた位置はまだ分からない (ログインしてから #v6 G がまだ来ていない)。飛んだかは見ずに、見えている仲間へ向かう
+  if (!walk) {
+    if (target) mem.lostAt = undefined;
+    else mem.lostAt ??= now;
+    return target ? { goal: target, onto: false, lost: false } : { goal: null, onto: false, lost: now - (mem.lostAt ?? now) > LOST_MS };
+  }
   const toWalk = (p: Pos): WalkPos => ({ x: walk.x + p.x - me.x, y: walk.y + p.y - me.y, epoch: walk.epoch });
   const toMap = (p: WalkPos): Pos => ({ x: me.x + p.x - walk.x, y: me.y + p.y - walk.y });
   if (mem.gate && mem.gate.epoch !== walk.epoch) mem.gate = undefined;
