@@ -41,6 +41,7 @@ import { LogFind } from "./LogFind";
 import { lightenColors, pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
 import { createLogWriter } from "./logSave.ts";
 import { characterTarget, needsCloseConfirm } from "./tabs.ts";
+import { signAuthor } from "./signHead.ts";
 import { ArrowDownToLine, Check, FolderOpen, Import, Megaphone, MessageSquare, Layers, Plug, Plus, Save, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
 
 // src-tauri/src/characters.rs の Store
@@ -83,6 +84,8 @@ type Tab = {
   talkAdd?: string;
   /** 看板などの本文(#more 〜 #end-more)の札。ログと同じ HTML の行。閉じたら null */
   sign?: string[] | null;
+  /** 札の看板を書いた人と日付 (ui/src/signHead.ts)。看板でないお知らせは null */
+  signAuthor?: { name: string; date: string } | null;
   /** 手持ちの 8 個(#v6 I)とインベントリ(#ex-inv)。v6 で届いた時だけ */
   items?: (ItemInfo | null)[];
   bag?: ItemInfo[] | null;
@@ -297,6 +300,10 @@ export function App() {
   const walker = useRef(new Walker<Mods>());
   /** #more の中で届いた本文の行(セッションごと)。#end-more で札にする */
   const signLines = useRef(new Map<number, string[]>());
+  /** 直近の 2 行 (タグ付きの生の行)。#more の前の「名前 (日付)」と区切りの線から、看板を書いた人を取る */
+  const recentLines = useRef(new Map<number, string[]>());
+  /** 読んでいる看板を書いた人。#more で決め、#end-more で札に付ける */
+  const signAuthors = useRef(new Map<number, ReturnType<typeof signAuthor>>());
   /** カバンを開き、インベントリの中身を求める */
   const openBag = (session: number) => {
     update(session, (t) => ({ ...t, bagOpen: true, bagMessage: "" }));
@@ -1085,6 +1092,7 @@ export function App() {
       switch (ev.type) {
         case "log":
           append(session, ev.html, ev.raw);
+          recentLines.current.set(session, [...(recentLines.current.get(session) ?? []), ev.raw ?? ""].slice(-2));
           {
             // #end-more が来ないまま続くと貯め続けるので、看板 1 枚の分に抑える (#120)
             const sign = signLines.current.get(session);
@@ -1169,10 +1177,14 @@ export function App() {
         case "mode": {
           // 看板などの本文(#more 〜 #end-more)は、ログに流すのに加えて札に出す(試験中)
           const reading = signLines.current.get(session);
-          if (ev.more && !reading) signLines.current.set(session, []);
-          else if (!ev.more && reading) {
+          if (ev.more && !reading) {
+            signLines.current.set(session, []);
+            signAuthors.current.set(session, signAuthor(recentLines.current.get(session) ?? []));
+          } else if (!ev.more && reading) {
             signLines.current.delete(session);
-            if (reading.length) update(session, (t) => ({ ...t, sign: reading }));
+            const author = signAuthors.current.get(session) ?? null;
+            signAuthors.current.delete(session);
+            if (reading.length) update(session, (t) => ({ ...t, sign: reading, signAuthor: author }));
           }
           onMapEvent(session, ev);
           break;
@@ -1285,6 +1297,8 @@ export function App() {
     lastUlist.current.delete(session);
     pendingLines.current.delete(session);
     signLines.current.delete(session);
+    signAuthors.current.delete(session);
+    recentLines.current.delete(session);
     const wait = ulistWaits.current.get(session);
     if (wait) window.clearTimeout(wait.timer);
     ulistWaits.current.delete(session);
@@ -1369,7 +1383,7 @@ export function App() {
           </div>
         )}
         {settings.modern && boards}
-        {tab.sign && <SignCard lines={tab.sign} onClose={() => closeSign(tab.session)} />}
+        {tab.sign && <SignCard lines={tab.sign} author={tab.signAuthor ?? null} onClose={() => closeSign(tab.session)} />}
         {tab.items && !tab.bagOpen && (
           <button type="button" className="bag-button" title="カバン(持ち物とインベントリ)" onClick={() => openBag(tab.session)}>
             <ItemIcon index={BAG_ICON} size={32} />
@@ -2010,7 +2024,7 @@ const FOLLOW_MS = 110;
  * 看板などの本文の札(試験中)。ログと同じ HTML で、タグの色と大きさを反映する。札は暗い地なので、色の付いた文字は
  * モダンのログと同じく白へ寄せる(lightenColors)。× か Esc か、歩くと閉じる。本文はログにも残る
  */
-function SignCard(props: { lines: string[]; onClose: () => void }) {
+function SignCard(props: { lines: string[]; author: { name: string; date: string } | null; onClose: () => void }) {
   const body = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (body.current) lightenColors(body.current);
@@ -2018,7 +2032,15 @@ function SignCard(props: { lines: string[]; onClose: () => void }) {
   return (
     <div className="sign-card" role="dialog" aria-label="看板・お知らせ">
       <div className="sign-head">
-        <span>看板・お知らせ</span>
+        {/* 看板なら書いた人と日付。サーバが本文の前に送る行から取る (ui/src/signHead.ts) */}
+        {props.author ? (
+          <span title={`${props.author.name} (${props.author.date})`}>
+            {props.author.name}
+            <span className="sign-date">{props.author.date}</span>
+          </span>
+        ) : (
+          <span>看板・お知らせ</span>
+        )}
         <button type="button" title="閉じる(Esc)" onClick={props.onClose}>
           <X />
         </button>
