@@ -75,6 +75,14 @@ body {
 .phi-log {
   flex: 1;
   overflow-y: auto;
+  /* overflow-y だけ auto にすると横も auto になり、長い語や URL の行で Windows では下に横のスクロールバーが出る。
+     横には流さず、長い語は折り返す */
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+}
+
+.phi-log img {
+  max-width: 100%;
 }
 
 .main .phi-log,
