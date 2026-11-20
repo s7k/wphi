@@ -42,7 +42,7 @@ import { lightenColors, pushLine, pushLines, scopeLogCss, type LogLine } from ".
 import { createLogWriter } from "./logSave.ts";
 import { characterTarget, needsCloseConfirm } from "./tabs.ts";
 import { signAuthor } from "./signHead.ts";
-import { castLines, loadSpellOrder, orderSpells, saveSpellOrder, SPELL_WAIT_MS, waitsForOrder } from "./spells.ts";
+import { castLines, loadSpellOrder, moveSpell, orderSpells, saveSpellOrder, SPELL_WAIT_MS, waitsForOrder } from "./spells.ts";
 import { SpellBar } from "./SpellBar";
 import { ArrowDownToLine, Check, FolderOpen, Import, Megaphone, MessageSquare, Layers, Plug, Plus, Save, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
 
@@ -322,6 +322,14 @@ export function App() {
       window.setTimeout(() => update(session, (t) => (t.spellWaiting ? { ...t, spellWaiting: false } : t)), SPELL_WAIT_MS);
     }
   };
+  /** 魔法の列を並べ替えて、キャラの並びとして保存する */
+  const moveSpellTile = (session: number, from: number, to: number) =>
+    update(session, (t) => {
+      const shown = (t.spells ?? []).map((s) => s.name);
+      const order = moveSpell(loadSpellOrder(t.label), shown, from, to);
+      saveSpellOrder(t.label, order);
+      return { ...t, spells: orderSpells(order, t.spells ?? []).ordered };
+    });
   const castSpellSlot = (session: number, n: number) => {
     const spell = tabsRef.current.find((t) => t.session === session)?.spells?.[n - 1];
     if (spell) castSpell(session, spell);
@@ -1414,7 +1422,12 @@ export function App() {
         {settings.modern && boards}
         {tab.sign && <SignCard lines={tab.sign} author={tab.signAuthor ?? null} onClose={() => closeSign(tab.session)} />}
         {settings.modern && !tab.bagOpen && (
-          <SpellBar spells={tab.spells ?? []} waiting={!!tab.spellWaiting} onCast={(sp) => castSpell(tab.session, sp)} />
+          <SpellBar
+            spells={tab.spells ?? []}
+            waiting={!!tab.spellWaiting}
+            onCast={(sp) => castSpell(tab.session, sp)}
+            onMove={(from, to) => moveSpellTile(tab.session, from, to)}
+          />
         )}
         {tab.items && !tab.bagOpen && (
           <button type="button" className="bag-button" title="カバン(持ち物とインベントリ)" onClick={() => openBag(tab.session)}>

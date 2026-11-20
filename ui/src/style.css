@@ -2013,6 +2013,16 @@ button > svg:only-child,
   outline: 2px solid #fff;
 }
 
+/* 並べ替えのドラッグ中。動かしているタイルを薄くし、落とす先に印を付ける */
+.spell-tile.dragging {
+  opacity: 0.4;
+}
+
+.spell-tile.drop-target {
+  outline: 2px dashed #fff;
+  outline-offset: 2px;
+}
+
 /* 唱えて番号が入れ替わるのを待つ間 */
 .spell-tile:disabled {
   opacity: 0.5;

@@ -12,6 +12,18 @@ export function orderSpells(saved: string[], spells: Spell[]): { order: string[]
   return { order, ordered };
 }
 
+/**
+ * 列の from 番目を to 番目へ動かした後の、保存する並び。列に出ている呪文 (shown) の並びを入れ替え、
+ * 忘れて列に出ていない呪文は、その後ろに元の順で残す (覚え直したら後ろに出る)
+ */
+export function moveSpell(order: string[], shown: string[], from: number, to: number): string[] {
+  const list = [...shown];
+  if (from < 0 || from >= list.length) return order;
+  const [name] = list.splice(from, 1);
+  list.splice(Math.max(0, Math.min(to, list.length)), 0, name);
+  return [...list, ...order.filter((n) => !shown.includes(n))];
+}
+
 /** 呪文を唱える行。cast と今の番号 */
 export const castLines = (spell: Spell) => `cast\n${spell.no}`;
 
