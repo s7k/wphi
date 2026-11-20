@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addWalk, arrangeRow, cellHash, drawRange, grassJitter, itemDrawRect, selfPos, SLIDE_DELAY_MS, SLIDE_MIN_MS, slideStep, timedWalk, treeJitter, viewArea, viewFor, walkAt, walkDelay } from "./mapRender.ts";
+import { addWalk, arrangeRow, cellHash, charCells, isBig, drawRange, grassJitter, itemDrawRect, selfPos, SLIDE_DELAY_MS, SLIDE_MIN_MS, slideStep, timedWalk, treeJitter, viewArea, viewFor, walkAt, walkDelay } from "./mapRender.ts";
 
 test("アイテムは Philly と同じく床の上端の8px上に描く(#41)", () => {
   const r = itemDrawRect(1, " ".charCodeAt(0), 32, 64);
@@ -136,4 +136,18 @@ test("遅れすぎて届いた1歩と、外れを直す1歩は、今描いてい
   assert.deepEqual(walkAt(ws, 200), { x: 2, y: 0 });
   // 古い点は t の位置を補間出来るだけ残す
   assert.ok(ws.filter((s) => s.at < t).length <= 1);
+});
+
+test("2x2 の大きな敵の体は、地図の東・南・南東。回転マップでは盤面の向きで回す", () => {
+  const big = { x: 5, y: 5, gigant: "B" };
+  const at = (dir: number) => charCells(big, dir).map((p) => `${p.x},${p.y}`).sort();
+  assert.deepEqual(at(0), ["5,5", "5,6", "6,5", "6,6"]);
+  // 東を向くと、地図の東は盤面の上、地図の南は盤面の右
+  assert.deepEqual(at(2), ["5,4", "5,5", "6,4", "6,5"]);
+  assert.deepEqual(at(4), ["4,4", "4,5", "5,4", "5,5"]);
+  assert.deepEqual(at(6), ["4,5", "4,6", "5,5", "5,6"]);
+  // 巨大('*')や普通のキャラは立っているマスだけ
+  assert.deepEqual(charCells({ x: 1, y: 2, gigant: "*" }), [{ x: 1, y: 2 }]);
+  assert.equal(isBig("B"), true);
+  assert.equal(isBig("*"), false);
 });

@@ -16,6 +16,8 @@ import {
   CHIP_SIZE,
   boardChipIndex,
   charaSrcRect,
+  charCells,
+  isBig,
   chipClass,
   chipIndices,
   chipSrcRect,
@@ -64,6 +66,8 @@ export interface DrawMapInput {
    * 人はマスの床の上端に描く(Philly は YPos+16。通常のマップのキャラのように上げない)
    */
   eagleEye?: boolean;
+  /** 盤面の上の向き(0 北、2 東、4 南、6 西)。2x2 の大きな敵の体の向きに使う(mapRender.ts の charCells) */
+  dir?: number;
   /** 自キャラのマス(mapRender.ts の selfPos)。省略時は中央 */
   self?: { x: number; y: number };
   /**
@@ -304,17 +308,30 @@ export function drawMap(
       }
     }
 
-    // 4. キャラ(この行)。同じマスに2人いれば横にずらす(arrangeRow)
-    const rowChars = input.chars.filter((c) => c.y === row && inRange(c) && !((slide || input.only === 'others') && atCenter(c)));
+    // 4. キャラ(この行)。同じマスに2人いれば横にずらす(arrangeRow)。
+    // 2x2 の大きな敵は体の一番下の行で、2x2 の大きさに描く(下の行の壁や木が体に重なるように)
+    const rowChars = input.chars.filter((c) => !isBig(c.gigant) && c.y === row && inRange(c) && !((slide || input.only === 'others') && atCenter(c)));
     for (const { ch, dx } of arrangeRow(rowChars)) {
       drawChara(ctx, ch, cs, scale, imgs, animFrame, dx * scale, input.eagleEye ? 0 : CHARA_Y_ABOVE_FLOOR * scale);
+    }
+    for (const ch of input.chars) {
+      if (!isBig(ch.gigant)) continue;
+      const body = charCells(ch, input.dir);
+      if (Math.max(...body.map((p) => p.y)) !== row || !body.some((p) => inRange({ ...ch, ...p }))) continue;
+      drawBigChara(ctx, ch, body, cs, imgs, animFrame, input.eagleEye ? 0 : CHARA_Y_ABOVE_FLOOR * scale);
     }
   }
 
   // 5. キャラ名ラベル(自キャラは除外)。分けて描く時は、前の分に全部描く(地形より上に出す)
   if (split?.part !== 'back') {
     const shown = (c: MapChar) => c.x >= c0 && c.x <= c1 && c.y >= range.r0 && c.y <= range.r1;
-    drawCharaNames(ctx, input.chars.filter((c) => !atCenter(c) && shown(c)), cs, scale, width, height);
+    // 2x2 の大きな敵の名前は、体の一番下の行の真ん中に出す
+    const label = (c: MapChar) => {
+      if (!isBig(c.gigant)) return c;
+      const body = charCells(c, input.dir);
+      return { ...c, x: Math.min(...body.map((p) => p.x)) + 0.5, y: Math.max(...body.map((p) => p.y)) };
+    };
+    drawCharaNames(ctx, input.chars.filter((c) => !atCenter(c) && shown(c)).map(label), cs, scale, width, height);
   }
   ctx.restore();
 
@@ -422,6 +439,33 @@ function drawChara(
   }
 
   ctx.drawImage(img, r.sx, r.sy, r.sw, r.sh, baseX, baseY, r.sw, r.sh);
+}
+
+/** 2x2 の大きな敵を、体の 4 マスいっぱいに描く。絵は巨大のフレーム(32×32)を広げる */
+function drawBigChara(
+  ctx: CanvasRenderingContext2D,
+  ch: MapChar,
+  body: { x: number; y: number }[],
+  cs: number,
+  imgs: ImageRefs,
+  animFrame: number,
+  raise: number,
+): void {
+  const x = Math.min(...body.map((p) => p.x)) * cs;
+  const y = Math.min(...body.map((p) => p.y)) * cs;
+  const img = imgs.chara(charaUrl(ch));
+  if (!img) {
+    ctx.save();
+    ctx.fillStyle = '#ff0';
+    ctx.font = `bold ${28 * (cs / CHIP_SIZE)}px "Noto Sans JP", "Noto Sans CJK JP", "Segoe UI", "BIZ UDPGothic", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(nameInitial(ch.name), x + cs, y + cs);
+    ctx.restore();
+    return;
+  }
+  const r = charaSrcRect(ch.dir, '*', animFrame);
+  ctx.drawImage(img, r.sx, r.sy, r.sw, r.sh, x, y - raise, cs * 2, cs * 2);
 }
 
 /** キャラ名ラベル描画((x,y)重複は後勝ち)。 */

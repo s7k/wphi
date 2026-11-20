@@ -87,3 +87,10 @@ test("自分の歩いた位置がまだ分からない (ログインしてから
   assert.equal(followGoal(mem, null, undefined, me, 1).lost, false);
   assert.equal(followGoal(mem, null, undefined, me, LOST_MS + 2).lost, true);
 });
+
+test("2x2 の大きな敵の体 (印 'B') は 4 マスとも歩かず、回り込む", () => {
+  // (4,2) が基準マスで、体は (4,2) (5,2) (4,3) (5,3)。東の仲間へは南を回る
+  const big = { x: 4, y: 2, name: "Kyojin", gigant: "B" };
+  assert.equal(followStep(grid(OPEN), { x: 6, y: 3 }), "6");
+  assert.equal(followStep(grid(OPEN, [big]), { x: 6, y: 3 }), "2");
+});

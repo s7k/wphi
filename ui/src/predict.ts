@@ -9,7 +9,7 @@
 // 見せる位置を出す(docs/05-protocol-v6.md の 9)。後の歩みを送った時の予想の位置で決めておくと、前の1歩の予想が
 // 外れた時に、本当の位置からずれた所(壁の中など)を見せる為
 import type { MapEvent } from "./protocol";
-import { selfPos, UNKNOWN } from "./mapRender.ts";
+import { charCells, selfPos, UNKNOWN } from "./mapRender.ts";
 
 /** 北固定の go の向き(go N は向きも変える、go n は向きを変えない。どちらも同じだけ進む) */
 const STEP: Record<string, { dx: number; dy: number }> = {
@@ -431,7 +431,10 @@ export class Predictor {
     if (WALLS.has(chip)) return "wall";
     if (BLOCKED.has(chip)) return "solid";
     // 他のキャラやオブジェの居るマスは、入れるかは居る物次第なので分からない所とする(自分は中央)
-    return map.chars.some((c) => c.x === cx && c.y === cy && (c.x !== me.x || c.y !== me.y)) ? "unknown" : "open";
+    // 2x2 の大きな敵は体の 4 マスとも塞ぐ(charCells)
+    return map.chars.some((c) => (c.x !== me.x || c.y !== me.y) && charCells(c, map.dir).some((p) => p.x === cx && p.y === cy))
+      ? "unknown"
+      : "open";
   }
 
   /** 進んだとみなした分の先へ m で進む先が、最後の地図で set の地形か(#v6 G を送らないサーバ) */

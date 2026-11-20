@@ -281,6 +281,26 @@ export function isGiant(gigant: string | undefined): boolean {
   return gigant === '*';
 }
 
+/** gigant フラグが 2x2 の大きな敵('B')か。phidm-v6 と PHIDM_NEO の phi.ed :O B の敵 */
+export function isBig(gigant: string | undefined): boolean {
+  return gigant === 'B';
+}
+
+/**
+ * キャラが塞ぐ盤面のマス。普通は立っているマス、2x2 の大きな敵('B')は 4 マス。
+ * サーバは大きな敵を基準マス(地図の北西の角)に 1 行だけ送り、体は地図の東・南・南東に広がる。
+ * 回転マップでは、盤面の上が向き dir(0 北、2 東、4 南、6 西。#v6 M・#m57 の向き)なので、その分回す
+ */
+export function charCells(c: { x: number; y: number; gigant?: string }, dir = 0): { x: number; y: number }[] {
+  if (!isBig(c.gigant)) return [{ x: c.x, y: c.y }];
+  return [[0, 0], [1, 0], [0, 1], [1, 1]].map(([ex, ey]) => {
+    let [x, y] = [ex, ey];
+    // 地図で東を向くと、地図の東が盤面の上、地図の南が盤面の右になる。向きの 1/4 回転ごとに (x, y) → (y, -x)
+    for (let i = 0; i < ((dir >> 1) & 3); i++) [x, y] = [y, -x];
+    return { x: c.x + x, y: c.y + y };
+  });
+}
+
 /**
  * 1行のキャラを描く順と、横にずらす量(等倍の px)。(x, layer) の順に描く(Philly の SetCharaGraData)。
  * 同じマスに2人いる時(#42。Philly の DrawOneLineCharaGra を作者の指定で変えた)

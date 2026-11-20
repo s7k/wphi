@@ -121,6 +121,22 @@ fn frame(x: i32, y: i32, facing: u8) -> Vec<Vec<u8>> {
     lines
 }
 
+/// 2x2 の大きな敵 (印 'B'、phidm-v6 の phi.ed :O B) を、自キャラの北東に置いた地図。体は基準マスから東・南・南東
+fn big_frame() -> Vec<Vec<u8>> {
+    let mut lines = frame(6, 8, b'R');
+    let (vw, vh) = view();
+    let (cx, cy) = ((vw - 1) / 2, (vh - 1) / 2);
+    let mut l = format!("#v6 O C0010:{:02} {:02} F ", cx + 2, cy - 3).into_bytes();
+    let mut n = codec::encode("Golem");
+    n.resize(31, b' ');
+    l.extend_from_slice(&n);
+    l.extend_from_slice(b" 00 t_golem1        B 02 ");
+    // #ex-pos と #v6 . の前に入れる
+    let at = lines.len() - 2;
+    lines.insert(at, l);
+    lines
+}
+
 fn transcript() -> Vec<Vec<u8>> {
     let mut out: Vec<Vec<u8>> = Vec::new();
     let mut text = |s: &str| out.push(codec::encode(s));
@@ -301,6 +317,7 @@ fn main() {
                         to_events(match scene.as_str() {
                             "near" => frame(8, 8, b'R'),
                             "back" => frame(6, 8, b'R'),
+                            "big" => big_frame(),
                             _ => effect_lines(&scene),
                         })
                         .to_string()

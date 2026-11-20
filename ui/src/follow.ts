@@ -6,7 +6,7 @@
 /** 仲間の位置がこれより大きく 1 度に動いたら、ゲートやスイッチで飛んだとみなす */
 export const JUMP_CELLS = 3;
 import type { MoveKey } from "./keys.ts";
-import { selfPos, UNKNOWN } from "./mapRender.ts";
+import { charCells, isBig, selfPos, UNKNOWN } from "./mapRender.ts";
 import { BLOCKED } from "./predict.ts";
 import { stripTags } from "./mapPop.ts";
 import type { MapEvent, PartyMember } from "./protocol";
@@ -31,11 +31,12 @@ export function targetPos(map: MapEvent, name: string, party: PartyMember[]): Po
   return { x: me.x + m.dx, y: me.y + m.dy };
 }
 
-/** 地図の (x, y) を歩けるか。通れない地形、サーバの通れない印 (#v6 X)、見えない所は歩かない */
+/** 地図の (x, y) を歩けるか。通れない地形、サーバの通れない印 (#v6 X)、見えない所、2x2 の大きな敵の体は歩かない */
 function walkable(map: MapEvent, x: number, y: number): boolean {
   if (x < 0 || y < 0 || x >= map.width || y >= map.height) return false;
   const cell = map.cells[y * map.width + x];
-  return !cell.blocked && cell.chip !== UNKNOWN && !BLOCKED.has(cell.chip);
+  if (cell.blocked || cell.chip === UNKNOWN || BLOCKED.has(cell.chip)) return false;
+  return !map.chars.some((c) => isBig(c.gigant) && charCells(c, map.dir).some((p) => p.x === x && p.y === y));
 }
 
 /**
