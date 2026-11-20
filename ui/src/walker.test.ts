@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MAX_UNCONFIRMED, WALK_DIAGONAL_MS, WALK_MS, Walker } from "./walker.ts";
+import { MAX_UNCONFIRMED, rampFactor, WALK_DIAGONAL_MS, WALK_MS, Walker } from "./walker.ts";
 import { Predictor } from "./predict.ts";
 import type { MapEvent } from "./protocol";
 
@@ -520,4 +520,60 @@ test("スムーズ移動の1歩は、歩き方の予定の時刻から滑らせ�
   t = 260;
   p.walkStep("go E", WALK_MS);
   assert.equal(p.walk?.at, 260);
+});
+
+test("歩き出しの重さ: 真ん中は今まで通り。重い段は押し始めの1歩が長く、軽い段は短く、押し続けると標準の速さに戻る", () => {
+  assert.equal(rampFactor(0, 0), 1);
+  assert.equal(rampFactor(1000, 0), 1);
+  assert.equal(rampFactor(0, 2), 2.5);
+  assert.equal(rampFactor(250, 2), 1.75);
+  assert.equal(rampFactor(500, 2), 1);
+  assert.equal(rampFactor(0, -2), 0.5);
+  assert.equal(rampFactor(300, -2), 1);
+  // 範囲の外は端の段
+  assert.equal(rampFactor(0, 9), 2.5);
+
+  const { w, advance } = setup();
+  w.weight = 2;
+  w.keyDown("ArrowUp", "up", "none");
+  const first = w.next(true)!;
+  assert.equal(first.ms, WALK_MS * 2.5);
+  advance(first.ms);
+  const second = w.next(true)!;
+  assert.ok(second.ms < first.ms && second.ms > WALK_MS, `${second.ms}`);
+  advance(second.ms + 500);
+  assert.equal(w.next(true)!.ms, WALK_MS);
+  // 押したまま別の向きを足しても続く (斜めは 2 行分)
+  advance(WALK_MS);
+  w.keyDown("ArrowRight", "right", "none");
+  assert.equal(w.next(true)!.ms, WALK_DIAGONAL_MS);
+  // 離して押し直すと、最初からになる
+  w.keyUp("ArrowUp");
+  w.keyUp("ArrowRight");
+  advance(1000);
+  assert.equal(w.next(true), null);
+  w.keyDown("ArrowUp", "up", "none");
+  assert.equal(w.next(true)!.ms, WALK_MS * 2.5);
+});
+
+test("軽い段は、同じ時間押しても多く進む", () => {
+  const steps = (weight: number) => {
+    const { w, advance } = setup();
+    w.weight = weight;
+    w.keyDown("ArrowUp", "up", "none");
+    let n = 0;
+    for (let t = 0; t < 200; t += 10) {
+      if (w.next(true)) n++;
+      advance(10);
+    }
+    return n;
+  };
+  assert.ok(steps(-2) > steps(0) && steps(0) > steps(2), `${steps(-2)} ${steps(0)} ${steps(2)}`);
+});
+
+test("歩き出しの重さは追尾移動には掛けない", () => {
+  const { w } = setup();
+  w.weight = 2;
+  w.setFollow(["6"], "none");
+  assert.equal(w.next(true)!.ms, WALK_MS);
 });

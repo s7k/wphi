@@ -35,8 +35,10 @@ export type Settings = {
   mapZoom: number;
   /** v6 でない 7x7 の地図(v5y など)の拡大率(%)。0 なら mapZoom と同じ */
   mapZoomM57: number;
-  /** 実験的: 自分が進んだ時に地図を滑らかにずらす(表示のメニューで切り替える) */
+  /** スムーズ移動: 自分が進んだ時に地図を滑らかにずらす(設定の画面で切り替える) */
   smoothMove: boolean;
+  /** スムーズ移動の歩き出しの重さ(-2 軽い 〜 0 標準 〜 2 重い。walker.ts の WEIGHTS) */
+  smoothWeight: number;
   singleWindow: boolean;
   /** main 窓いっぱいにマップを出し、ログと入力欄を重ねる(モダン)。singleWindow より優先する */
   modern: boolean;

@@ -365,7 +365,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     if (!props.embedded) getCurrentWindow().setTitle(title).catch(console.error);
   }, [title]);
 
-  // 実験的: 自分が進んだ時に、地図を前の位置から滑らかにずらす(表示のメニューで切り替える)。北固定の時だけ
+  // スムーズ移動: 自分が進んだ時に、地図を前の位置から滑らかにずらす(設定の画面で切り替える)。北固定の時だけ
   useEffect(() => {
     const apply = (s: Settings) => {
       setSmooth(s.smoothMove);

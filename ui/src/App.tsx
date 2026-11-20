@@ -446,6 +446,7 @@ export function App() {
       const kept = predictor.current.pick(texts);
       return keys.filter((_, i) => kept.includes(texts[i]));
     };
+    walker.current.weight = settingsRef.current.smoothWeight ?? 0;
     const s = walker.current.next(room, pick);
     // 返事を待って止まった時をトレースに残す(続く間は1回だけ)
     if (!canStep && !walkWaiting.current)
@@ -599,7 +600,6 @@ export function App() {
     ({
       "map-turn": viewMode?.turn,
       "map-solid": viewMode && !viewMode.turn,
-      "smooth-move": settings.smoothMove,
       "map-effects": settings.mapEffects,
       "map-variety": settings.mapVariety,
       "layout-classic2": !mapInMain,

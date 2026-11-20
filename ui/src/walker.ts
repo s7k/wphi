@@ -22,6 +22,26 @@ const BEAT_SLACK_MS = 40;
 // 押しているかは keydown と keyup だけで決め、時間では離したとみなさない。OS のキーリピートは最後に押したキーにしか
 // 掛からないので、上を押したまま右を押して離すと、上の keydown は届かなくなる(v0.1.87 まではそこで 700ms 後に止まった)。
 // keyup が届かない時(窓のフォーカスが外れた時)は、呼ぶ側が clear() する
+/**
+ * 歩き出しの重さ (設定のスライダー、-2〜2)。押し始めの1歩の時間を WALK_MS の start 倍にし、押し続けた時間に比例して
+ * 1 倍へ戻し、ramp ms で戻りきる。重い段は歩き出しが遅く、軽く押すと少しだけ進む。軽い段は歩き出しが速く、軽く押しても
+ * 多く進む。サーバは 0.1 秒に1行しか処理しないので、押し続けた時の速さはどの段も同じ。0 (真ん中) は v0.1.110 までと同じ
+ */
+export const WEIGHTS: Record<number, { start: number; ramp: number }> = {
+  [-2]: { start: 0.5, ramp: 300 },
+  [-1]: { start: 0.75, ramp: 300 },
+  0: { start: 1, ramp: 0 },
+  1: { start: 1.75, ramp: 300 },
+  2: { start: 2.5, ramp: 500 },
+};
+
+/** 押し始めてから elapsed ms 経った時の1歩の時間の倍率 */
+export function rampFactor(elapsed: number, weight: number): number {
+  const w = WEIGHTS[Math.max(-2, Math.min(2, Math.round(weight) || 0))];
+  if (w.ramp <= 0) return w.start;
+  return 1 + (w.start - 1) * Math.max(0, 1 - Math.max(0, elapsed) / w.ramp);
+}
+
 /** 追尾移動の向きが届かなくなってから止めるまでの時間(ms)。地図は 30ms ごとに送る */
 const FOLLOW_EXPIRE_MS = 120;
 
@@ -54,6 +74,10 @@ export class Walker<M> {
    * 20ms ごとの見回りがいつ来たかで、押した時間が同じでも歩数が変わった (#146)
    */
   private released: { key: MoveKey; mods: M; at: number } | null = null;
+  /** キーを押し始めた時刻。押しているキーが無い所から押した時に決める (加速の起点) */
+  private holdStart = 0;
+  /** 歩き出しの重さ (設定のスライダー、-2〜2。WEIGHTS)。追尾移動には掛けない */
+  weight = 0;
   private now: () => number;
 
   constructor(now: () => number = () => performance.now()) {
@@ -61,6 +85,8 @@ export class Walker<M> {
   }
 
   keyDown(code: string, key: MoveKey, mods: M) {
+    // 押しているキーが無い所から押したら、加速を最初からにする。押したまま別の向きを足しても続ける
+    if (![...this.held.values()].some((h) => DIRS[h.key])) this.holdStart = this.now();
     this.held.set(code, { key, mods });
   }
 
@@ -96,13 +122,16 @@ export class Walker<M> {
     const at = now - this.busyUntil <= BEAT_SLACK_MS ? this.busyUntil : now;
     // 予定の時刻より後に離したキーは、その時刻にはまだ押していた
     const late = this.released && this.released.at > this.busyUntil && at === this.busyUntil ? this.released : null;
-    const want = this.want() ?? (late && this.wantOf([late]));
+    const held = this.wantOf(this.held.values()) ?? (late && this.wantOf([late]));
+    const want = held ?? this.want();
     if (!want) this.released = null;
     if (!want || canStep === false || canStep === 0) return null;
     const keys = pick ? pick(want.keys, want.mods) : want.keys;
     if (typeof canStep === "number" && keys.length > canStep) return null;
     this.released = null;
-    const step = { ...want, keys, ms: keys.length > 1 ? WALK_DIAGONAL_MS : WALK_MS, at };
+    // キーで歩く時は、押し始めからの時間で1歩を長くする (追尾移動はそのまま)
+    const factor = held ? rampFactor(at - this.holdStart, this.weight) : 1;
+    const step = { ...want, keys, ms: Math.round((keys.length > 1 ? WALK_DIAGONAL_MS : WALK_MS) * factor), at };
     this.busyUntil = at + step.ms;
     return step;
   }

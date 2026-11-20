@@ -5,6 +5,9 @@ import { confirmBox } from "./MessageDialog";
 import { changedKeys, clampZoom, MAP_ZOOMS, mergeChanged, type Settings } from "./settings.ts";
 import { Import, Save, X } from "lucide-react";
 
+/** 歩き出しの重さの段の名前 (walker.ts の WEIGHTS) */
+const WEIGHT_LABEL: Record<number, string> = { [-2]: "とても軽い", [-1]: "軽い", 0: "標準", 1: "重い", 2: "とても重い" };
+
 export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings) => void; onClose: () => void }) {
   const [s, setS] = useState(props.settings);
   // 開いた時か保存した時の値。変えた項目を見分け、保存の時にそれだけを今の設定に重ねる。
@@ -52,9 +55,30 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
           <input type="checkbox" checked={s.autoConnect} onChange={(e) => set("autoConnect", e.target.checked)} />
           起動した時に、前回開いていたタブのキャラへ自動で接続する
         </label>
+        <label>
+          <input type="checkbox" checked={s.smoothMove} onChange={(e) => set("smoothMove", e.target.checked)} />
+          スムーズ移動(押している間、地図を滑らかに動かして歩く。v6 のサーバで北固定の地図の時)
+        </label>
+        <label className="settings-range">
+          歩き出し 軽い{" "}
+          <input
+            type="range"
+            min={-2}
+            max={2}
+            step={1}
+            value={s.smoothWeight}
+            disabled={!s.smoothMove}
+            onChange={(e) => set("smoothWeight", Number(e.target.value))}
+          />{" "}
+          重い({WEIGHT_LABEL[s.smoothWeight] ?? "標準"})
+        </label>
+        <p className="settings-note">
+          重くすると、歩き出しがゆっくりになり、軽く押した時に少しだけ進みます。軽くすると、歩き出しが速くなり、軽く押しても多く進みます。
+          押し続けた時の速さはどれも同じです。真ん中が標準です。
+        </p>
         {/* 画面の形などは表示メニューにだけあり、ここを探して見つからなかった (#137) */}
         <p className="settings-note">
-          画面の形(モダン・クラシック)、地図を滑らかに動かす、吹き出しの演出、木と草の揺らぎは、メニューの「表示」で切り替えます。
+          画面の形(モダン・クラシック)、吹き出しの演出、木と草の揺らぎは、メニューの「表示」で切り替えます。
         </p>
         <label>
           <input type="checkbox" checked={s.fullKeyMove} onChange={(e) => set("fullKeyMove", e.target.checked)} />

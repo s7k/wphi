@@ -50,8 +50,11 @@ pub struct Settings {
     pub map_zoom: u32,
     /// v6 でない 7x7 の地図(v5y など)の拡大率(%)。0 なら map_zoom と同じ(Philly に無い)
     pub map_zoom_m57: u32,
-    /// 実験的: 自分が1マス進んだ時に、地図を滑らかにずらして描く。表示のメニューで切り替える(Philly に無い)
+    /// スムーズ移動: 自分が1マス進んだ時に、地図を滑らかにずらして描く。設定の画面で切り替える(Philly に無い)
     pub smooth_move: bool,
+    /// スムーズ移動の歩き出しの重さ。-2 (軽い) 〜 0 (標準) 〜 2 (重い)。押し始めの1歩の長さを変え、押し続けると標準の速さに
+    /// 戻す(ui/src/walker.ts の WEIGHTS)
+    pub smooth_weight: i32,
     /// マップの窓を使わず、main 窓のログの左にマップを出す(クラシック(1窓))。表示のメニューで切り替える(Philly に無い)
     pub single_window: bool,
     /// main 窓いっぱいにマップを出し、ログと入力欄を重ねる(モダン)。single_window より優先する。既定(Philly に無い)
@@ -87,7 +90,8 @@ impl Default for Settings {
             master_magic_menu: false,
             map_zoom: 100,
             map_zoom_m57: 0,
-            smooth_move: false,
+            smooth_move: true,
+            smooth_weight: 0,
             single_window: false,
             modern: true,
             map_variety: true,
