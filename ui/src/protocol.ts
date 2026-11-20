@@ -135,6 +135,8 @@ export type PartyMember = {
 
 /** 地図の上の仲間を選んで、main 窓に仲間の一覧を開かせる。map 窓 → main 窓 */
 export const PARTY_OPEN_EVENT = "phi-party-open";
+/** map 窓で仲間を選び「ついて行く」を押した。payload は仲間の名前 */
+export const PARTY_FOLLOW_EVENT = "phi-party-follow";
 
 /** 持ち物 1 個(phi_dm の docs/dev/protocol-v6.md の「持ち物とインベントリ」) */
 export type ItemInfo = {

@@ -199,6 +199,8 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
         "party-end" => &["#v6 P ."],
         // 仲間の一覧(#v6 P)。Kotone は3マス東、Haru は5マス東の1マス南
         "party" => &[
+            // 移動の返事 (#v6 G)。ついて行く (follow.ts) は、これを送るサーバでだけ動く
+            "#v6 G 0 0",
             "#v6 P 1\tname=Mirai\tarea=はじまりの草原\tdx=0\tdy=0\tidle=0\tlag=1\thp=1820\tmhp=2400\tmp=960\tmmp=1200\tcond=-------",
             "#v6 P 2\tname=Kotone\tarea=はじまりの草原\tdx=3\tdy=0\tidle=4\tlag=2\thp=1310\tmhp=1500\tmp=380\tmmp=1600\tcond=-------",
             "#v6 P 3\tname=Haru\tarea=はじまりの草原\tdx=5\tdy=1\tidle=75\tlag=3\thp=420\tmhp=2100\tmp=150\tmmp=600\tcond=*-----*",

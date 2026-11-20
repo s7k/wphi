@@ -2075,3 +2075,40 @@ button > svg:only-child,
   color: #fff;
   text-shadow: 0 0 2px #000, 0 0 2px #000;
 }
+
+/* 仲間について行っている間の知らせ (App.tsx の followTick)。地図の上の中央 */
+.follow-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 4px 12px;
+  font-size: 13px;
+  color: #fff;
+  background: rgb(16 20 24 / 85%);
+  border: 1px solid rgb(134 209 90 / 80%);
+  border-radius: 8px;
+}
+
+.follow-banner button,
+.party-follow {
+  padding: 1px 8px;
+  font-size: 12px;
+  color: #fff;
+  background: rgb(255 255 255 / 12%);
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.party-follow {
+  margin-left: 8px;
+}
+
+.party-follow[aria-pressed="true"] {
+  background: rgb(134 209 90 / 35%);
+}

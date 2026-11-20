@@ -16,7 +16,7 @@ import { predictedMap } from "./predict.ts";
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
 import { addWalk, CHIP_SIZE, MAP_TOP, selfPos, SLIDE_DELAY_MS, slideStep, timedWalk, viewArea, viewCover, viewFor, walkAt, walkDelay, type WalkSample } from "./mapRender";
 import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
-import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_OPEN_EVENT, type CondEvent, type MapChar, type MapListAction, type MapState, type StatusEvent } from "./protocol";
+import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, PARTY_OPEN_EVENT, type CondEvent, type MapChar, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
 import { hideOnClose, useImages, useScreenshot } from "./windowUtil";
 import { findChar, MAP_POP_EVENT, type Pop, type PopKind } from "./mapPop.ts";
@@ -641,6 +641,17 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
                   }}
                 >
                   パーティの一覧
+                </button>
+              ) : null}
+              {state.party?.includes(charMenu.name) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    emitTo("main", PARTY_FOLLOW_EVENT, charMenu.name).catch(console.error);
+                    setCharMenu(null);
+                  }}
+                >
+                  ついて行く
                 </button>
               ) : (
                 <button

@@ -33,8 +33,9 @@ import { PrivLauncher, PrivWindow, type PrivConv } from "./PrivPanel";
 import { ListOverlay } from "./ListOverlay";
 import { listNo, listOk, moreNo, moveListCursor, receiveList, type ListFlow, type ListState } from "./list.ts";
 import { trace } from "./trace.ts";
-import { PREDICT_TICK_MS, Predictor } from "./predict.ts";
-import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type ItemInfo, type MapListAction, type PartyMember, type MapState, type Spell, type UiEvent } from "./protocol";
+import { PREDICT_TICK_MS, predictedMap, Predictor } from "./predict.ts";
+import { selfPos } from "./mapRender.ts";
+import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type ItemInfo, type MapListAction, type PartyMember, type MapState, type Spell, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
 import { LogFind } from "./LogFind";
@@ -44,6 +45,7 @@ import { characterTarget, needsCloseConfirm } from "./tabs.ts";
 import { signAuthor } from "./signHead.ts";
 import { castLines, loadSpellOrder, moveSpell, orderSpells, saveSpellOrder, SPELL_WAIT_MS, waitsForOrder } from "./spells.ts";
 import { SpellBar } from "./SpellBar";
+import { followGoal, followStep, targetPos, type FollowMemory } from "./follow.ts";
 import { ArrowDownToLine, Check, FolderOpen, Import, Megaphone, MessageSquare, Layers, Plug, Plus, Save, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
 
 // src-tauri/src/characters.rs の Store
@@ -86,6 +88,8 @@ type Tab = {
   talkAdd?: string;
   /** 看板などの本文(#more 〜 #end-more)の札。ログと同じ HTML の行。閉じたら null */
   sign?: string[] | null;
+  /** ついて行っている仲間の名前 (ui/src/follow.ts) */
+  following?: string | null;
   /** 魔法の列に並べる呪文 (並びは固定。ui/src/spells.ts) と、番号が入れ替わるのを待っている間 */
   spells?: Spell[];
   spellWaiting?: boolean;
@@ -346,6 +350,52 @@ export function App() {
   /** リストが出て歩くのを止めた。押したままのキーリピートでは歩き出さず、押し直すまで待つ */
   const walkHalted = useRef(false);
   const walking = (session: number) => settingsRef.current.smoothMove && predicting(session) && predictor.current.confirms;
+  /** ついて行っている仲間と、ゲートの覚え (ui/src/follow.ts の followGoal) */
+  const follows = useRef(new Map<number, { name: string; mem: FollowMemory; lastSend: number }>());
+  const startFollow = (session: number, name: string) => {
+    follows.current.set(session, { name, mem: {}, lastSend: 0 });
+    update(session, (t) => ({ ...t, following: name }));
+    append(session, systemOk(`${name} について行きます。移動のキーか Esc でやめます。`));
+  };
+  const stopFollow = (session: number, message?: string) => {
+    if (!follows.current.delete(session)) return;
+    walker.current.clear();
+    update(session, (t) => ({ ...t, following: null }));
+    append(session, systemOk(message ?? "ついて行くのをやめました。"));
+  };
+  /** ついて行く 1 回分。見回り (PREDICT_TICK_MS) ごとに呼ぶ。次の 1 歩をスムーズ移動の歩き方か go で送る */
+  const followTick = (session: number | null) => {
+    if (session === null) return;
+    const f = follows.current.get(session);
+    if (!f) return;
+    const s = mapStates.current.get(session);
+    const raw = s?.map;
+    const walk = predictor.current.walk;
+    if (!raw?.v6 || !isNorthFix(raw) || !walk) {
+      if (raw) stopFollow(session, "ついて行けるのは、移動の返事 (#v6 G) を送る v6 のサーバで、北固定の地図の時だけです。");
+      return;
+    }
+    const party = tabsRef.current.find((t) => t.session === session)?.party ?? [];
+    if (!party.some((m) => m.name === f.name)) return stopFollow(session, `${f.name} はパーティにいません。ついて行くのをやめました。`);
+    const o = predictor.current.offset;
+    const map = predictedMap(raw, o.dx, o.dy);
+    const me = selfPos(map.width, map.height, false);
+    const now = performance.now();
+    const g = followGoal(f.mem, targetPos(map, f.name, party), walk, me, now);
+    if (g.lost) return stopFollow(session, `${f.name} を見失いました。ついて行くのをやめました。`);
+    if (!g.goal) return;
+    const step = followStep(map, g.goal, g.onto);
+    if (!step || step === "arrived") return;
+    if (walking(session)) {
+      // スムーズ移動の歩き方に、追尾移動と同じく向きを渡す (120ms 届かなければ止まる)
+      walker.current.setFollow([step], "none");
+      return;
+    }
+    // 1 歩ずつ地図が変わる時は、前の移動の返事を待ち、FOLLOW_MS に 1 歩まで
+    if (predictor.current.waiting || now - f.lastSend < FOLLOW_MS) return;
+    f.lastSend = now;
+    sendMove(session, moveCommand(step, "none", true));
+  };
   /** 押しているキーと追尾移動の向きで、次の1歩を送る。前の1歩を滑らせている間と、返事の来ていない移動が多い間は送らない */
   const stepWalker = (session: number | null) => {
     if (session === null || !walking(session)) return;
@@ -393,6 +443,7 @@ export function App() {
     if (active === null) return;
     const timer = setInterval(() => {
       if (predictor.current.tick()) sendMapState(activeRef.current);
+      followTick(activeRef.current);
       stepWalker(activeRef.current);
     }, PREDICT_TICK_MS);
     return () => {
@@ -620,6 +671,11 @@ export function App() {
         update(session, (t) => ({ ...t, partyOpen: false }));
         return true;
       }
+      // 画面が開いていなければ、Esc でついて行くのをやめる
+      if (e.type === "keydown" && e.code === "Escape" && follows.current.has(session)) {
+        stopFollow(session);
+        return true;
+      }
       const ctx = keyContext(mapStates.current.get(session), settingsRef.current.fullKeyMove);
       // リスト表示中は、番号・取り消し・カーソルのキーを移動より先に見る(Philly の KeyDown は KeyBindListMode が先)。
       // フルキー移動の 7・8・9 やテンキーの 2・4・6・8、上下の矢印は、リスト表示中は番号とカーソルになる
@@ -640,6 +696,8 @@ export function App() {
         return true;
       }
       const move = moveInput(e, ctx);
+      // 自分で歩いたら、ついて行くのをやめる
+      if (move && e.type === "keydown" && follows.current.has(session)) stopFollow(session);
       // 離したキーは、歩き方を切り替えた後でも残らないように必ず消す。map 窓のフォーカスが外れた時は全部消す
       if (e.type === "keyup" && e.code === RELEASE_ALL) {
         walker.current.clear();
@@ -829,8 +887,13 @@ export function App() {
       const session = activeRef.current;
       if (session !== null) update(session, (t) => ({ ...t, partyOpen: true }));
     });
+    const partyFollow = listen<string>(PARTY_FOLLOW_EVENT, (e) => {
+      const session = activeRef.current;
+      if (session !== null) startFollow(session, e.payload);
+    });
     return () => {
       partyOpen.then((f) => f());
+      partyFollow.then((f) => f());
       document.removeEventListener("keydown", onDom);
       document.removeEventListener("keyup", onDom);
       window.removeEventListener(SENT_EVENT, onSentDom);
@@ -1236,6 +1299,9 @@ export function App() {
           const r = receiveList(listFlow(session), ev.active, ev.lines, tabsRef.current.find((t) => t.session === session)?.list);
           if (r === "close") closeList(session);
           else if (r) {
+            // ゲートで行き先を選ぶ一覧が出た。仲間がどれを選んだかは分からないので、ついて行くのをやめる
+            const f = follows.current.get(session);
+            if (f) stopFollow(session, `${f.name} はゲートで移動しました。行き先を選んでください。`);
             // スムーズ移動で押し続けていても、ここで止める(stepWalker)
             if (session === activeRef.current && walking(session)) {
               walker.current.clear();
@@ -1335,6 +1401,7 @@ export function App() {
     pendingLines.current.delete(session);
     signLines.current.delete(session);
     signAuthors.current.delete(session);
+    follows.current.delete(session);
     recentLines.current.delete(session);
     const wait = ulistWaits.current.get(session);
     if (wait) window.clearTimeout(wait.timer);
@@ -1429,6 +1496,14 @@ export function App() {
             onMove={(from, to) => moveSpellTile(tab.session, from, to)}
           />
         )}
+        {tab.following && (
+          <div className="follow-banner" role="status">
+            {tab.following} について行っています
+            <button type="button" onClick={() => stopFollow(tab.session)}>
+              やめる
+            </button>
+          </div>
+        )}
         {tab.items && !tab.bagOpen && (
           <button type="button" className="bag-button" title="カバン(持ち物とインベントリ)" onClick={() => openBag(tab.session)}>
             <ItemIcon index={BAG_ICON} size={32} />
@@ -1451,6 +1526,8 @@ export function App() {
         {tab.partyOpen && !tab.bagOpen && (
           <PartyPanel
             members={tab.party ?? []}
+            following={tab.following ?? null}
+            onFollow={(name) => (name ? startFollow(tab.session, name) : stopFollow(tab.session))}
             onBye={() =>
               void confirmBox("パーティを抜けます。\nよろしいですか？").then((ok) => ok && sendLine(tab.session, "bye"))
             }

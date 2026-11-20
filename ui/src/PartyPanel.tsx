@@ -32,7 +32,15 @@ function Bar(props: { now: number; max: number; color: string; label: string }) 
   );
 }
 
-export function PartyPanel(props: { members: PartyMember[]; onBye: () => void; onClose: () => void }) {
+export function PartyPanel(props: {
+  members: PartyMember[];
+  /** ついて行っている仲間の名前 */
+  following?: string | null;
+  /** 仲間について行く (名前)、やめる (null) */
+  onFollow?: (name: string | null) => void;
+  onBye: () => void;
+  onClose: () => void;
+}) {
   return (
     <div className="bag-panel party-panel" role="dialog" aria-label="パーティ">
       <div className="sign-head">
@@ -57,6 +65,16 @@ export function PartyPanel(props: { members: PartyMember[]; onBye: () => void; o
             <div className="party-where">
               {m.area} {i > 0 && partyPos(m)} 放置 {Math.floor(m.idle / 60)}'{String(m.idle % 60).padStart(2, "0")}
               {m.lag !== undefined && ` 遅延 ${(m.lag / 10).toFixed(1)}`}
+              {i > 0 && props.onFollow && (
+                <button
+                  type="button"
+                  className="party-follow"
+                  aria-pressed={props.following === m.name}
+                  onClick={() => props.onFollow!(props.following === m.name ? null : m.name)}
+                >
+                  {props.following === m.name ? "やめる" : "ついて行く"}
+                </button>
+              )}
             </div>
             <Bar now={m.hp} max={m.mhp} color="#d04040" label="HP" />
             <Bar now={m.mp} max={m.mmp} color="#4070e0" label="MP" />
