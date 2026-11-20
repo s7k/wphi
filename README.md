@@ -52,6 +52,7 @@ Linux の AppImage は FUSE(Ubuntu では `libfuse2`)が要る。無い時は `A
 | Z・X・C | 拾う・置く・使う |
 | Space | 攻撃(hit) |
 | Alt+W、Alt+E など | 系統魔法(Wizard eye、Eagle eye など) |
+| Ctrl+1〜8 | 魔法の列の呪文を唱える(v6 のサーバ、モダンの画面) |
 | Shift+F5 | 地図の窓を出す・隠す |
 | T・Shift+T | 回転の地図・北固定の地図 |
 | Ctrl+Tab | 次のタブ |

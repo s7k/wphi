@@ -1981,3 +1981,58 @@ button > svg:only-child,
   width: 14px;
   height: 14px;
 }
+
+/* 魔法の列 (SpellBar.tsx)。モダンの地図の右下に、覚えている呪文をアイコンで並べる */
+.spell-bar {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: rgb(16 20 24 / 70%);
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 10px;
+}
+
+.spell-tile {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(0 0 0 / 60%);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 25%), inset 0 -2px 0 rgb(0 0 0 / 30%), 0 1px 0 rgb(0 0 0 / 50%);
+  cursor: pointer;
+}
+
+.spell-tile:hover:not(:disabled) {
+  outline: 2px solid #fff;
+}
+
+/* 唱えて番号が入れ替わるのを待つ間 */
+.spell-tile:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* 全体の button > svg (lucide の絵) の大きさに縮めない */
+.spell-tile > svg {
+  width: 32px;
+  height: 32px;
+  margin: 0;
+}
+
+/* Ctrl+数字 の数字 */
+.spell-key {
+  position: absolute;
+  left: 2px;
+  top: 0;
+  font-size: 10px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 0 2px #000, 0 0 2px #000;
+}

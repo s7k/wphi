@@ -1,5 +1,8 @@
 // crates/phi-proto/src/parser.rs の Event と、src-tauri/src/session.rs の UiEvent の型。
 
+/** 覚えている呪文 (#v6 S)。no は cast で選ぶ今の番号、ef は効果 (EF_*)、fn は属性 */
+export type Spell = { no: number; name: string; html: string; ef: number; fn: number };
+
 /** blocked は見た目と違って通れない印 (#v6 X)。自キャラの周りだけ届く */
 export type MapCell = { chip: number; attr: number; blocked?: boolean };
 
@@ -99,6 +102,8 @@ export type UiEvent =
   | { type: "moved"; dx: number; dy: number; reason?: string }
   /** #v6 J。go 以外で動いた */
   | { type: "jumped" }
+  /** #v6 S。覚えている呪文を cast の番号の順に */
+  | { type: "spells"; spells: Spell[] }
   /** #v6 I。手持ちの 8 個(空きは null) */
   | { type: "items"; items: (ItemInfo | null)[] }
   /** #v6 P。自分を先頭にした仲間の一覧。パーティに入っていなければ空 */

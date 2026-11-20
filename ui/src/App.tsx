@@ -34,7 +34,7 @@ import { ListOverlay } from "./ListOverlay";
 import { listNo, listOk, moreNo, moveListCursor, receiveList, type ListFlow, type ListState } from "./list.ts";
 import { trace } from "./trace.ts";
 import { PREDICT_TICK_MS, Predictor } from "./predict.ts";
-import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type ItemInfo, type MapListAction, type PartyMember, type MapState, type UiEvent } from "./protocol";
+import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type ItemInfo, type MapListAction, type PartyMember, type MapState, type Spell, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogLines } from "./LogLineList";
 import { LogFind } from "./LogFind";
@@ -42,6 +42,8 @@ import { lightenColors, pushLine, pushLines, scopeLogCss, type LogLine } from ".
 import { createLogWriter } from "./logSave.ts";
 import { characterTarget, needsCloseConfirm } from "./tabs.ts";
 import { signAuthor } from "./signHead.ts";
+import { castLines, loadSpellOrder, orderSpells, saveSpellOrder, SPELL_WAIT_MS, waitsForOrder } from "./spells.ts";
+import { SpellBar } from "./SpellBar";
 import { ArrowDownToLine, Check, FolderOpen, Import, Megaphone, MessageSquare, Layers, Plug, Plus, Save, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
 
 // src-tauri/src/characters.rs の Store
@@ -84,6 +86,9 @@ type Tab = {
   talkAdd?: string;
   /** 看板などの本文(#more 〜 #end-more)の札。ログと同じ HTML の行。閉じたら null */
   sign?: string[] | null;
+  /** 魔法の列に並べる呪文 (並びは固定。ui/src/spells.ts) と、番号が入れ替わるのを待っている間 */
+  spells?: Spell[];
+  spellWaiting?: boolean;
   /** 札の看板を書いた人と日付 (ui/src/signHead.ts)。看板でないお知らせは null */
   signAuthor?: { name: string; date: string } | null;
   /** 手持ちの 8 個(#v6 I)とインベントリ(#ex-inv)。v6 で届いた時だけ */
@@ -305,6 +310,22 @@ export function App() {
   /** 読んでいる看板を書いた人。#more で決め、#end-more で札に付ける */
   const signAuthors = useRef(new Map<number, ReturnType<typeof signAuthor>>());
   /** カバンを開き、インベントリの中身を求める */
+  /** 魔法の列の呪文を、今の番号で唱える。先頭以外なら、番号が入れ替わる (#v6 S が届く) まで次を押させない */
+  const castSpell = (session: number, spell: Spell) => {
+    const tab = tabsRef.current.find((t) => t.session === session);
+    if (!tab || tab.spellWaiting || tab.closed) return;
+    // cast の一覧は出さない
+    listFlow(session).cancel += 1;
+    sendLines(session, castLines(spell));
+    if (waitsForOrder(spell)) {
+      update(session, (t) => ({ ...t, spellWaiting: true }));
+      window.setTimeout(() => update(session, (t) => (t.spellWaiting ? { ...t, spellWaiting: false } : t)), SPELL_WAIT_MS);
+    }
+  };
+  const castSpellSlot = (session: number, n: number) => {
+    const spell = tabsRef.current.find((t) => t.session === session)?.spells?.[n - 1];
+    if (spell) castSpell(session, spell);
+  };
   const openBag = (session: number) => {
     update(session, (t) => ({ ...t, bagOpen: true, bagMessage: "" }));
     sendLine(session, "#ex-inv list");
@@ -649,7 +670,7 @@ export function App() {
       // 押し続けによる自動リピートは送らない
       const openBoard = () => update(session, (t) => ({ ...t, board: true }));
       const cancelList = (n: number) => (listFlow(session).cancel += n);
-      if (!e.repeat) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList, ask, systemMagic });
+      if (!e.repeat) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList, ask, systemMagic, castSpellSlot: (n) => castSpellSlot(session, n) });
       return true;
     };
     const onDom = (e: globalThis.KeyboardEvent) => {
@@ -758,7 +779,7 @@ export function App() {
       const action = menuAction(id);
       const openBoard = () => update(session, (t) => ({ ...t, board: true }));
       const cancelList = (n: number) => (listFlow(session).cancel += n);
-      if (action) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList, ask, systemMagic });
+      if (action) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList, ask, systemMagic, castSpellSlot: (n) => castSpellSlot(session, n) });
     });
     // マップのマウス操作(Philly の MapForm.cpp の FormMouseDown)
     let lastFollow = 0;
@@ -1163,6 +1184,14 @@ export function App() {
         case "items":
           update(session, (t) => ({ ...t, items: ev.items }));
           break;
+        case "spells":
+          // 列の並びはキャラごとに最初に見た順で固定し、番号だけ今の物にする
+          update(session, (t) => {
+            const { order, ordered } = orderSpells(loadSpellOrder(t.label), ev.spells);
+            saveSpellOrder(t.label, order);
+            return { ...t, spells: ordered, spellWaiting: false };
+          });
+          break;
         case "party":
           // パーティを抜けたら、パーティのタブから全体へ戻す
           update(session, (t) => ({ ...t, party: ev.members, partyMode: ev.members.length ? t.partyMode : false }));
@@ -1384,6 +1413,9 @@ export function App() {
         )}
         {settings.modern && boards}
         {tab.sign && <SignCard lines={tab.sign} author={tab.signAuthor ?? null} onClose={() => closeSign(tab.session)} />}
+        {settings.modern && !tab.bagOpen && (
+          <SpellBar spells={tab.spells ?? []} waiting={!!tab.spellWaiting} onCast={(sp) => castSpell(tab.session, sp)} />
+        )}
         {tab.items && !tab.bagOpen && (
           <button type="button" className="bag-button" title="カバン(持ち物とインベントリ)" onClick={() => openBag(tab.session)}>
             <ItemIcon index={BAG_ICON} size={32} />

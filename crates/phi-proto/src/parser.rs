@@ -66,6 +66,10 @@ pub enum Event {
     },
     /// `#v6 J`。go 以外(スイッチ・ゲート・罠など)で動いた。予想と覚えた通れる・通れないを捨てる
     Jumped,
+    /// `#v6 S` 〜 `#v6 S .`。覚えている呪文を cast の番号の順に(phi_dm の docs/dev/protocol-v6.md の「呪文の行」)
+    Spells {
+        spells: Vec<Spell>,
+    },
     /// `#v6 I` 〜 `#v6 I .`。手持ちの 8 個。空いた枠は None(phi_dm の docs/dev/protocol-v6.md の「持ち物とインベントリ」)
     Items {
         items: Vec<Option<Item>>,
@@ -109,6 +113,41 @@ pub struct PartyMember {
     pub mp: i64,
     pub mmp: i64,
     pub cond: Cond,
+}
+
+/// 覚えている呪文 1 つ(`#v6 S` の欄)
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Spell {
+    /// cast で選ぶ番号 (1 から)。唱えると入れ替わる
+    pub no: i64,
+    /// 呪文。タグを除いた物
+    pub name: String,
+    /// タグの色を付けた HTML
+    pub html: String,
+    /// 効果 (EF_*)
+    pub ef: i32,
+    /// 属性 (FN_*)
+    #[serde(rename = "fn")]
+    pub fn_: i8,
+}
+
+/// `#v6 S` の番号の後ろの欄(タブで区切った キー=値)を読む
+fn parse_spell(no: i64, fields: &str) -> Spell {
+    let mut sp = Spell { no, name: String::new(), html: String::new(), ef: 0, fn_: 0 };
+    for f in fields.split('\t') {
+        let Some((k, v)) = f.split_once('=') else { continue };
+        match k {
+            "ef" => sp.ef = v.trim().parse().unwrap_or(0),
+            "fn" => sp.fn_ = v.trim().parse().unwrap_or(0),
+            "name" => {
+                sp.name = strip_tags(v);
+                sp.html = crate::tag_to_html::to_html(v, &crate::tag_to_html::LogOptions::default());
+            }
+            _ => {}
+        }
+    }
+    sp
 }
 
 /// 持ち物 1 個(`#v6 I` と `#ex-inv I` の欄)
@@ -569,6 +608,8 @@ pub struct Parser {
     bag: Vec<Item>,
     /// `#v6 P` で届いた仲間(`#v6 P .` で Party にする)
     party: Vec<PartyMember>,
+    /// `#v6 S` で届いた呪文。`#v6 S .` で Spells にする
+    spells: Vec<Spell>,
     /// `#v6 M` の幅と高さと、届いた `#v6 R` の行(行番号の位置)。`#v6 .` で全部揃っていれば地図にする
     v6_size: (u8, u8),
     v6_rows: Vec<Option<Vec<Cell>>>,
@@ -769,6 +810,20 @@ impl Parser {
         }
         if raw.starts_with(b"#v6 O ") {
             self.parse_m57_o(raw, 6, 2);
+            return Vec::new();
+        }
+        if let Some(rest) = text.strip_prefix("#v6 S ") {
+            if rest.trim() == "." {
+                return vec![Event::Spells {
+                    spells: std::mem::take(&mut self.spells),
+                }];
+            }
+            let (no, fields) = rest.split_once('\t').unwrap_or((rest, ""));
+            if let Ok(no) = no.trim().parse::<i64>()
+                && self.spells.len() < MAX_LIST_LINES
+            {
+                self.spells.push(parse_spell(no, fields));
+            }
             return Vec::new();
         }
         if let Some(rest) = text.strip_prefix("#v6 P ") {
@@ -1466,6 +1521,16 @@ mod tests {
             vec![Event::Moved { dx: 1, dy: 0, reason: Some("push".into()) }]
         );
         assert_eq!(p.feed(b"#v6 J"), vec![Event::Jumped]);
+        assert!(p.feed(b"#v6 S 1\tef=1\tfn=6\tname=Fire ball").is_empty());
+        assert!(p.feed(b"#v6 S 2\tef=9\tfn=0\tname=/*color=cyan*/Cure/*.*/").is_empty());
+        let evs = p.feed(b"#v6 S .");
+        let [Event::Spells { spells }] = evs.as_slice() else { panic!("{evs:?}") };
+        assert_eq!(
+            spells.iter().map(|s| (s.no, s.name.as_str(), s.ef, s.fn_)).collect::<Vec<_>>(),
+            [(1, "Fire ball", 1, 6), (2, "Cure", 9, 0)]
+        );
+        assert!(spells[1].html.contains("Cure"));
+        assert_eq!(p.feed(b"#v6 S ."), vec![Event::Spells { spells: vec![] }]);
         assert_eq!(p.feed(b"#v6 G x"), vec![]);
     }
 

@@ -86,7 +86,7 @@ export function Pixels(props: { rows: string[]; size: number }) {
 const PAGE = 40;
 
 /** 属性(FN_*)の色。無・地・光・風・霊・水・火・鏡・プリズム・虹 */
-const ELEMENT_COLOR = ["#59606a", "#9a6b3c", "#c9a227", "#3f9d8e", "#7d5bc4", "#3577c4", "#c4482f", "#8d98a6", "#c45aa8", "rainbow"];
+export const ELEMENT_COLOR = ["#59606a", "#9a6b3c", "#c9a227", "#3f9d8e", "#7d5bc4", "#3577c4", "#c4482f", "#8d98a6", "#c45aa8", "rainbow"];
 
 /** 装備の印の文字 */
 const EQUIP_LABEL: Record<string, string> = { W: "武", A: "防", O: "装" };

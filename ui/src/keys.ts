@@ -29,7 +29,9 @@ export type KeyAction =
   | { focusInput: true }
   | { nextTab: true }
   /** メニューの項目と同じ事をする(接続・切断など。App のメニューの処理に任せる) */
-  | { menu: string };
+  | { menu: string }
+  /** 魔法の列の n 番目 (1 から) を唱える (ui/src/spells.ts) */
+  | { spellSlot: number };
 
 /** initial は欄に初めから入れておく文字 */
 export type AskOptions = { title: string; label: string; numeric?: boolean; initial?: string };
@@ -208,6 +210,8 @@ const SHIFT_ALT: Record<string, KeyAction> = {
 };
 
 const CTRL: Record<string, KeyAction> = {
+  // 魔法の列の左から 1〜8 番目。並びは固定なので、唱えて番号が入れ替わっても同じ呪文 (ui/src/spells.ts)
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`Digit${n}`, { spellSlot: n }])),
   Numpad1: { send: "hit" },
   Numpad3: { send: "cast" },
   Space: { send: "hit" },
