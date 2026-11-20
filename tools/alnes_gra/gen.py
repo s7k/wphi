@@ -58,6 +58,10 @@ MAT = {
     'palm': ramp((96, 64, 30), (160, 118, 66), (214, 178, 116)),
     'frond': ramp((24, 64, 26), (66, 140, 56), (156, 214, 110)),
     'date': ramp((70, 26, 10), (150, 64, 26), (226, 140, 72)),
+    'steel': ramp((58, 66, 82), (170, 182, 200), (250, 252, 255)),
+    'gold': ramp((96, 60, 8), (214, 168, 48), (255, 240, 160)),
+    'grip': ramp((40, 20, 30), (100, 44, 60), (170, 96, 110)),
+    'moss': ramp((30, 52, 24), (78, 112, 52), (150, 178, 96)),
 }
 
 
@@ -310,8 +314,33 @@ def datepalm(f):
     return cv.image()
 
 
+def holysword(f):
+    """台座の岩に刺さった聖剣。岩に苔を這わせ、コマ 1 は刃の光を動かす"""
+    cv = Canvas()
+    ground(cv, 'rock', 12)
+    cv.ellipsoid(16, 23, 12, 7, 'rock', z0=0, bump=.3, seed=11, wave=.06)
+    cv.ellipsoid(15, 19, 8, 5.5, 'rock', z0=3, bump=.28, seed=12)
+    for i, (x, y) in enumerate(((7, 24), (24, 23), (11, 19), (20, 26))):   # 苔
+        cv.ellipsoid(x, y, 2.2, 1.2, 'moss', z0=8, rz=1, bump=.35, seed=20 + i)
+    for y in range(6, 18):   # 刃。左を明るく、中央に樋
+        for x in (15, 16, 17):
+            cv.plot(x, y, 12, 'steel', (.95, .7, .4)[x - 15] - .15 * (y > 14), .08, 30)
+        cv.plot(16, y, 12.5, 'steel', .55, .05, 31)
+    for x in range(11, 22):   # 鍔
+        cv.plot(x, 5, 13, 'gold', .9 - .5 * (x - 11) / 10, .12, 32)
+        cv.plot(x, 6, 13, 'gold', .6 - .4 * (x - 11) / 10, .12, 33)
+    for y in range(1, 5):   # 柄
+        for x in (15, 16, 17):
+            cv.plot(x, y, 13, 'grip', (.85, .6, .35)[x - 15] + .15 * (y % 2), .1, 34)
+    cv.ellipsoid(16, 1.2, 1.6, 1.3, 'gem', z0=14, rz=1.5, bump=.1, seed=35)   # 柄頭の宝玉
+    sy = (8, 13)[f]   # 刃を走る光
+    for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
+        cv.plot(15 + dx, sy + dy, 20, 'petal', 1.0)
+    return cv.image()
+
+
 DRAW = {'wheat': wheat, 'cabbage': cabbage, 'carrot': carrot, 'herb': herb, 'beehive': beehive, 'ore': ore,
-        'board': board, 'datepalm': datepalm}
+        'board': board, 'datepalm': datepalm, 'holysword': holysword}
 
 
 def tile(name, f, row):
