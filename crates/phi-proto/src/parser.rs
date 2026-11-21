@@ -396,6 +396,9 @@ pub struct Cell {
     /// 見た目と違って通れない(`#v6 X`)。自キャラの周りだけサーバが付ける
     #[serde(skip_serializing_if = "is_false")]
     pub blocked: bool,
+    /// マップセットの枠 1〜15(`#v6 A`)。無ければ属性の下位 2 ビット(枠 0〜3)で描く
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub set: Option<u8>,
 }
 
 fn is_false(b: &bool) -> bool {
@@ -537,7 +540,7 @@ impl EagleEyeAccum {
             self.grid[y as usize * MAX_EAGLE_EYE_COUNT + x] = Cell {
                 chip: raw[i],
                 attr: raw[i + 1],
-                blocked: false,
+                ..Default::default()
             };
         }
     }
@@ -615,6 +618,8 @@ pub struct Parser {
     v6_rows: Vec<Option<Vec<Cell>>>,
     /// `#v6 X` で通れないと届いたマス (行, 列)。`#v6 .` で地図のマスに写す
     v6_blocked: Vec<(usize, usize)>,
+    /// `#v6 A` で届いたマスのマップセットの枠 (行, 列, 枠)。`#v6 .` で地図のマスに写す
+    v6_sets: Vec<(usize, usize, u8)>,
 
     eagle: EagleEyeAccum,
     mapset: Option<String>,
@@ -675,6 +680,10 @@ impl Parser {
             }
             if raw.starts_with(b"#v6 X ") {
                 self.parse_v6_x(raw);
+                return Vec::new();
+            }
+            if raw.starts_with(b"#v6 A ") {
+                self.parse_v6_a(raw);
                 return Vec::new();
             }
             let text = decode(raw);
@@ -939,6 +948,17 @@ impl Parser {
             }
             return Vec::new();
         }
+        // `#v6 D n 名前`。v6 の 16 枠のマップセット (phi_dm の docs/dev/protocol-v6.md)。枠 0 は `#mapset`
+        if let Some(rest) = text.strip_prefix("#v6 D ") {
+            let mut it = rest.split_whitespace();
+            if let (Some(no), Some(mapset)) = (it.next().and_then(|n| n.parse::<u8>().ok()).filter(|n| (1..16).contains(n)), it.next()) {
+                return vec![Event::Notice(Notice {
+                    mapset_define: Some((no, mapset.to_string())),
+                    ..Default::default()
+                })];
+            }
+            return Vec::new();
+        }
         if let Some(world) = text.strip_prefix("#ex-notice land=") {
             return vec![Event::Notice(Notice {
                 world: Some(world.into()),
@@ -1144,6 +1164,23 @@ impl Parser {
         self.v6_size = (w, h);
         self.v6_rows = vec![None; h as usize];
         self.v6_blocked.clear();
+        self.v6_sets.clear();
+    }
+
+    /// `#v6 A NN ` の9バイトの後に W 文字。マスのマップセットの枠を 16 進 1 文字で。0 のマスは属性の下位 2 ビットも 0
+    fn parse_v6_a(&mut self, raw: &[u8]) {
+        let w = self.v6_size.0 as usize;
+        let row = std::str::from_utf8(&raw[6.min(raw.len())..8.min(raw.len())])
+            .ok()
+            .and_then(ascii_uint);
+        let (Some(row), Some(sets)) = (row, raw.get(9..9 + w)) else {
+            return;
+        };
+        for (x, &c) in sets.iter().enumerate() {
+            if let Some(set) = (c as char).to_digit(16).filter(|&s| s != 0) {
+                self.v6_sets.push((row as usize, x, set as u8));
+            }
+        }
     }
 
     /// `#v6 X NN ` の9バイトの後に W 文字。`x` のマスは見た目と違って通れない
@@ -1195,6 +1232,11 @@ impl Parser {
         for (y, x) in std::mem::take(&mut self.v6_blocked) {
             if let Some(c) = cells.get_mut(y * w as usize + x) {
                 c.blocked = true;
+            }
+        }
+        for (y, x, set) in std::mem::take(&mut self.v6_sets) {
+            if let Some(c) = cells.get_mut(y * w as usize + x) {
+                c.set = Some(set);
             }
         }
         vec![Event::Map(self.build_map(w, h, cells, true))]
@@ -1395,6 +1437,26 @@ mod tests {
         }
     }
 
+    /// `#v6 A` の枠はマスの set になり、0 のマスと次の地図では消える。`#v6 D` は枠の番号をそのまま返す
+    #[test]
+    fn v6_mapset_slots() {
+        let mut p = Parser::new();
+        let mut lines = v6_frame(3, 2, [0, 1], &[]);
+        lines.insert(3, b"#v6 A 01 0a5".to_vec());
+        let m = only_map(feed_all(&mut p, lines));
+        assert_eq!(m.cells.iter().map(|c| c.set).collect::<Vec<_>>(), [None, None, None, None, Some(10), Some(5)]);
+        let m = only_map(feed_all(&mut p, v6_frame(3, 2, [0, 1], &[])));
+        assert!(m.cells.iter().all(|c| c.set.is_none()));
+        assert_eq!(
+            p.feed(b"#v6 D 6 Castle"),
+            vec![Event::Notice(Notice {
+                mapset_define: Some((6, "Castle".into())),
+                ..Default::default()
+            })]
+        );
+        assert!(p.feed(b"#v6 D 16 Castle").is_empty());
+    }
+
     /// `#v6 X` の `x` のマスは blocked になり、次の地図では消える (phi_dm の #v6 X)
     #[test]
     fn v6_blocked_marks() {
@@ -1416,8 +1478,8 @@ mod tests {
         let m = only_map(feed_all(&mut p, v6_frame(9, 9, 0..9, &[(4, 4, "me")])));
         assert_eq!((m.width, m.height, m.dir, m.v6), (9, 9, 0, true));
         assert_eq!(m.cells.len(), 81);
-        assert_eq!(m.cells[0], Cell { chip: b'0', attr: 0, blocked: false });
-        assert_eq!(m.cells[80], Cell { chip: b'8', attr: 0, blocked: false });
+        assert_eq!(m.cells[0], Cell { chip: b'0', attr: 0, ..Default::default() });
+        assert_eq!(m.cells[80], Cell { chip: b'8', attr: 0, ..Default::default() });
         let c = &m.chars[0];
         assert_eq!(
             (c.x, c.y, c.dir, c.name.as_str(), c.gra.as_str(), c.layer, c.default),
@@ -1455,7 +1517,7 @@ mod tests {
         let mut p = Parser::new();
         let m = only_map(feed_all(&mut p, v6_frame(11, 7, 0..7, &[(5, 3, "me")])));
         assert_eq!((m.width, m.height, m.cells.len()), (11, 7, 77));
-        assert_eq!(m.cells[11], Cell { chip: b'1', attr: 0, blocked: false });
+        assert_eq!(m.cells[11], Cell { chip: b'1', attr: 0, ..Default::default() });
         assert_eq!((m.chars[0].x, m.chars[0].y), (5, 3));
     }
 
@@ -1569,7 +1631,7 @@ mod tests {
             // 行優先で、右下のマスが最後に来る
             let last = e.cells[e.cells.len() - 1];
             assert_eq!((last.chip, last.attr), (w - 1, h - 1));
-            assert_eq!(e.cells[w as usize], Cell { chip: 0, attr: 1, blocked: false });
+            assert_eq!(e.cells[w as usize], Cell { chip: 0, attr: 1, ..Default::default() });
         }
     }
 }

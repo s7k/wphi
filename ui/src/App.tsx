@@ -977,11 +977,16 @@ export function App() {
         s.world = s.area = "???";
         break;
       case "notice":
-        if (ev.mapset !== undefined) s.mapset = ev.mapset;
-        else if (ev.mapsetDefine) {
-          const defines = [...(s.defines ?? [])];
-          defines[ev.mapsetDefine[0]] = ev.mapsetDefine[1];
-          s.defines = defines;
+        // マップセットは続いて届く地図と一緒に地図の窓へ送る。先に送ると、古い地図を新しい枠の割り当てで描いて一瞬違う絵になる
+        if (ev.mapset !== undefined || ev.mapsetDefine) {
+          if (ev.mapset !== undefined) s.mapset = ev.mapset;
+          else if (ev.mapsetDefine) {
+            const defines = [...(s.defines ?? [])];
+            defines[ev.mapsetDefine[0]] = ev.mapsetDefine[1];
+            s.defines = defines;
+          }
+          mapStates.current.set(session, s);
+          return;
         } else if (ev.world !== undefined) s.world = ev.world;
         else if (ev.area !== undefined) s.area = ev.area;
         else return;

@@ -4,7 +4,8 @@
 export type Spell = { no: number; name: string; html: string; ef: number; fn: number };
 
 /** blocked は見た目と違って通れない印 (#v6 X)。自キャラの周りだけ届く */
-export type MapCell = { chip: number; attr: number; blocked?: boolean };
+/** set は v6 のマップセットの枠 1〜15(#v6 A)。無ければ attr の下位 2 ビット */
+export type MapCell = { chip: number; attr: number; blocked?: boolean; set?: number };
 
 export type Magnify = { w: number; h: number; z: number };
 

@@ -198,10 +198,15 @@ export function drawMap(
   }
 
   const chipImg = imgs.chip;
-  // マスのチップシート(Philly の DefineNo = Attribute & 0x03)
-  // 4枚は描く前に一度だけ引く。マスごとに引くと、そのたびに URL を作る(#75)
-  const chips = [0, 1, 2, 3].map((d) => (imgs.chipOf ? imgs.chipOf(d) : chipImg) ?? null);
-  const chipFor = (cell: MapCell) => chips[cell.attr & 0x03];
+  // マスのチップシート(Philly の DefineNo = Attribute & 0x03。v6 の 16 枠は cell.set)
+  // 枠ごとに描く間は一度だけ引く。マスごとに引くと、そのたびに URL を作る(#75)
+  const chips = new Map<number, HTMLImageElement | null>();
+  const chipFor = (cell: MapCell) => {
+    const d = cell.set ?? cell.attr & 0x03;
+    let img = chips.get(d);
+    if (img === undefined) chips.set(d, (img = (imgs.chipOf ? imgs.chipOf(d) : chipImg) ?? null));
+    return img;
+  };
   const half = cs / 2; // 16(等倍) / 32(拡大)
   // 水有無グリッド(水縁エフェクト用)。チップ画像があれば1回構築。
   const water = chipImg ? buildWaterGrid(input.cells, width, height) : null;

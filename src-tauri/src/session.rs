@@ -116,7 +116,8 @@ fn view_line((w, h): (u8, u8), turn: bool) -> String {
     let (w, h) = if turn { (w.min(h), w.min(h)) } else { (w, h) };
     // 行番号と座標が 10 進 2 桁なので、外周を足して 99 まで
     let (w, h) = (w.min(97) + 2, h.min(97) + 2);
-    format!("#ex-map view={w} {h}")
+    // mapsets=16 はマップセットを 16 枠で受ける印(phi_dm の #v6 A と #v6 D)。view= より前に置く。知らないサーバは読み捨てる
+    format!("#ex-map mapsets=16 view={w} {h}")
 }
 
 /// `#wphi-view W H` の大きさ
@@ -900,10 +901,10 @@ mod tests {
         )
         .await;
         let got = server.await.unwrap();
-        assert!(got.contains(&"#ex-map view=13 9\n".to_string()));
+        assert!(got.contains(&"#ex-map mapsets=16 view=13 9\n".to_string()));
         assert_eq!(
             got[got.len() - 3..],
-            ["#ex-map view=9 9\n", "#ex-map view=11 11\n", "#ex-map view=15 11\n"]
+            ["#ex-map mapsets=16 view=9 9\n", "#ex-map mapsets=16 view=11 11\n", "#ex-map mapsets=16 view=15 11\n"]
         );
     }
 
@@ -988,7 +989,7 @@ mod tests {
         assert_eq!(dst[2], "#version-cli 05107100\n");
         assert!(!dst.iter().any(|l| l.starts_with("#open")));
         // サーバは世界移動で v6 の大きさを消すので、移動先へも送り直す
-        assert!(dst.contains(&"#ex-map view=13 9\n".to_string()));
+        assert!(dst.contains(&"#ex-map mapsets=16 view=13 9\n".to_string()));
         // 移動元の #ch-srv の後の行は捨てる
         assert!(!events.iter().any(|e| e["name"] == "after-ch-srv"));
         assert!(
