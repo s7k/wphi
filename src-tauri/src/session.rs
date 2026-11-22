@@ -201,7 +201,6 @@ fn line_bytes(text: &str) -> Vec<u8> {
     b
 }
 
-/// 接続し、切れるまで送受信を続ける。`outgoing` が閉じたら `#x` を送って切る。
 /// 無応答の時に次に起きる時刻。2分で #code-sjis を送り、3分で警告する。警告の後は None(待たない)
 fn next_wake(last_recv: Instant, keepalive_sent: bool, warned: bool) -> Option<Instant> {
     match (keepalive_sent, warned) {
@@ -257,54 +256,100 @@ fn quickack(stream: &TcpStream) {
     let _ = stream;
 }
 
-pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: impl FnMut(UiEvent)) {
+/// 繋いでいるサーバとの接続。世界移動に成功したら移動先の物に作り直す
+struct Conn {
+    stream: TcpStream,
+    lines: LineBuffer,
+    inflate: Inflate,
+    parser: Parser,
+    /// 今繋いでいるホスト。世界移動で変わる
+    host: String,
+    /// 最後に送った `#ex-map view=`。型が変わった時(北固定から回転へなど)と、窓の大きさが変わった時に送り直す
+    sent_view: Option<String>,
+}
+
+impl Conn {
+    fn new(stream: TcpStream, host: String, view: Option<(u8, u8)>) -> Self {
+        Self {
+            stream,
+            lines: LineBuffer::new(),
+            inflate: Inflate::new(),
+            parser: Parser::new(),
+            host,
+            sent_view: view.map(|v| view_line(v, false)),
+        }
+    }
+}
+
+/// 繋いでログイン時の行を送る。失敗したらエラーを UI に送って None
+async fn connect(login: &Login, emit: &mut impl FnMut(UiEvent)) -> Option<Conn> {
     let addr = (login.host.as_str(), login.port);
     let mut stream = match timeout(CONNECT_TIMEOUT, TcpStream::connect(addr)).await {
         Ok(Ok(s)) => {
             tune(&s);
             s
         }
-        // 失敗した時も closed() を送る。送らないとタブが接続中のまま残り、「接続」で繋ぎ直せない (#131)
         Ok(Err(e)) => {
             emit(error(format!("接続出来ません: {e}")));
-            return emit(closed());
+            return None;
         }
         Err(_) => {
             emit(error("接続がタイムアウトしました".into()));
-            return emit(closed());
+            return None;
         }
     };
-    let mut view = login.view;
-    // 最後に送った `#ex-map view=`。型が変わった時(北固定から回転へなど)と、窓の大きさが変わった時に送り直す
-    let mut sent_view = view.map(|v| view_line(v, false));
-    let login_bytes: Vec<u8> = login_lines(Some(&login.id), view)
+    let login_bytes: Vec<u8> = login_lines(Some(&login.id), login.view)
         .iter()
         .flat_map(|l| line_bytes(l))
         .collect();
     if !put(&mut stream, &login_bytes).await {
         emit(error("送信に失敗しました".into()));
-        return emit(closed());
+        return None;
     }
+    Some(Conn::new(stream, login.host.clone(), login.view))
+}
 
-    let mut lines = LineBuffer::new();
-    let mut inflate = Inflate::new();
-    let mut parser = Parser::new();
+/// 受けた行を処理し終えた理由
+enum Lines {
+    /// 全部処理した
+    Done,
+    /// サーバの #x・#close
+    Closed,
+    /// `#ch-srv` を受けた。残りの行は `queue` に残る
+    Transfer(String),
+}
+
+/// 世界移動を試した結果
+enum Transfer {
+    /// 移動元のまま続ける。移動の間に移動元から受けた行を続けて処理する(#71)
+    Stay(Vec<Vec<u8>>),
+    /// 移動した。移動元で受けていた残りの行は捨てる(Philly も ChSrv の成功で受信の処理を打ち切る)
+    Moved,
+    /// 移動の間に送信キューが閉じた(タブを閉じた)
+    Closed,
+}
+
+/// 接続し、切れるまで送受信を続ける。`outgoing` が閉じたら `#x` を送って切る。
+pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: impl FnMut(UiEvent)) {
+    // 失敗した時も closed() を送る。送らないとタブが接続中のまま残り、「接続」で繋ぎ直せない (#131)
+    let Some(mut conn) = connect(&login, &mut emit).await else {
+        return emit(closed());
+    };
+    let mut view = login.view;
     let opts = LogOptions::default();
     let mut record = recorder(&login);
     let mut buf = vec![0u8; 32 * 1024];
     let mut last_recv = Instant::now();
     let mut keepalive_sent = false;
     let mut warned = false;
-    // 今繋いでいるホスト。世界移動で変わる
-    let mut host = login.host.clone();
     let mut auto = AutoUnequip::default();
 
     'conn: loop {
         let wake = next_wake(last_recv, keepalive_sent, warned);
         let mut reply: Vec<String> = Vec::new();
         tokio::select! {
-            r = stream.read(&mut buf) => {
-                quickack(&stream);
+            r = conn.stream.read(&mut buf) => {
+                quickack(&conn.stream);
                 let n = match r {
                     Ok(0) => break,
                     Ok(n) => n,
@@ -316,7 +361,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                 last_recv = Instant::now();
                 keepalive_sent = false;
                 warned = false;
-                let data = match inflate.feed(&buf[..n]) {
+                let data = match conn.inflate.feed(&buf[..n]) {
                     Ok(d) => d,
                     Err(e) => {
                         emit(error(format!("受信した行を展開出来ません: {e}")));
@@ -327,117 +372,29 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     use std::io::Write;
                     let _ = f.write_all(&data);
                 }
-                let mut queue: VecDeque<Vec<u8>> = lines.feed(&data).into();
-                // 世界移動に失敗したら、#ch-srv の後の行と、移動の間に移動元から受けた行を続けて処理する(#71)
+                let mut queue: VecDeque<Vec<u8>> = conn.lines.feed(&data).into();
                 loop {
-                let mut moving_to = None;
-                'lines: while let Some(line) = queue.pop_front() {
-                    if crate::trace::on() {
-                        crate::trace::write(&format!("recv {}", crate::trace::head(&String::from_utf8_lossy(&line))));
-                    }
-                    if debug_on() && line.starts_with(b"#") {
-                        emit(debug_line("←", &codec::decode(&line)));
-                    }
-                    // 系統魔法の前に外した装備のリストなどは出さない(#4。Philly も #more の外だけで見る)
-                    let now = std::time::Instant::now();
-                    if !parser.in_more()
-                        && auto.active(now)
-                        && auto.filter(&strip_tags(&codec::decode(&line)), now, &mut reply)
-                    {
-                        continue 'lines;
-                    }
-                    for ev in parser.feed(&line) {
-                        match ev {
-                            Event::Internal { action: InternalAction::Lag } => reply.push("#end-lag".into()),
-                            Event::Internal { action: InternalAction::Remap } => reply.push("#map".into()),
-                            Event::Message(m) => emit(log_event(m, &opts, parser.in_more())),
-                            // サーバの #x・#close。ここでは UI へ送らず、受信を終える。終わりに必ず closed() を送るので、
-                            // ここでも送ると UI へ 2 回届く。サーバが接続を閉じなくても、こちらから切る
-                            Event::Connection { .. } => break 'conn,
-                            Event::WorldTransfer { ref server, .. } => {
-                                moving_to = Some(server.clone());
-                                emit(UiEvent::Proto(ev));
-                                break 'lines;
-                            }
-                            ev => emit(UiEvent::Proto(ev)),
-                        }
-                    }
-                }
-                let Some(server) = moving_to else { break };
-                {
-                    if !reply.is_empty() {
-                        let bytes: Vec<u8> = reply.drain(..).flat_map(|l| line_bytes(&l)).collect();
-                        let _ = put(&mut stream, &bytes).await;
-                    }
-                    // 移動の間に UI が送った行は、視界の大きさの他は捨てる(Philly の RejectMainThreadSend)。
-                    // 送信キューが閉じたら(タブを閉じた)移動をやめる。待たないと、閉じたタブのキャラが移動先へログインする(#71)
-                    // 今と違うホストへ移る時は、キャラ ID を送る前に確かめる(#51)。
-                    // 悪意のあるサーバか乗っ取られたサーバが、任意のホストへ #reserve <ID> を送らせられる為
-                    if let Some((h, p)) = transfer_target(&server).filter(|(h, _)| !h.eq_ignore_ascii_case(&host)) {
-                        emit(UiEvent::Ui(UiOnly::ConfirmTransfer { host: h.into(), port: p }));
-                        let answer = async {
-                            loop {
-                                match outgoing.recv().await {
-                                    Some(l) if l == TRANSFER_YES => break Some(true),
-                                    Some(l) if l == TRANSFER_NO => break Some(false),
-                                    Some(l) => keep_view(&l, &mut view),
-                                    None => break None,
-                                }
-                            }
-                        };
-                        let answer = match timeout(TRANSFER_TIMEOUT, answer).await {
-                            Ok(a) => a,
-                            Err(_) => {
-                                emit(UiEvent::Ui(UiOnly::TransferExpired));
-                                Some(false)
-                            }
-                        };
-                        match answer {
-                            None => return emit(quit(&mut stream).await),
-                            Some(false) => {
-                                emit(system(false, "世界移動をやめました"));
-                                let _ = put(&mut stream, &line_bytes("#no-srv")).await;
-                                last_recv = Instant::now();
-                                continue;
-                            }
-                            Some(true) => {}
-                        }
-                    }
-                    let mut skipped = Vec::new();
-                    // 移動先へ送る視界。移動の間に変わったら、移動の後に送り直す
-                    let moving_view = view;
-                    let moved = tokio::select! {
-                        r = transfer(&mut stream, &mut lines, &mut inflate, &mut skipped, &server, &login.id, moving_view, &mut emit) => Some(r),
-                        _ = async { while let Some(l) = outgoing.recv().await { keep_view(&l, &mut view) } } => None,
+                    let handled = handle_lines(&mut conn.parser, &mut queue, &mut auto, &mut reply, &opts, &mut emit);
+                    let server = match handled {
+                        Lines::Done => break,
+                        Lines::Closed => break 'conn,
+                        Lines::Transfer(server) => server,
                     };
-                    match moved {
-                        None => return emit(quit(&mut stream).await),
-                        Some(Some(dst)) => {
-                            // 移動元で受けていた残りの行は捨てる(Philly も ChSrv の成功で受信の処理を打ち切る)
-                            stream = dst;
-                            if let Some((h, _)) = transfer_target(&server) {
-                                host = h.to_string();
-                            }
-                            lines = LineBuffer::new();
-                            inflate = Inflate::new();
-                            parser = Parser::new();
-                            sent_view = moving_view.map(|v| view_line(v, false));
-                            while let Ok(l) = outgoing.try_recv() {
-                                keep_view(&l, &mut view);
-                            }
-                            last_recv = Instant::now();
-                            break;
-                        }
-                        Some(None) => queue.extend(skipped),
-                    }
+                    let moved =
+                        handle_transfer(&mut conn, &server, &login.id, &mut view, &mut outgoing, &mut reply, &mut emit)
+                            .await;
                     last_recv = Instant::now();
-                }
+                    match moved {
+                        Transfer::Stay(skipped) => queue.extend(skipped),
+                        Transfer::Moved => break,
+                        Transfer::Closed => return emit(quit(&mut conn.stream).await),
+                    }
                 }
             }
             text = outgoing.recv() => match text {
                 Some(text) => {
                     if text == "#ulist" {
-                        parser.clear_users();
+                        conn.parser.clear_users();
                     }
                     if text.starts_with(INTERNAL_PREFIX) {
                         // 確かめの期限が切れた後に届いた TRANSFER_YES などは、サーバへ送らない
@@ -449,7 +406,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                         }
                     }
                 }
-                None => return emit(quit(&mut stream).await),
+                None => return emit(quit(&mut conn.stream).await),
             },
             // 警告を出した後は、次に受信するまで待たない(過去の時刻を待つと、待たずに回り続ける。#61)
             _ = tokio::time::sleep_until(wake.unwrap_or(last_recv)), if wake.is_some() => {
@@ -462,17 +419,17 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                 }
             }
         }
-        let want_view = view.map(|v| view_line(v, parser.map_style() == Some("turn")));
-        if want_view != sent_view {
+        let want_view = view.map(|v| view_line(v, conn.parser.map_style() == Some("turn")));
+        if want_view != conn.sent_view {
             reply.extend(want_view.clone());
-            sent_view = want_view;
+            conn.sent_view = want_view;
         }
         if debug_on() {
             reply.iter().for_each(|l| emit(debug_line("→", l)));
         }
         let bytes: Vec<u8> = reply.iter().flat_map(|l| line_bytes(l)).collect();
         if !bytes.is_empty() {
-            let sent = match timeout(WRITE_TIMEOUT, stream.write_all(&bytes)).await {
+            let sent = match timeout(WRITE_TIMEOUT, conn.stream.write_all(&bytes)).await {
                 Ok(r) => r.map_err(|e| e.to_string()),
                 Err(_) => Err("30秒待っても送れません".into()),
             };
@@ -483,6 +440,120 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
         }
     }
     emit(closed());
+}
+
+/// `queue` の行を前から解析して UI へ送る。自動応答は `reply` に足す。
+/// `#ch-srv` を受けたらそこで止め、後ろの行は `queue` に残す(移動に失敗したら続けて処理する。#71)
+fn handle_lines(
+    parser: &mut Parser,
+    queue: &mut VecDeque<Vec<u8>>,
+    auto: &mut AutoUnequip,
+    reply: &mut Vec<String>,
+    opts: &LogOptions,
+    emit: &mut impl FnMut(UiEvent),
+) -> Lines {
+    while let Some(line) = queue.pop_front() {
+        if crate::trace::on() {
+            crate::trace::write(&format!("recv {}", crate::trace::head(&String::from_utf8_lossy(&line))));
+        }
+        if debug_on() && line.starts_with(b"#") {
+            emit(debug_line("←", &codec::decode(&line)));
+        }
+        // 系統魔法の前に外した装備のリストなどは出さない(#4。Philly も #more の外だけで見る)
+        let now = std::time::Instant::now();
+        if !parser.in_more() && auto.active(now) && auto.filter(&strip_tags(&codec::decode(&line)), now, reply) {
+            continue;
+        }
+        for ev in parser.feed(&line) {
+            match ev {
+                Event::Internal {
+                    action: InternalAction::Lag,
+                } => reply.push("#end-lag".into()),
+                Event::Internal {
+                    action: InternalAction::Remap,
+                } => reply.push("#map".into()),
+                Event::Message(m) => emit(log_event(m, opts, parser.in_more())),
+                // サーバの #x・#close。ここでは UI へ送らず、受信を終える。終わりに必ず closed() を送るので、
+                // ここでも送ると UI へ 2 回届く。サーバが接続を閉じなくても、こちらから切る
+                Event::Connection { .. } => return Lines::Closed,
+                Event::WorldTransfer { ref server, .. } => {
+                    let server = server.clone();
+                    emit(UiEvent::Proto(ev));
+                    return Lines::Transfer(server);
+                }
+                ev => emit(UiEvent::Proto(ev)),
+            }
+        }
+    }
+    Lines::Done
+}
+
+/// `#ch-srv` を受けた時の世界移動。それまでの自動応答を送ってから、要るなら UI に確かめ、移動を試す。
+/// 移動に成功したら `conn` を移動先の物に作り直す
+async fn handle_transfer(
+    conn: &mut Conn,
+    server: &str,
+    id: &str,
+    view: &mut Option<(u8, u8)>,
+    outgoing: &mut mpsc::Receiver<String>,
+    reply: &mut Vec<String>,
+    emit: &mut impl FnMut(UiEvent),
+) -> Transfer {
+    if !reply.is_empty() {
+        let bytes: Vec<u8> = reply.drain(..).flat_map(|l| line_bytes(&l)).collect();
+        let _ = put(&mut conn.stream, &bytes).await;
+    }
+    // 移動の間に UI が送った行は、視界の大きさの他は捨てる(Philly の RejectMainThreadSend)。
+    // 送信キューが閉じたら(タブを閉じた)移動をやめる。待たないと、閉じたタブのキャラが移動先へログインする(#71)
+    // 今と違うホストへ移る時は、キャラ ID を送る前に確かめる(#51)。
+    // 悪意のあるサーバか乗っ取られたサーバが、任意のホストへ #reserve <ID> を送らせられる為
+    if let Some((h, p)) = transfer_target(server).filter(|(h, _)| !h.eq_ignore_ascii_case(&conn.host)) {
+        emit(UiEvent::Ui(UiOnly::ConfirmTransfer {
+            host: h.into(),
+            port: p,
+        }));
+        let answer = async {
+            loop {
+                match outgoing.recv().await {
+                    Some(l) if l == TRANSFER_YES => break Some(true),
+                    Some(l) if l == TRANSFER_NO => break Some(false),
+                    Some(l) => keep_view(&l, view),
+                    None => break None,
+                }
+            }
+        };
+        let answer = match timeout(TRANSFER_TIMEOUT, answer).await {
+            Ok(a) => a,
+            Err(_) => {
+                emit(UiEvent::Ui(UiOnly::TransferExpired));
+                Some(false)
+            }
+        };
+        match answer {
+            None => return Transfer::Closed,
+            Some(false) => {
+                emit(system(false, "世界移動をやめました"));
+                let _ = put(&mut conn.stream, &line_bytes("#no-srv")).await;
+                return Transfer::Stay(Vec::new());
+            }
+            Some(true) => {}
+        }
+    }
+    let mut skipped = Vec::new();
+    // 移動先へ送る視界。移動の間に変わったら、移動の後に送り直す
+    let moving_view = *view;
+    let moved = tokio::select! {
+        r = transfer(conn, &mut skipped, server, id, moving_view, emit) => r,
+        _ = async { while let Some(l) = outgoing.recv().await { keep_view(&l, view) } } => return Transfer::Closed,
+    };
+    let Some((dst, host)) = moved else {
+        return Transfer::Stay(skipped);
+    };
+    *conn = Conn::new(dst, host, moving_view);
+    while let Ok(l) = outgoing.try_recv() {
+        keep_view(&l, view);
+    }
+    Transfer::Moved
 }
 
 /// `#x` を送って切り、切れた事を返す。UI が切った時も知らせる(知らせないとタブが接続中のまま残る)
@@ -511,23 +582,19 @@ fn recorder(login: &Login) -> Option<std::fs::File> {
     std::fs::File::create(path).ok()
 }
 
-/// 世界移動(Philly の PersonalThread.cpp classTransportCharacter::ChSrv)。成功したら移動先の接続を返す。
+/// 世界移動(Philly の PersonalThread.cpp classTransportCharacter::ChSrv)。成功したら移動先の接続とホストを返す。
 ///
 /// 移動先へ `#reserve <ID>` → `#rsv-ok` を待つ → 移動元へ `#trans <IP> <ポート>` → `#trs-ok` を待つ →
 /// 移動先へ `#ch-srv-ok` → 移動先へログイン時の設定(`#open` なし)。
 /// 失敗したら移動元へ `#no-srv`(移動先に繋がらない時)か `#ch-srv-no`(移動元が断った時)を送り、移動元のまま続ける。
-// 移動元の接続の状態(src〜src_skipped)を別々に受ける為、引数が多い
-#[allow(clippy::too_many_arguments)]
 async fn transfer(
-    src: &mut TcpStream,
-    src_lines: &mut LineBuffer,
-    src_inflate: &mut Inflate,
+    src: &mut Conn,
     src_skipped: &mut Vec<Vec<u8>>,
     server: &str,
     id: &str,
     view: Option<(u8, u8)>,
     emit: &mut impl FnMut(UiEvent),
-) -> Option<TcpStream> {
+) -> Option<(TcpStream, String)> {
     let deadline = || Instant::now() + TRANSFER_TIMEOUT;
     let target = transfer_target(server);
 
@@ -545,7 +612,7 @@ async fn transfer(
         Some(c) => c,
         None => {
             emit(system(false, "転送先の世界が見つかりません"));
-            let _ = put(src, &line_bytes("#no-srv")).await;
+            let _ = put(&mut src.stream, &line_bytes("#no-srv")).await;
             return None;
         }
     };
@@ -564,7 +631,7 @@ async fn transfer(
         )
         .await;
     if !reserved {
-        let _ = put(src, &line_bytes("#no-srv")).await;
+        let _ = put(&mut src.stream, &line_bytes("#no-srv")).await;
         emit(system(
             false,
             "転送準備失敗。転送先の世界で同時接続数をオーバーしている可能性があります。",
@@ -574,11 +641,11 @@ async fn transfer(
 
     emit(system(true, "転送元世界に転送要求..."));
     let trans = format!("#trans {host} {port}");
-    let accepted = put(src, &line_bytes(&trans)).await
+    let accepted = put(&mut src.stream, &line_bytes(&trans)).await
         && wait_line(
-            src,
-            src_lines,
-            src_inflate,
+            &mut src.stream,
+            &mut src.lines,
+            &mut src.inflate,
             b"#trs-ok",
             &[b"#trs-no"],
             deadline(),
@@ -586,7 +653,7 @@ async fn transfer(
         )
         .await;
     if !accepted {
-        let _ = put(src, &line_bytes("#ch-srv-no")).await;
+        let _ = put(&mut src.stream, &line_bytes("#ch-srv-no")).await;
         emit(system(false, "転送失敗"));
         // 移動先は断った理由(持ち込めないアイテムなど)を、#reserve を送ったこちらの接続へ書く。
         // 移動元の行より前に起きた事なので先に処理する。移動先のコマンドは移動元の物として扱わない為、# の行は捨てる
@@ -608,7 +675,7 @@ async fn transfer(
         host: host.to_string(),
         port,
     }));
-    Some(dst)
+    Some((dst, host.to_string()))
 }
 
 /// `#ch-srv` の移動先(`ホスト:ポート`)。ポートが u16 に収まらない時も、繋がらない時と同じく移動元へ #no-srv を返す(#71)
