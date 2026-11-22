@@ -2267,7 +2267,7 @@ button > svg:only-child,
   transform: none;
 }
 
-/* Ctrl+数字 の数字 */
+/* Alt+数字 の数字 */
 .spell-key {
   position: absolute;
   left: 2px;

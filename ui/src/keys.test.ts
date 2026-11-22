@@ -38,8 +38,9 @@ test("行動キーと修飾キー", () => {
   assert.deepEqual(act(key("Numpad5", { shift: true }), north), { send: "turn b" });
   assert.deepEqual(act(key("Tab", { ctrl: true }), north), { nextTab: true });
   assert.deepEqual(act(key("KeyW", { alt: true }), north), { send: "cast\nwizard eye", cancelList: 1, systemMagic: "reequip" });
-  // Alt+数字は魔法の列の何番目か (Ctrl+数字と同じ)
+  // Alt+数字は魔法の列の何番目か。Ctrl+数字には割り当てない
   assert.deepEqual(act(key("Digit3", { alt: true }), north), { spellSlot: 3 });
+  assert.equal(act(key("Digit3", { ctrl: true }), north), null);
   assert.deepEqual(act(key("KeyL", { alt: true, shift: true }), north), { send: "cast\nlist", cancelList: 1, systemMagic: "reequip" });
   assert.ok((act(key("KeyR", { alt: true }), north) as { confirm?: string }).confirm);
   assert.deepEqual(act(key("F3"), north), { send: "cast\n3", cancelList: 1 });

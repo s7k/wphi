@@ -1,4 +1,4 @@
-// 魔法の列。覚えている呪文をアイコンで並べ、押すか Ctrl+数字で唱える (ui/src/spells.ts)。
+// 魔法の列。覚えている呪文をアイコンで並べ、押すか Alt+数字で唱える (ui/src/spells.ts)。
 // アイコンは効果 (EF_*) ごとのドット絵、背景の色は属性 (持ち物のタイルと同じ)。
 // ドラッグか Shift+← / → で並べ替える。HTML5 のドラッグ＆ドロップは、Windows の Tauri が窓へのファイルのドロップを
 // 受ける間は効かないので、ポインタの操作で作る
@@ -92,7 +92,7 @@ export function SpellBar(props: {
             type="button"
             className={cls.filter(Boolean).join(" ")}
             disabled={props.waiting}
-            aria-label={i < 8 ? `${s.name} (Ctrl+${i + 1}・Alt+${i + 1})` : s.name}
+            aria-label={i < 8 ? `${s.name} (Alt+${i + 1})` : s.name}
             style={color === "rainbow" ? { background: "conic-gradient(#c4482f, #c9a227, #3f9d8e, #3577c4, #7d5bc4, #c4482f)" } : { background: color }}
             onPointerDown={onDown(i)}
             onPointerMove={onDrag}

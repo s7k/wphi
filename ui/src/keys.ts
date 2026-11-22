@@ -196,7 +196,7 @@ const ALT: Record<string, KeyAction> = {
   KeyS: { ask: { title: "看板検索", label: "検索する言葉を入力してください" }, send: "cast\nsearch\n{}", cancelList: 1 },
   KeyU: { send: "cast\nunlock\nsee", cancelList: 1, systemMagic: "reequip" },
   KeyW: { send: "cast\nwizard eye", cancelList: 1, systemMagic: "reequip" },
-  // 魔法の列の左から 1〜8 番目 (Ctrl+数字と同じ)。サーバの番号は唱えるたびに入れ替わるので、列と違う呪文になった。
+  // 魔法の列の左から 1〜8 番目。並びは固定なので、唱えてサーバの番号が入れ替わっても同じ呪文 (ui/src/spells.ts)。
   // 魔法の列が無いサーバ (v6 でない世界) では、所持魔法の何番目かを唱える (App.tsx の castSpellSlot)。8 まで(Philly は 7 まで)
   ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`Digit${n}`, { spellSlot: n }])),
 };
@@ -213,8 +213,6 @@ const SHIFT_ALT: Record<string, KeyAction> = {
 };
 
 const CTRL: Record<string, KeyAction> = {
-  // 魔法の列の左から 1〜8 番目。並びは固定なので、唱えて番号が入れ替わっても同じ呪文 (ui/src/spells.ts)
-  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`Digit${n}`, { spellSlot: n }])),
   Numpad1: { send: "hit" },
   Numpad3: { send: "cast" },
   Space: { send: "hit" },
