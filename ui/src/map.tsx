@@ -185,6 +185,8 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     };
   }, []);
   const [smooth, setSmooth] = useState(false);
+  // モダンの左上に出すステータス (設定の hudStats)
+  const [hud, setHud] = useState<string[]>(["hp", "mp"]);
   const [variety, setVariety] = useState(false);
   // マップの拡大率。canvas は等倍で描き、CSS で拡大縮小する。v6 の視界は、拡大した大きさで欄に収まる分だけ
   // 拡大率の設定。v6 の地図と、v6 でない 7x7 の地図(v5y など)で別に持つ
@@ -369,6 +371,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
   useEffect(() => {
     const apply = (s: Settings) => {
       setSmooth(s.smoothMove);
+      setHud(s.hudStats ?? ["hp", "mp"]);
       setVariety(s.mapVariety);
       setShown(s.singleWindow || s.modern ? !!props.embedded && !!s.modern === !!props.modern : !props.embedded);
       setZooms({ v6: clampZoom(s.mapZoom) / 100, m57: clampZoom(s.mapZoomM57 || s.mapZoom) / 100 });
@@ -606,7 +609,9 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     <div className={props.modern ? "map-window modern" : "map-window"}>
       {/* main 窓の中では窓のタイトルに出せないので、地図の上に出す */}
       {props.embedded && !props.modern && <div className="map-title">{title}</div>}
-      {props.modern && <ModernHud title={title} now={prevStatus.current.now} cond={state?.cond} dir={direction} northFix={northFix} />}
+      {props.modern && (
+        <ModernHud title={title} now={prevStatus.current.now} cond={state?.cond} dir={direction} northFix={northFix} show={hud} />
+      )}
       <div className="map-row">
         <div className="map-area" ref={mapArea}>
           <canvas
@@ -713,7 +718,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
 }
 
 /** モダンの左上の地名と HP・MP、右上の方角。文字は白に黒の縁取り(style.css の .modern-hud) */
-function ModernHud(props: { title: string; now?: StatusEvent; cond?: CondEvent; dir: number; northFix: boolean }) {
+function ModernHud(props: { title: string; now?: StatusEvent; cond?: CondEvent; dir: number; northFix: boolean; show: string[] }) {
   const s = props.now;
   const bar = (kind: "hp" | "mp", v = 0, max = 0) => (
     <div className={`modern-bar ${kind}`}>
@@ -730,8 +735,15 @@ function ModernHud(props: { title: string; now?: StatusEvent; cond?: CondEvent; 
     <>
       <div className="modern-hud">
         <div className="modern-place">{props.title}</div>
-        {bar("hp", s?.hp, s?.maxHp)}
-        {bar("mp", s?.mp, s?.maxMp)}
+        {props.show.includes("hp") && bar("hp", s?.hp, s?.maxHp)}
+        {props.show.includes("mp") && bar("mp", s?.mp, s?.maxMp)}
+        {props.show.includes("exp") && <div className="modern-stat">EXP {s?.exp ?? "-"}</div>}
+        {props.show.includes("gp") && <div className="modern-stat">GP {s?.gp ?? "-"}</div>}
+        {props.show.includes("lv") && (
+          <div className="modern-stat">
+            Lv F {s?.f ?? "-"} W {s?.w ?? "-"} M {s?.m ?? "-"} C {s?.c ?? "-"}
+          </div>
+        )}
         <CondBadges cond={props.cond} />
       </div>
       {/* カバンとステータスのボタンと同じ丸に、ドット絵の針を描く。北固定でない地図は向きに合わせて回す */}

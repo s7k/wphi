@@ -65,6 +65,8 @@ pub struct Settings {
     pub map_effects: bool,
     /// 起動した時に、前回開いていたタブのキャラへ接続する(Philly に無い)
     pub auto_connect: bool,
+    /// モダンの左上に出すステータス。hp・mp・exp・gp・lv (レベル 4 つ) を、この順で出す(Philly に無い)
+    pub hud_stats: Vec<String>,
 }
 
 impl Default for Settings {
@@ -97,6 +99,7 @@ impl Default for Settings {
             map_variety: true,
             map_effects: true,
             auto_connect: true,
+            hud_stats: vec!["hp".into(), "mp".into()],
         }
     }
 }

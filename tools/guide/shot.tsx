@@ -4,13 +4,20 @@ import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import type { Channel } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { createRoot } from "react-dom/client";
-import { DEFAULT_SETTINGS } from "../../ui/src/settings.ts";
+import { DEFAULT_SETTINGS, HUD_STATS } from "../../ui/src/settings.ts";
 import "../../ui/src/style.css";
 
 const SERVER = "http://127.0.0.1:5180";
 const text = (path: string) => fetch(SERVER + path).then((r) => r.text());
-// ?modern でモダンの画面に、?smooth でスムーズ移動に、?plain で木と草の揺らぎ無しにする
-const settings = { ...DEFAULT_SETTINGS, singleWindow: true, modern: location.search.includes("modern"), smoothMove: location.search.includes("smooth"), mapVariety: !location.search.includes("plain") };
+// ?modern でモダンの画面に、?smooth でスムーズ移動に、?plain で木と草の揺らぎ無しに、?hudall で左上のステータスを全部出す
+const settings = {
+  ...DEFAULT_SETTINGS,
+  singleWindow: true,
+  modern: location.search.includes("modern"),
+  smoothMove: location.search.includes("smooth"),
+  mapVariety: !location.search.includes("plain"),
+  hudStats: location.search.includes("hudall") ? HUD_STATS.map(([k]) => k) : DEFAULT_SETTINGS.hudStats,
+};
 
 mockIPC(
   async (cmd, args: any) => {

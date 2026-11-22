@@ -48,7 +48,18 @@ export type Settings = {
   mapEffects: boolean;
   /** 起動した時に、前回開いていたタブのキャラへ接続する */
   autoConnect: boolean;
+  /** モダンの左上に出すステータス(HUD_STATS のキー) */
+  hudStats: string[];
 };
+
+/** モダンの左上に出せるステータス。設定の画面の並びと、出す順 */
+export const HUD_STATS: [string, string][] = [
+  ["hp", "HP"],
+  ["mp", "MP"],
+  ["exp", "経験値"],
+  ["gp", "所持金"],
+  ["lv", "レベル (Fighter・Wizard・Merchant・Creater)"],
+];
 
 /** 表示のメニューでチェックの付く項目を切り替えた時と、設定を保存した時に、Rust が設定の全体を全部の窓へ送る */
 export const EXPERIMENT_EVENT = "phi-experiment";

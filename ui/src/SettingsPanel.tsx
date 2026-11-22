@@ -2,7 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { confirmBox } from "./MessageDialog";
-import { changedKeys, clampZoom, MAP_ZOOMS, mergeChanged, type Settings } from "./settings.ts";
+import { changedKeys, clampZoom, HUD_STATS, MAP_ZOOMS, mergeChanged, type Settings } from "./settings.ts";
 import { Import, Save, X } from "lucide-react";
 
 /** 歩き出しの重さの段の名前 (walker.ts の WEIGHTS) */
@@ -76,6 +76,24 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
           重くすると、歩き出しがゆっくりになり、軽く押した時に少しだけ進みます。軽くすると、歩き出しが速くなり、軽く押しても多く進みます。
           押し続けた時の速さはどれも同じです。真ん中が標準です。
         </p>
+        <fieldset className="settings-hud">
+          <legend>モダンの画面の左上に出すステータス</legend>
+          {HUD_STATS.map(([key, label]) => (
+            <label key={key}>
+              <input
+                type="checkbox"
+                checked={s.hudStats.includes(key)}
+                onChange={(e) =>
+                  set(
+                    "hudStats",
+                    HUD_STATS.map(([k]) => k).filter((k) => (k === key ? e.target.checked : s.hudStats.includes(k))),
+                  )
+                }
+              />
+              {label}
+            </label>
+          ))}
+        </fieldset>
         {/* 画面の形などは表示メニューにだけあり、ここを探して見つからなかった (#137) */}
         <p className="settings-note">
           画面の形(モダン・クラシック)、吹き出しの演出、木と草の揺らぎは、メニューの「表示」で切り替えます。

@@ -37,5 +37,9 @@
   "modern": true,
   "mapVariety": true,
   "mapEffects": true,
-  "autoConnect": true
+  "autoConnect": true,
+  "hudStats": [
+    "hp",
+    "mp"
+  ]
 }

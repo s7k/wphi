@@ -1282,6 +1282,14 @@ button > svg:only-child,
   font-variant-numeric: tabular-nums;
 }
 
+/* HP・MP のバーの下に出す経験値・所持金・レベル */
+.modern-stat {
+  font-size: 12px;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .modern-compass {
   position: absolute;
   top: 6px;
