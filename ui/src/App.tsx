@@ -13,7 +13,7 @@ import { MASTER_EXP, parseMasterMagic, runMasterItem, type MasterMenu } from "./
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { SENT_EVENT, type Sent } from "./keyInput";
 import { isNorthFix, isTextTarget, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
-import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, stepCommands, type AskOptions, type Mods, type MoveKey } from "./keys.ts";
+import { escapeTarget, keyAction, listKeyAction, menuAction, moveCommand, moveInput, stepCommands, type AskOptions, type Mods, type MoveKey } from "./keys.ts";
 import { MAX_UNCONFIRMED, walkable, Walker } from "./walker.ts";
 import { BAG_ICON, BagPanel, ItemIcon, STATUS_ICON } from "./BagPanel.tsx";
 import { PartyHud, PartyPanel } from "./PartyPanel.tsx";
@@ -42,7 +42,7 @@ import { LogFind } from "./LogFind";
 import { lightenColors, pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
 import { createLogWriter } from "./logSave.ts";
 import { characterTarget, needsCloseConfirm } from "./tabs.ts";
-import { signAuthor } from "./signHead.ts";
+import { signLine, signMode, type SignReading } from "./signHead.ts";
 import { castLines, loadSpellOrder, moveSpell, orderSpells, saveSpellOrder, SPELL_WAIT_MS, waitsForOrder } from "./spells.ts";
 import { SpellBar } from "./SpellBar";
 import { followGoal, followStep, targetPos, type FollowMemory } from "./follow.ts";
@@ -60,8 +60,6 @@ const INPUT_MENU_EVENT = "phi-input-menu";
 const ULIST_QUIET_MS = 300;
 /** 裏のタブでついて行く時、1 歩送ってから移動の返事も地図も届かなければ、次を送るまで待つ上限 (ms) */
 const FOLLOW_PENDING_MS = 600;
-/** 看板 (#more 〜 #end-more) 1 枚の行の上限 (#120) */
-const SIGN_MAX_LINES = 500;
 
 type Tab = {
   session: number;
@@ -308,12 +306,10 @@ export function App() {
   };
   // スムーズ移動の歩き方(ui/src/walker.ts)。#v6 G を送るサーバで、スムーズ移動が有効な北固定の時だけ
   const walker = useRef(new Walker<Mods>());
-  /** #more の中で届いた本文の行(セッションごと)。#end-more で札にする */
-  const signLines = useRef(new Map<number, string[]>());
+  /** #more の中で届いた本文の行と書いた人 (セッションごと)。#end-more で札にする (ui/src/signHead.ts) */
+  const signReads = useRef(new Map<number, SignReading>());
   /** 直近の 2 行 (タグ付きの生の行)。#more の前の「名前 (日付)」と区切りの線から、看板を書いた人を取る */
   const recentLines = useRef(new Map<number, string[]>());
-  /** 読んでいる看板を書いた人。#more で決め、#end-more で札に付ける */
-  const signAuthors = useRef(new Map<number, ReturnType<typeof signAuthor>>());
   /** 魔法の列の呪文を、今の番号で唱える。先頭以外なら、番号が入れ替わる (#v6 S が届く) まで次を押させない */
   const castSpell = (session: number, spell: Spell) => {
     const tab = tabOf(session);
@@ -743,28 +739,14 @@ export function App() {
       }
       const session = activeRef.current;
       if (session === null) return false;
-      // カバン・パーティ・看板の札・priv の欄は Esc で閉じる。上に重なっている方 (カバン 11、札 6) から閉じる。
-      // 札を先に閉じていた為、両方開いていると見えているカバンでなく裏の札が閉じた
-      const open = tabOf(session);
-      if (e.type === "keydown" && e.code === "Escape" && open?.bagOpen) {
-        update(session, (t) => ({ ...t, bagOpen: false }));
-        return true;
-      }
-      if (e.type === "keydown" && e.code === "Escape" && open?.partyOpen) {
-        update(session, (t) => ({ ...t, partyOpen: false }));
-        return true;
-      }
-      if (e.type === "keydown" && e.code === "Escape" && open?.sign) {
-        closeSign(session);
-        return true;
-      }
-      if (e.type === "keydown" && e.code === "Escape" && open?.privOpen) {
-        update(session, (t) => ({ ...t, privOpen: false }));
-        return true;
-      }
-      // 画面が開いていなければ、Esc でついて行くのをやめる
-      if (e.type === "keydown" && e.code === "Escape" && follows.current.has(session)) {
-        stopFollow(session);
+      // カバン・パーティ・看板の札・priv の欄は Esc で閉じる。閉じる順は ui/src/keys.ts の escapeTarget
+      const esc = e.type === "keydown" && e.code === "Escape" ? escapeTarget(tabOf(session), follows.current.has(session)) : null;
+      if (esc) {
+        if (esc === "bag") update(session, (t) => ({ ...t, bagOpen: false }));
+        else if (esc === "party") update(session, (t) => ({ ...t, partyOpen: false }));
+        else if (esc === "sign") closeSign(session);
+        else if (esc === "priv") update(session, (t) => ({ ...t, privOpen: false }));
+        else stopFollow(session);
         return true;
       }
       const ctx = keyContext(mapStates.current.get(session), settingsRef.current.fullKeyMove);
@@ -1320,11 +1302,7 @@ export function App() {
         case "log":
           append(session, ev.html, ev.raw);
           recentLines.current.set(session, [...(recentLines.current.get(session) ?? []), ev.raw ?? ""].slice(-2));
-          {
-            // #end-more が来ないまま続くと貯め続けるので、看板 1 枚の分に抑える (#120)
-            const sign = signLines.current.get(session);
-            if (sign && sign.length < SIGN_MAX_LINES) sign.push(ev.html);
-          }
+          signLine(signReads.current.get(session), ev.html);
           notifyTalk(session, ev.channel, ev.html, !!ev.noFlash);
           if (ev.channel === "priv" && ev.from) addPriv(session, ev.from, ev.html);
           if (ev.channel === "party") addParty(session, ev.html);
@@ -1420,16 +1398,10 @@ export function App() {
           break;
         case "mode": {
           // 看板などの本文(#more 〜 #end-more)は、ログに流すのに加えて札に出す(試験中)
-          const reading = signLines.current.get(session);
-          if (ev.more && !reading) {
-            signLines.current.set(session, []);
-            signAuthors.current.set(session, signAuthor(recentLines.current.get(session) ?? []));
-          } else if (!ev.more && reading) {
-            signLines.current.delete(session);
-            const author = signAuthors.current.get(session) ?? null;
-            signAuthors.current.delete(session);
-            if (reading.length) update(session, (t) => ({ ...t, sign: reading, signAuthor: author }));
-          }
+          const { reading, card } = signMode(signReads.current.get(session), !!ev.more, recentLines.current.get(session) ?? []);
+          if (reading) signReads.current.set(session, reading);
+          else signReads.current.delete(session);
+          if (card) update(session, (t) => ({ ...t, sign: card.lines, signAuthor: card.author }));
           onMapEvent(session, ev);
           break;
         }
@@ -1559,8 +1531,7 @@ export function App() {
     listFlows.current.delete(session);
     lastUlist.current.delete(session);
     pendingLines.current.delete(session);
-    signLines.current.delete(session);
-    signAuthors.current.delete(session);
+    signReads.current.delete(session);
     follows.current.delete(session);
     recentLines.current.delete(session);
     const wait = ulistWaits.current.get(session);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { signAuthor } from "./signHead.ts";
+import { SIGN_MAX_LINES, signAuthor, signLine, signMode } from "./signHead.ts";
 
 const RULE = "----------------------------------------------";
 
@@ -22,4 +22,29 @@ test("看板でない #more (区切りの線が無い、行が足りない、名
   assert.equal(signAuthor([RULE]), null);
   assert.equal(signAuthor([]), null);
   assert.equal(signAuthor(["(2026/11/20)", RULE]), null);
+});
+
+test("#more から #end-more までを札にし、直前の 2 行から書いた人を取る", () => {
+  const head = ["Kotone          (2026/11/20 09:30:12)", "-".repeat(40)];
+  let r = signMode(undefined, true, head).reading;
+  signLine(r, "一行目");
+  signLine(r, "二行目");
+  // 読んでいる間の #more は読み直さない
+  r = signMode(r, true, ["x", "y"]).reading;
+  const end = signMode(r, false, []);
+  assert.equal(end.reading, undefined);
+  assert.deepEqual(end.card, { lines: ["一行目", "二行目"], author: { name: "Kotone", date: "2026/11/20 09:30:12" } });
+});
+
+test("本文が空なら札を出さず、#more の無い #end-more は何もしない", () => {
+  const r = signMode(undefined, true, []).reading;
+  assert.equal(signMode(r, false, []).card, undefined);
+  assert.deepEqual(signMode(undefined, false, []), { reading: undefined });
+});
+
+test("#end-more が来ないまま続いても、看板 1 枚の分で打ち切る", () => {
+  const r = signMode(undefined, true, []).reading;
+  for (let i = 0; i < SIGN_MAX_LINES + 10; i++) signLine(r, `${i}`);
+  assert.equal(r?.lines.length, SIGN_MAX_LINES);
+  signLine(undefined, "読んでいない時は何もしない");
 });

@@ -20,3 +20,28 @@ export function signAuthor(before: string[]): { name: string; date: string } | n
   if (!m) return null;
   return { name: m[1], date: m[2].trim() };
 }
+
+/** 看板の札の為に読んでいる本文。#more で始め、#end-more で札にする */
+export type SignReading = { lines: string[]; author: ReturnType<typeof signAuthor> };
+
+/** #end-more が来ないまま続くと貯め続けるので、看板 1 枚の分に抑える (#120) */
+export const SIGN_MAX_LINES = 500;
+
+/** 読んでいる間に届いたログの行を足す */
+export function signLine(reading: SignReading | undefined, html: string): void {
+  if (reading && reading.lines.length < SIGN_MAX_LINES) reading.lines.push(html);
+}
+
+/**
+ * #more (more = true) と #end-more (false) を受ける。recent は #more の直前に届いた 2 行。
+ * 返す reading が次の状態で、card は札に出す物 (本文が空なら出さない)
+ */
+export function signMode(
+  reading: SignReading | undefined,
+  more: boolean,
+  recent: string[],
+): { reading: SignReading | undefined; card?: SignReading } {
+  if (more && !reading) return { reading: { lines: [], author: signAuthor(recent) } };
+  if (!more && reading) return { reading: undefined, card: reading.lines.length ? reading : undefined };
+  return { reading };
+}

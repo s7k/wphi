@@ -1,7 +1,7 @@
 // node --test ui/src/keys.test.ts で実行する(Node 24 は型を外して .ts を直接読む)
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, stepCommands, type KeyContext } from "./keys.ts";
+import { escapeTarget, keyAction, listKeyAction, menuAction, moveCommand, moveInput, stepCommands, type KeyContext } from "./keys.ts";
 
 const key = (code: string, mods: { shift?: boolean; ctrl?: boolean; alt?: boolean } = {}) => ({
   code,
@@ -108,4 +108,13 @@ test("北固定の斜めは、縦を向きを変えない go n / go s にして�
   // 縦横 1 方向と、回転する地図はそのまま
   assert.deepEqual(stepCommands(["8"], "none", true), ["go N"]);
   assert.deepEqual(stepCommands(["8", "6"], "none", false), [moveCommand("8", "none", false), moveCommand("6", "none", false)]);
+});
+
+test("Esc は上に重なっている方から閉じ、何も開いていなければついて行くのをやめる", () => {
+  assert.equal(escapeTarget({ bagOpen: true, sign: ["x"], privOpen: true }, true), "bag");
+  assert.equal(escapeTarget({ partyOpen: true, sign: ["x"] }, false), "party");
+  assert.equal(escapeTarget({ sign: ["x"], privOpen: true }, true), "sign");
+  assert.equal(escapeTarget({ sign: null, privOpen: true }, true), "priv");
+  assert.equal(escapeTarget({}, true), "follow");
+  assert.equal(escapeTarget(undefined, false), null);
 });
