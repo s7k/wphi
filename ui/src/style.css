@@ -1907,6 +1907,12 @@ button > svg:only-child,
   cursor: pointer;
 }
 
+/* 捨てるボタンは、他の操作と見分けられる様に赤くする */
+.bag-detail button.bag-danger {
+  border-color: rgb(255 120 100 / 70%);
+  color: #ffb4a6;
+}
+
 .bag-actions {
   display: flex;
   flex-wrap: wrap;

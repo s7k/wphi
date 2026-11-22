@@ -824,6 +824,11 @@ export function App() {
         if (slots.length) sendLines(session, slots.map((k) => `#ex-inv put ${k}`).join("\n"));
         return;
       }
+      if (id === "bag-pick" && session !== null) {
+        openBag(session);
+        sendLine(session, "#ex-inv pick");
+        return;
+      }
       if (id === "bag-offer" && session !== null) {
         openBag(session);
         sendLine(session, "#ex-inv offer");
@@ -1618,6 +1623,13 @@ export function App() {
             onOffer={() => sendLine(tab.session, "#ex-inv offer")}
             onDropMany={(nos) => sendLines(tab.session, nos.map((no) => `#ex-inv drop ${no} 1`).join("\n"))}
             onGetMany={(nos) => sendLines(tab.session, nos.map((no) => `#ex-inv get ${no}`).join("\n"))}
+            onUse={(no) => sendLine(tab.session, `#ex-inv use ${no}`)}
+            onEquip={(no) => sendLine(tab.session, `#ex-inv equip ${no}`)}
+            onDestroy={(items, names) =>
+              void confirmBox(`次の物を捨てます。捨てた物は戻せません。\n${names}`).then(
+                (ok) => ok && sendLines(tab.session, items.map(({ no, count }) => `#ex-inv destroy ${no} ${count}`).join("\n")),
+              )
+            }
             onSend={(text) => {
               // unequip は装備中の物の一覧を出してから番号を受け取る。番号も一緒に送るので、一覧は出さずに閉じる(Alt+数字の cast と同じ)
               if (text.startsWith("unequip")) listFlow(tab.session).cancel += 1;
@@ -2275,6 +2287,8 @@ const BAG_REFUSED: Record<string, string> = {
   bad: "出し入れの指定が違います",
   error: "カバンに入れられませんでした",
   none: "ここで受け取ってもらえる物がありません",
+  gp: "お金はカバンに入れられません。拾ってください",
+  nobag: "この物はカバンに入れられません",
   store: "預かり所のマスでは置けません",
 };
 

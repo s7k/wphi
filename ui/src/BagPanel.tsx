@@ -187,6 +187,11 @@ export function BagPanel(props: {
   /** カバンの番号 (1 から) の物をまとめて扱う。番号の大きい順に並べてある (送るたびに後ろの番号が詰まらない様に) */
   onDropMany: (nos: number[]) => void;
   onGetMany: (nos: number[]) => void;
+  /** カバンの no 番の物を手持ちへ出して使う / 装備する (#ex-inv use / equip) */
+  onUse: (no: number) => void;
+  onEquip: (no: number) => void;
+  /** カバンの物を捨てる。nos は番号の大きい順、count はそれぞれの個数 (#ex-inv destroy)。確かめるのは呼ぶ側 */
+  onDestroy: (items: { no: number; count: number }[], names: string) => void;
   /** サーバへ1行か複数行を送る(use・equip・unequip・put) */
   onSend: (text: string) => void;
   onClose: () => void;
@@ -380,6 +385,14 @@ export function BagPanel(props: {
               >
                 手持ちへ出す
               </button>
+              <button
+                type="button"
+                className="bag-danger"
+                disabled={!checked.size}
+                onClick={() => props.onDestroy(descending(checked).map((no) => ({ no, count: 1 })), pickedNames(props.bag ?? [], checked))}
+              >
+                選んだ物を捨てる
+              </button>
             </div>
           </div>
         )}
@@ -419,6 +432,25 @@ export function BagPanel(props: {
                 >
                   取り出す
                 </button>
+                {/* 手持ちの空いた枠へ出してから使う・装備する。空きが無ければ押せない */}
+                <button type="button" disabled={!free} title={free ? undefined : "手持ちに空きがありません"} onClick={() => {
+                    props.onUse(sel.i);
+                    setSel(null);
+                  }}
+                >
+                  使う
+                </button>
+                <button
+                  type="button"
+                  disabled={!free}
+                  title={free ? undefined : "手持ちに空きがありません"}
+                  onClick={() => {
+                    props.onEquip(sel.i);
+                    setSel(null);
+                  }}
+                >
+                  装備する
+                </button>
                 {/* 手持ちを通さずに足元へ置く。店の前なら、置いた物を買い取る */}
                 <button
                   type="button"
@@ -438,6 +470,28 @@ export function BagPanel(props: {
                     }}
                   >
                     同じ物を全部置く ({same})
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="bag-danger"
+                  onClick={() => {
+                    props.onDestroy([{ no: sel.i, count: 1 }], picked.name);
+                    setSel(null);
+                  }}
+                >
+                  捨てる
+                </button>
+                {same > 1 && (
+                  <button
+                    type="button"
+                    className="bag-danger"
+                    onClick={() => {
+                      props.onDestroy([{ no: sel.i, count: same }], `${picked.name} ×${same}`);
+                      setSel(null);
+                    }}
+                  >
+                    同じ物を全部捨てる ({same})
                   </button>
                 )}
               </div>
