@@ -1299,6 +1299,8 @@ export function App() {
     // 吹き出しと増減(ui/src/mapPop.ts)の為に、前の行から引き継ぐ物
     const popState = newPopState();
     handle = (ev) => {
+      // タブを閉じた後と繋ぎ直した後は、前のセッションの分を捨てる。届いた地図や行で、消した物を入れ直していた (#163)
+      if (forgotten.current.has(session)) return;
       switch (ev.type) {
         case "log":
           append(session, ev.html, ev.raw);
@@ -1538,8 +1540,11 @@ export function App() {
     invoke("disconnect", { session }).catch(console.error);
   }
 
-  /** セッションごとに覚えた物を消す(#35) */
+  /** 閉じたか繋ぎ直したセッション。番号は使い回さないので、残しておく (数は接続した回数だけ) */
+  const forgotten = useRef(new Set<number>());
+  /** セッションごとに覚えた物を消す(#35)。セッションごとの Map を足したら、ここにも足す */
   function forgetSession(session: number) {
+    forgotten.current.add(session);
     userClosing.current.delete(session);
     mapStates.current.delete(session);
     pendingMapsets.current.delete(session);
