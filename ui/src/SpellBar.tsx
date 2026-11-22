@@ -110,7 +110,7 @@ export function SpellBar(props: {
             onKeyDown={onKey(i, s)}
           >
             <Pixels rows={spellPixels(s.ef)} size={32} />
-            {i < 8 && <span className="spell-key">{i + 1}</span>}
+            {i < 8 && <span className="spell-key">Alt+{i + 1}</span>}
             {/* カーソルを当てるかキーで選ぶと、すぐ上に呪文の名前を出す */}
             <span className="spell-name">{s.name}</span>
           </button>
