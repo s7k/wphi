@@ -1169,46 +1169,34 @@ impl Parser {
 
     /// `#v6 A NN ` の9バイトの後に W 文字。マスのマップセットの枠を 16 進 1 文字で。0 のマスは属性の下位 2 ビットも 0
     fn parse_v6_a(&mut self, raw: &[u8]) {
-        let w = self.v6_size.0 as usize;
-        let row = std::str::from_utf8(&raw[6.min(raw.len())..8.min(raw.len())])
-            .ok()
-            .and_then(ascii_uint);
-        let (Some(row), Some(sets)) = (row, raw.get(9..9 + w)) else {
+        let Some((row, sets)) = v6_row(raw, self.v6_size.0 as usize) else {
             return;
         };
         for (x, &c) in sets.iter().enumerate() {
             if let Some(set) = (c as char).to_digit(16).filter(|&s| s != 0) {
-                self.v6_sets.push((row as usize, x, set as u8));
+                self.v6_sets.push((row, x, set as u8));
             }
         }
     }
 
     /// `#v6 X NN ` の9バイトの後に W 文字。`x` のマスは見た目と違って通れない
     fn parse_v6_x(&mut self, raw: &[u8]) {
-        let w = self.v6_size.0 as usize;
-        let row = std::str::from_utf8(&raw[6.min(raw.len())..8.min(raw.len())])
-            .ok()
-            .and_then(ascii_uint);
-        let (Some(row), Some(marks)) = (row, raw.get(9..9 + w)) else {
+        let Some((row, marks)) = v6_row(raw, self.v6_size.0 as usize) else {
             return;
         };
         for (x, &m) in marks.iter().enumerate() {
             if m == b'x' {
-                self.v6_blocked.push((row as usize, x));
+                self.v6_blocked.push((row, x));
             }
         }
     }
 
     /// `#v6 R NN ` の9バイトの後に (chip, attr) が W 組並ぶ。NN は 10 進 2 桁の行番号で、0 が上の行
     fn parse_v6_r(&mut self, raw: &[u8]) {
-        let w = self.v6_size.0 as usize;
-        let row = std::str::from_utf8(&raw[6.min(raw.len())..8.min(raw.len())])
-            .ok()
-            .and_then(ascii_uint);
-        let (Some(row), Some(chip)) = (row, raw.get(9..9 + w * 2)) else {
+        let Some((row, chip)) = v6_row(raw, self.v6_size.0 as usize * 2) else {
             return;
         };
-        if let Some(slot) = self.v6_rows.get_mut(row as usize) {
+        if let Some(slot) = self.v6_rows.get_mut(row) {
             *slot = Some(
                 chip.as_chunks::<2>()
                     .0
@@ -1312,6 +1300,12 @@ fn dir_to_num(b: u8) -> u8 {
 /// Python の `int(s)` 相当(前後の空白を許す)。
 fn py_int(s: &str) -> Option<i64> {
     s.trim().parse().ok()
+}
+
+/// `#v6 R`・`#v6 X`・`#v6 A` の `#v6 ? NN ` の行番号と、9バイトの後の `len` バイト
+fn v6_row(raw: &[u8], len: usize) -> Option<(usize, &[u8])> {
+    let row = ascii_uint(std::str::from_utf8(raw.get(6..8)?).ok()?)?;
+    Some((row as usize, raw.get(9..9 + len)?))
 }
 
 /// Python の `s.isdigit()` が真の時だけ数値にする(ASCII の数字だけを扱う)。

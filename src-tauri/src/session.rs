@@ -391,11 +391,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                             }
                         };
                         match answer {
-                            None => {
-                                let _ = put(&mut stream, &line_bytes("#x")).await;
-                                // UI が切った時も、切れた事を知らせる(知らせないとタブが接続中のまま残る)
-                                return emit(closed());
-                            }
+                            None => return emit(quit(&mut stream).await),
                             Some(false) => {
                                 emit(system(false, "世界移動をやめました"));
                                 let _ = put(&mut stream, &line_bytes("#no-srv")).await;
@@ -413,11 +409,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                         _ = async { while let Some(l) = outgoing.recv().await { keep_view(&l, &mut view) } } => None,
                     };
                     match moved {
-                        None => {
-                            let _ = put(&mut stream, &line_bytes("#x")).await;
-                            // UI が切った時も、切れた事を知らせる(知らせないとタブが接続中のまま残る)
-                            return emit(closed());
-                        }
+                        None => return emit(quit(&mut stream).await),
                         Some(Some(dst)) => {
                             // 移動元で受けていた残りの行は捨てる(Philly も ChSrv の成功で受信の処理を打ち切る)
                             stream = dst;
@@ -455,11 +447,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                         }
                     }
                 }
-                None => {
-                    let _ = put(&mut stream, &line_bytes("#x")).await;
-                    // UI が切った時も、切れた事を知らせる(知らせないとタブが接続中のまま残る)
-                    return emit(closed());
-                }
+                None => return emit(quit(&mut stream).await),
             },
             // 警告を出した後は、次に受信するまで待たない(過去の時刻を待つと、待たずに回り続ける。#61)
             _ = tokio::time::sleep_until(wake.unwrap_or(last_recv)), if wake.is_some() => {
@@ -493,6 +481,12 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
         }
     }
     emit(closed());
+}
+
+/// `#x` を送って切り、切れた事を返す。UI が切った時も知らせる(知らせないとタブが接続中のまま残る)
+async fn quit(stream: &mut TcpStream) -> UiEvent {
+    let _ = put(stream, &line_bytes("#x")).await;
+    closed()
 }
 
 fn closed() -> UiEvent {
@@ -812,14 +806,9 @@ mod tests {
             let (sock, _) = listener.accept().await.unwrap();
             let (r, mut w) = sock.into_split();
             let mut r = BufReader::new(r);
-            let mut read_line = async || {
-                let mut l = Vec::new();
-                r.read_until(b'\n', &mut l).await.unwrap();
-                l
-            };
             let mut got = Vec::new();
             for _ in 0..login_lines(Some("ID"), None).len() {
-                got.push(read_line().await);
+                got.push(read_bytes(&mut r).await);
             }
             // 2バイト文字の途中で分けて送る
             let mut talk = codec::encode("勇者 > /*cl=red*/こんにちは/*.*/\n");
@@ -828,7 +817,7 @@ mod tests {
             w.write_all(&rest).await.unwrap();
             w.write_all(b"#lag\n").await.unwrap();
             // 応答の #end-lag と UI からの送信を受け取る(順序は問わない)
-            let mut after = vec![read_line().await, read_line().await];
+            let mut after = vec![read_bytes(&mut r).await, read_bytes(&mut r).await];
             after.sort();
             w.write_all(b"#x\n").await.unwrap();
             // 接続を閉じずに返す。#x を受けたら、閉じるのを待たずに終える
@@ -888,10 +877,15 @@ mod tests {
         assert_eq!(events[1], json!({"type": "connection", "state": "closed"}));
     }
 
-    async fn read_line(r: &mut BufReader<tokio::net::tcp::OwnedReadHalf>) -> String {
+    /// 1行を改行ごと読む。cp932 のまま比べる時に使う
+    async fn read_bytes(r: &mut BufReader<tokio::net::tcp::OwnedReadHalf>) -> Vec<u8> {
         let mut l = Vec::new();
         r.read_until(b'\n', &mut l).await.unwrap();
-        String::from_utf8(l).unwrap()
+        l
+    }
+
+    async fn read_line(r: &mut BufReader<tokio::net::tcp::OwnedReadHalf>) -> String {
+        String::from_utf8(read_bytes(r).await).unwrap()
     }
 
     const VIEW: Option<(u8, u8)> = Some((11, 7));
@@ -1164,7 +1158,9 @@ mod tests {
             for _ in 0..login_lines(Some("ID"), None).len() {
                 read_line(&mut r).await;
             }
-            w.write_all(format!("#ch-srv localhost {dst_port}\n").as_bytes()).await.unwrap();
+            w.write_all(format!("#ch-srv localhost {dst_port}\n").as_bytes())
+                .await
+                .unwrap();
             let mut got = Vec::new();
             for _ in 0..3 {
                 got.push(read_line(&mut r).await);

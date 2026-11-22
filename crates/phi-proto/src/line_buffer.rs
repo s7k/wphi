@@ -53,12 +53,6 @@ impl LineBuffer {
             self.partial.extend_from_slice(data);
         }
     }
-
-    /// 持ち越し中の未確定分を捨てる(再接続時)。
-    pub fn reset(&mut self) {
-        self.partial.clear();
-        self.discarding = false;
-    }
 }
 
 #[cfg(test)]
@@ -75,9 +69,6 @@ mod tests {
             vec![b"#name \x82\xa0".to_vec(), b"#x".to_vec()]
         );
         assert_eq!(lb.feed(b"\n"), vec![b"rest".to_vec()]);
-        lb.feed(b"junk");
-        lb.reset();
-        assert_eq!(lb.feed(b"ok\n"), vec![b"ok".to_vec()]);
     }
 
     #[test]
