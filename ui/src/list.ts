@@ -70,6 +70,16 @@ export function listNo(l: ListState, n: number): { send: string; close: boolean 
   return { send: String(l.offset + n), close: true };
 }
 
+/**
+ * 全部の行にチェックを付ける (- とテンキーの +)。続きのページの印 (今のページの 9 件目) は除く。
+ * 全部付いていれば全部外す。サーバへ - を送ると、1 番から順に選んで、置けない物 (装備中など) で止まった
+ */
+export function checkAll(l: ListState): ListState {
+  const n = hasMore(l) ? l.lines.length - 1 : l.lines.length;
+  const all = l.checked.slice(0, n).every(Boolean);
+  return { ...l, checked: l.lines.map((_, i) => !all && i < n) };
+}
+
 /** カーソルを動かすか、カーソルの行のチェックを切り替えて次の行へ進む */
 export function moveListCursor(l: ListState, a: { listCursor: -1 | 1 } | { listToggle: true }): ListState {
   const last = Math.max(l.lines.length - 1, 0);

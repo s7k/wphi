@@ -280,6 +280,8 @@ export type ListKeyAction =
   | { listOk: true }
   /** カーソルの行のチェックを切り替えて次の行へ */
   | { listToggle: true }
+  /** 全部の行のチェックを付けるか外す (list.ts の checkAll) */
+  | { listAll: true }
   | { listCursor: -1 | 1 }
   | { focusInput: true };
 
@@ -291,9 +293,10 @@ const LIST: Record<string, ListKeyAction> = {
   NumpadDecimal: { send: "." },
   ArrowLeft: { send: "." },
   ArrowRight: { send: "." },
-  // すべて(ListAllSelectVK_ADD=on なのでテンキーは + を使う)
-  NumpadAdd: { send: "-" },
-  Minus: { send: "-" },
+  // すべて(ListAllSelectVK_ADD=on なのでテンキーは + を使う)。Philly は - を送ってすぐ閉じるが、WPHI は全部の行に
+  // チェックを付けて、Enter で選んだ番号を送る (get / put で 1〜8 を全部選ぶ)
+  NumpadAdd: { listAll: true },
+  Minus: { listAll: true },
   Enter: { listOk: true },
   NumpadEnter: { listOk: true },
   Space: { listToggle: true },

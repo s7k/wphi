@@ -2,8 +2,8 @@
 // 番号キー・Space・Enter の操作は App のキー処理が行い、ここはマウスの操作と表示を受け持つ。
 
 import { useEffect, useRef } from "react";
-import { hasMore, listOk, moreNo, pageTop, type ListState } from "./list.ts";
-import { Check, ChevronsDown, X } from "lucide-react";
+import { checkAll, hasMore, listOk, moreNo, pageTop, type ListState } from "./list.ts";
+import { Check, CheckCheck, ChevronsDown, X } from "lucide-react";
 
 const stripTags = (s: string) => s.replace(/\/\*.*?\*\//g, "");
 
@@ -50,6 +50,11 @@ export function ListOverlay(props: {
         <button onClick={() => props.onSend(".")}>
           <X />
           Cancel
+        </button>
+        {/* 全部の行にチェックを付ける (- キーと同じ。WPHI で足した) */}
+        <button title="全部の行にチェックを付けます。もう一度押すと外します (- キー)" onClick={() => props.onChange(checkAll(l))}>
+          <CheckCheck />
+          全部
         </button>
         <button disabled={!hasMore(l) || !!l.waiting} onClick={() => props.onMore(moreNo(l))}>
           <ChevronsDown />

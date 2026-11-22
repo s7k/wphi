@@ -77,7 +77,9 @@ test("リスト表示中のキー", () => {
   // フルキー移動の k はテンキーの 2 なので番号の 2
   assert.deepEqual(listKeyAction(key("KeyK"), full), { listNo: 2 });
   assert.deepEqual(listKeyAction(key("Escape"), north), { send: "." });
-  assert.deepEqual(listKeyAction(key("NumpadAdd"), north), { send: "-" });
+  // - とテンキーの + は全部の行にチェックを付ける (送らない)
+  assert.deepEqual(listKeyAction(key("NumpadAdd"), north), { listAll: true });
+  assert.deepEqual(listKeyAction(key("Minus"), north), { listAll: true });
   assert.deepEqual(listKeyAction(key("Space"), north), { listToggle: true });
   assert.deepEqual(listKeyAction(key("ArrowDown"), north), { listCursor: 1 });
   // 修飾キー付きと、リストに関係ないキーは通常のキー操作へ回す

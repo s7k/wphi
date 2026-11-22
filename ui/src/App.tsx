@@ -31,7 +31,7 @@ import { NewCharacter, WorldSelect } from "./NewCharacter";
 import { capConvs, partnersKey, privLines, privPartners, upsertConv, usersFromEvent, type User } from "./priv.ts";
 import { PrivLauncher, PrivWindow, type PrivConv } from "./PrivPanel";
 import { ListOverlay } from "./ListOverlay";
-import { listNo, listOk, moreNo, moveListCursor, receiveList, type ListFlow, type ListState } from "./list.ts";
+import { checkAll, listNo, listOk, moreNo, moveListCursor, receiveList, type ListFlow, type ListState } from "./list.ts";
 import { trace } from "./trace.ts";
 import { PREDICT_TICK_MS, predictedMap, Predictor } from "./predict.ts";
 import { selfPos } from "./mapRender.ts";
@@ -749,6 +749,7 @@ export function App() {
           else if (r) requestMore(session, r.send);
         } else if ("send" in listAction) closeListAndSend(session, listAction.send);
         else if ("listOk" in listAction) closeListAndSend(session, listOk(list));
+        else if ("listAll" in listAction) updateList(session, checkAll);
         else if ("focusInput" in listAction) focusInput();
         else updateList(session, (l) => moveListCursor(l, listAction));
         return true;

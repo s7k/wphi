@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addPage, hasMore, listNo, listOk, moveListCursor, newList, pageTop, receiveList, type ListFlow } from "./list.ts";
+import { checkAll, addPage, hasMore, listNo, listOk, moveListCursor, newList, pageTop, receiveList, type ListFlow } from "./list.ts";
 
 const page = (from: number, n: number) => Array.from({ length: n }, (_, i) => `[${String(from + i).padStart(2)}] 品物${from + i}`);
 
@@ -83,4 +83,14 @@ test("番号が繋がらなければ新しいリストにする。待つ間は 9
   const p1 = newList(page(1, 9));
   assert.equal(addPage(p1, page(1, 3)).lines.length, 3);
   assert.equal(listNo({ ...p1, waiting: true }, 9), null);
+});
+
+test("- で全部の行にチェックを付け、もう一度で外す。続きの印 (9 件目) は除く", () => {
+  const l = newList(["[ 1] Axe", "[ 2] Nuts", "[ 3] Gem"]);
+  const all = checkAll(l);
+  assert.deepEqual(all.checked, [true, true, true]);
+  assert.equal(listOk(all), "1 2 3");
+  assert.deepEqual(checkAll(all).checked, [false, false, false]);
+  const nine = newList([...Array(8)].map((_, i) => `[ ${i + 1}] item`).concat("[ 9] 続き"));
+  assert.equal(listOk(checkAll(nine)), "1 2 3 4 5 6 7 8");
 });
