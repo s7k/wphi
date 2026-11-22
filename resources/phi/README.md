@@ -15,7 +15,7 @@ Philly フォルダを持たない利用者の為に、アプリへ同梱する�
 | `ui/src/pcglItems.png` (このフォルダの外) | phi-client-web の `assets/items/items.png` をそのまま複写。床に落ちている物の絵 | PCGL |
 | `DefaultChip.bmp` | phi-client-web の `assets/chip/default.png` (汎用のマップチップ) を、左半分が絵・右半分がマスクの BMP に戻したもの。世界のマップチップが無い時に使う | PCGL |
 | `wphi/log.css` | WPHI で書いたログのスタイルシート | MIT |
-| `Config/unew.ini`、`Config/worlds.ini` | キャラグラとマップチップの取得元の一覧と、世界の一覧。tofup の管理者から頂いた物 | tofup の管理者から提供を受けた (2026-11-23 に作者が確認) |
+| `Config/unew.ini`、`Config/worlds.ini` | キャラグラとマップチップの取得元の一覧と、世界の一覧。Master NEO から頂いた物 | Master NEO から提供を受けた (2026-11-23 に作者が確認) |
 
 Philly (PhillySrc) のパーツ (既定のスキン `Skins/Mine/` と超魔法メニューの `Config/MasterMagicMenu.xml`) は同梱しない。
 利用者の Philly フォルダにあれば、超魔法メニューとスキンのマウスカーソルはそちらを読む。
