@@ -3,6 +3,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { boardText } from "./boardText.ts";
+import { confirmBox } from "./MessageDialog";
 import { TAG_MENU, type TagItem } from "./tagMenu.ts";
 import { applyTag, popupTagMenu } from "./TagMenuPopup";
 import { AArrowDown, AArrowUp, Bold, Italic, Send, Strikethrough, Subscript, Superscript, Underline, X } from "lucide-react";
@@ -134,7 +135,13 @@ export function BoardEditor(props: {
       e.preventDefault();
       props.onSend(boardText(text));
     }
-    if (e.key === "Escape" && !e.nativeEvent.isComposing) props.onCancel();
+    if (e.key === "Escape" && !e.nativeEvent.isComposing) cancel();
+  }
+
+  /** 書きかけがあれば、捨ててよいか確かめてから閉じる。Esc 1 回で長い文が消えた */
+  function cancel() {
+    if (!text.trim()) return props.onCancel();
+    void confirmBox("書きかけの文を捨てて閉じます。\nよろしいですか？").then((ok) => ok && props.onCancel());
   }
 
   return (
@@ -164,7 +171,7 @@ export function BoardEditor(props: {
           <Send />
           送信(Shift+Enter)
         </button>
-        <button onClick={props.onCancel}>
+        <button onClick={cancel}>
           <X />
           キャンセル
         </button>

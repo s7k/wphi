@@ -110,6 +110,11 @@ export function PrivWindow(props: {
   };
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    // Esc でログへ移り、キーを移動などの操作に戻す (メインの入力欄と同じ)。priv の欄からは戻る手が無かった
+    if (e.key === "Escape" && !e.nativeEvent.isComposing) {
+      document.querySelector<HTMLElement>(".log-area .log-shown .phi-log")?.focus();
+      return;
+    }
     if (e.key !== "Enter" || e.nativeEvent.isComposing || e.keyCode === 229) return;
     e.preventDefault();
     const text = e.currentTarget.value;

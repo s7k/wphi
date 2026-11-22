@@ -135,8 +135,8 @@ function handActions(hand: (ItemInfo | null)[], i: number): { label: string; sen
     equipped
       ? { label: "外す", send: `unequip\n${equipNo}` }
       : { label: "装備する", send: `equip ${it.rawName || it.name}` },
-    { label: "置く", send: equipped ? undefined : `put ${no}`, note: equipped ? "装備中の物は置けません" : undefined },
     { label: "カバンに入れる", bag: !equipped, note: equipped ? "装備中の物は入れられません" : undefined },
+    { label: "置く", send: equipped ? undefined : `put ${no}`, note: equipped ? "装備中の物は置けません" : undefined },
   ];
 }
 
@@ -216,6 +216,12 @@ export function BagPanel(props: {
   const [checked, setChecked] = useState<Set<number> | null>(null);
   // カバンの中身が届き直すと番号がずれるので、選択をやめる
   useEffect(() => setChecked(null), [props.bag]);
+  // 1 つ選んだ物も、一覧が届き直したら外す。番号のまま残すと、詰まった後の別の物を指し、捨てる・置くで別の物を送った
+  useEffect(() => setSel((v) => (v?.where === "bag" ? null : v)), [props.bag]);
+  useEffect(() => setSel((v) => (v?.where === "hand" ? null : v)), [props.items]);
+  // 開いた時はカバンへフォーカスを移す。キー (E) で開いた時も、Tab でカバンのボタンを辿れる様に
+  const closeButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => closeButton.current?.focus(), []);
   // 手持ちの枠は 8 個に揃える
   const hand = Array.from({ length: 8 }, (_, i) => props.items[i] ?? null);
   // カバンは番号(1 から)を保ったまま、タブと検索で絞る
@@ -244,10 +250,16 @@ export function BagPanel(props: {
     <div className="bag-panel" role="dialog" aria-label="カバン">
       <div className="sign-head">
         <span>カバン</span>
-        <button type="button" title="閉じる(Esc)" onClick={props.onClose}>
+        <button ref={closeButton} type="button" title="閉じる(Esc)" onClick={props.onClose}>
           <X />
         </button>
       </div>
+      {/* 断られた理由。下に置くと一覧が長い時に見えなかったので、見出しのすぐ下に出す */}
+      {props.message && (
+        <p className="bag-note bag-message" role="status">
+          {props.message}
+        </p>
+      )}
       <div className="bag-body">
         <div className="bag-title">
           手持ち
@@ -288,9 +300,10 @@ export function BagPanel(props: {
           >
             {checked ? "選ぶのをやめる" : "選ぶ"}
           </button>
+          {/* 戻せない操作なので赤くし、「選ぶ」から離す。押すと確かめる (App.tsx の offer) */}
           <button
             type="button"
-            className="bag-offer"
+            className="bag-offer bag-offer-sell"
             title="足元の店が買い取る物を、カバンと手持ち (装備中は除く) から全部渡します。店の前のマスに立って押してください"
             onClick={() => {
               props.onOffer();
@@ -411,7 +424,7 @@ export function BagPanel(props: {
             {checked.size > 0 && <div className="bag-picked">{pickedNames(props.bag ?? [], checked)}</div>}
             <div className="bag-actions">
               <button type="button" onClick={() => setChecked(new Set(shown.map(({ no }) => no)))}>
-                表示中を全部選ぶ ({shown.length})
+                絞り込んだ物を全部選ぶ ({shown.length})
               </button>
               <button type="button" disabled={!checked.size} onClick={() => setChecked(new Set())}>
                 選択を解除
@@ -474,83 +487,93 @@ export function BagPanel(props: {
                 ))}
               </div>
             ) : (
-              <div className="bag-actions">
-                <button
-                  type="button"
-                  onClick={() => {
-                    props.onGet(sel.i);
-                    setSel(null);
-                  }}
-                >
-                  取り出す
-                </button>
-                {/* 手持ちの空いた枠へ出してから使う・装備する。空きが無ければ押せない */}
-                <button type="button" disabled={!free} title={free ? undefined : "手持ちに空きがありません"} onClick={() => {
-                    props.onUse(sel.i);
-                    setSel(null);
-                  }}
-                >
-                  使う
-                </button>
-                <button
-                  type="button"
-                  disabled={!free}
-                  title={free ? undefined : "手持ちに空きがありません"}
-                  onClick={() => {
-                    props.onEquip(sel.i);
-                    setSel(null);
-                  }}
-                >
-                  装備する
-                </button>
-                {/* 手持ちを通さずに足元へ置く。店の前なら、置いた物を買い取る */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    props.onDrop(sel.i, 1);
-                    setSel(null);
-                  }}
-                >
-                  置く
-                </button>
-                {same > 1 && (
+              <>
+                {/* 手持ちの物と同じ並び (使う・装備・出し入れ・置く)。捨てるは押し間違えない様に別の行にする */}
+                <div className="bag-actions">
+                  {/* 手持ちの空いた枠へ出してから使う・装備する。空きが無ければ押せない */}
                   <button
                     type="button"
+                    disabled={!free}
+                    title={free ? undefined : "手持ちに空きがありません"}
                     onClick={() => {
-                      props.onDrop(sel.i, same);
+                      props.onUse(sel.i);
                       setSel(null);
                     }}
                   >
-                    同じ物を全部置く ({same})
+                    使う
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="bag-danger"
-                  onClick={() => {
-                    props.onDestroy([{ no: sel.i, count: 1 }], picked.name);
-                    setSel(null);
-                  }}
-                >
-                  捨てる
-                </button>
-                {same > 1 && (
+                  <button
+                    type="button"
+                    disabled={!free}
+                    title={free ? undefined : "手持ちに空きがありません"}
+                    onClick={() => {
+                      props.onEquip(sel.i);
+                      setSel(null);
+                    }}
+                  >
+                    装備する
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!free}
+                    title={free ? undefined : "手持ちに空きがありません"}
+                    onClick={() => {
+                      props.onGet(sel.i);
+                      setSel(null);
+                    }}
+                  >
+                    手持ちへ出す
+                  </button>
+                  {/* 手持ちを通さずに足元へ置く。店の前なら、置いた物を買い取る */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      props.onDrop(sel.i, 1);
+                      setSel(null);
+                    }}
+                  >
+                    置く
+                  </button>
+                  {same > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        props.onDrop(sel.i, same);
+                        setSel(null);
+                      }}
+                    >
+                      同じ物を全部置く ({same})
+                    </button>
+                  )}
+                </div>
+                <div className="bag-actions bag-danger-row">
                   <button
                     type="button"
                     className="bag-danger"
                     onClick={() => {
-                      props.onDestroy([{ no: sel.i, count: same }], `${picked.name} ×${same}`);
+                      props.onDestroy([{ no: sel.i, count: 1 }], picked.name);
                       setSel(null);
                     }}
                   >
-                    同じ物を全部捨てる ({same})
+                    捨てる
                   </button>
-                )}
-              </div>
+                  {same > 1 && (
+                    <button
+                      type="button"
+                      className="bag-danger"
+                      onClick={() => {
+                        props.onDestroy([{ no: sel.i, count: same }], `${picked.name} ×${same}`);
+                        setSel(null);
+                      }}
+                    >
+                      同じ物を全部捨てる ({same})
+                    </button>
+                  )}
+                </div>
+              </>
             )}
           </div>
         )}
-        {props.message && <p className="bag-note">{props.message}</p>}
       </div>
     </div>
   );

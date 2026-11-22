@@ -70,6 +70,8 @@ export function SpellBar(props: {
   };
   const onKey = (i: number, s: Spell) => (e: KeyboardEvent<HTMLButtonElement>) => {
     if (!e.shiftKey || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+    // キーで選んだ時だけ並べ替える。クリックで唱えた後にフォーカスが残っていると、Shift+← → の向きを変える操作を奪った
+    if (!e.currentTarget.matches(":focus-visible")) return;
     e.preventDefault();
     e.stopPropagation();
     const to = i + (e.key === "ArrowLeft" ? -1 : 1);

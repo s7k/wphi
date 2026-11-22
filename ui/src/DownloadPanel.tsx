@@ -32,7 +32,8 @@ export function DownloadPanel(props: { onClose: () => void }) {
   const stale = rows.filter((r) => r.got !== r.date);
 
   return (
-    <div className="settings-panel">
+    // 設定画面と同じく、キーを Philly の操作にしない
+    <div className="settings-panel" onKeyDown={(e) => e.stopPropagation()} onKeyUp={(e) => e.stopPropagation()}>
       <div className="board-title">キャラグラとマップチップを取得する</div>
       <div className="settings-body">
         <p>配布元から取得して、設定フォルダの data に置きます。取得した画像はすぐに使います。</p>

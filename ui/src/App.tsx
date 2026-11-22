@@ -351,8 +351,19 @@ export function App() {
     }
     if (spells[n - 1]) castSpell(session, spells[n - 1]);
   };
+  /** カバンの操作を送る。前の操作で断られた理由 (bagMessage) は、ここで消す */
+  const sendBag = (session: number, lines: string) => {
+    update(session, (t) => (t.bagMessage ? { ...t, bagMessage: "" } : t));
+    sendLines(session, lines);
+  };
+  /** 足元の店の買い取りへ全部渡す。渡した物は戻せないので、捨てる時と同じく確かめる */
+  const offer = (session: number) =>
+    void confirmBox("足元の店が買い取る物を、カバンと手持ち(装備中の物を除く)から全部渡します。\n渡した物は戻せません。よろしいですか？").then(
+      (ok) => ok && sendBag(session, "#ex-inv offer"),
+    );
   const openBag = (session: number) => {
-    update(session, (t) => ({ ...t, bagOpen: true, bagMessage: "" }));
+    // パーティの窓は閉じる。カバンの間は描かないが開いたままにしていた為、カバンを閉じると勝手に戻ってきた
+    update(session, (t) => ({ ...t, bagOpen: true, partyOpen: false, bagMessage: "" }));
     sendLine(session, "#ex-inv list");
   };
   /** 看板の札を閉じる */
@@ -700,17 +711,23 @@ export function App() {
       }
       const session = activeRef.current;
       if (session === null) return false;
-      // 看板の札とカバンは Esc で閉じる
-      if (e.type === "keydown" && e.code === "Escape" && tabsRef.current.find((t) => t.session === session)?.sign) {
-        closeSign(session);
-        return true;
-      }
-      if (e.type === "keydown" && e.code === "Escape" && tabsRef.current.find((t) => t.session === session)?.bagOpen) {
+      // カバン・パーティ・看板の札・priv の欄は Esc で閉じる。上に重なっている方 (カバン 11、札 6) から閉じる。
+      // 札を先に閉じていた為、両方開いていると見えているカバンでなく裏の札が閉じた
+      const open = tabsRef.current.find((t) => t.session === session);
+      if (e.type === "keydown" && e.code === "Escape" && open?.bagOpen) {
         update(session, (t) => ({ ...t, bagOpen: false }));
         return true;
       }
-      if (e.type === "keydown" && e.code === "Escape" && tabsRef.current.find((t) => t.session === session)?.partyOpen) {
+      if (e.type === "keydown" && e.code === "Escape" && open?.partyOpen) {
         update(session, (t) => ({ ...t, partyOpen: false }));
+        return true;
+      }
+      if (e.type === "keydown" && e.code === "Escape" && open?.sign) {
+        closeSign(session);
+        return true;
+      }
+      if (e.type === "keydown" && e.code === "Escape" && open?.privOpen) {
+        update(session, (t) => ({ ...t, privOpen: false }));
         return true;
       }
       // 画面が開いていなければ、Esc でついて行くのをやめる
@@ -790,10 +807,26 @@ export function App() {
         return;
       }
       if (e.isComposing || isTextTarget(e)) return;
+      // カバンなどの窓の中では、Tab は窓のボタンを順に辿る (入力欄へ飛ばすと、キーでは窓のボタンに届かなかった)
+      if (e.code === "Tab" && (e.target as Element | null)?.closest?.("[role=dialog]")) return;
       if (onKey({ ...pick(e), type: e.type as "keydown" | "keyup" })) e.preventDefault();
     };
     document.addEventListener("keydown", onDom);
     document.addEventListener("keyup", onDom);
+    // マウスで押したボタンにフォーカスが残ると、後の Enter で同じ操作がもう一度動き (全部渡す・ついて行く など)、
+    // 魔法のアイコンなら Shift+← → で向きを変えずに並びが入れ替わった。押した後はログへ戻す。
+    // キーで押した時 (detail 0) と、文字を打つ窓 (設定・問い・確認・看板・priv・検索) の中は戻さない。
+    // 押した処理が別の所へフォーカスを移した時 (カバンを開いた時など) も、そちらを残す
+    const onClick = (e: MouseEvent) => {
+      if (e.detail === 0) return;
+      const b = (e.target as Element | null)?.closest?.("button, [role=tab]");
+      if (!b || b.closest(".settings-panel, .ask-backdrop, .board-editor, .priv-panel, .priv-layer, .log-find, .input-area")) return;
+      requestAnimationFrame(() => {
+        if (document.activeElement === b || document.activeElement === document.body)
+          document.querySelector<HTMLElement>(".log-area .log-shown .phi-log")?.focus();
+      });
+    };
+    document.addEventListener("click", onClick);
     const forwarded = listen<ForwardedKey>(KEY_EVENT, (e) => onKey(e.payload));
     // リスト表示中に何かを送ったら、続きのページの番号(ずれ+9)でない限りリストを閉じる(Philly の SendTextListCancel)。
     // v5y は「番号ではありません」でリストを取り消しても、リストの終わりを送ってこない
@@ -827,17 +860,17 @@ export function App() {
         const hand = tabsRef.current.find((t) => t.session === session)?.items ?? [];
         const slots = hand.flatMap((it, i) => (it && it.eq === "-" ? [i + 1] : [])).reverse();
         openBag(session);
-        if (slots.length) sendLines(session, slots.map((k) => `#ex-inv put ${k}`).join("\n"));
+        if (slots.length) sendBag(session, slots.map((k) => `#ex-inv put ${k}`).join("\n"));
         return;
       }
       if (id === "bag-pick" && session !== null) {
         openBag(session);
-        sendLine(session, "#ex-inv pick");
+        sendBag(session, "#ex-inv pick");
         return;
       }
       if (id === "bag-offer" && session !== null) {
         openBag(session);
-        sendLine(session, "#ex-inv offer");
+        offer(session);
         return;
       }
       if (id === "party-open")
@@ -957,6 +990,7 @@ export function App() {
       partyFollow.then((f) => f());
       document.removeEventListener("keydown", onDom);
       document.removeEventListener("keyup", onDom);
+      document.removeEventListener("click", onClick);
       window.removeEventListener(SENT_EVENT, onSentDom);
       sentFromMap.then((f) => f());
       forwarded.then((f) => f());
@@ -1351,7 +1385,9 @@ export function App() {
           onMapEvent(session, ev);
           break;
         case "bag":
-          update(session, (t) => ({ ...t, bag: ev.items, bagMessage: "" }));
+          // 断られた理由 (bagMessage) は残す。まとめて送った途中の 1 行が断られても、後の一覧で消えない様に。
+          // 消すのは次の操作を送る時 (sendBag)
+          update(session, (t) => ({ ...t, bag: ev.items }));
           break;
         case "bagRefused":
           update(session, (t) => ({ ...t, bagMessage: BAG_REFUSED[ev.reason] ?? `出し入れ出来ません(${ev.reason})` }));
@@ -1392,6 +1428,10 @@ export function App() {
             }
             update(session, (t) => ({ ...t, list: r }));
             onMapEvent(session, { ...ev, lines: r.lines });
+            // 入力欄から打った命令でリストが出たら、ログへ移ってキーをリストの操作にする。
+            // 入力欄のままだと番号が欄に入り、Enter で前の命令をもう一度送った。入力欄へは Tab で戻れる
+            if (session === activeRef.current && document.activeElement?.classList.contains("input-line"))
+              document.querySelector<HTMLElement>(".log-area .log-shown .phi-log")?.focus();
           }
           break;
         }
@@ -1627,17 +1667,17 @@ export function App() {
             items={tab.items ?? []}
             bag={tab.bag ?? null}
             message={tab.bagMessage ?? ""}
-            onPut={(slot) => sendLine(tab.session, `#ex-inv put ${slot}`)}
-            onGet={(no) => sendLine(tab.session, `#ex-inv get ${no}`)}
-            onDrop={(no, count) => sendLine(tab.session, `#ex-inv drop ${no} ${count}`)}
-            onOffer={() => sendLine(tab.session, "#ex-inv offer")}
-            onDropMany={(nos) => sendLines(tab.session, nos.map((no) => `#ex-inv drop ${no} 1`).join("\n"))}
-            onGetMany={(nos) => sendLines(tab.session, nos.map((no) => `#ex-inv get ${no}`).join("\n"))}
-            onUse={(no) => sendLine(tab.session, `#ex-inv use ${no}`)}
-            onEquip={(no) => sendLine(tab.session, `#ex-inv equip ${no}`)}
+            onPut={(slot) => sendBag(tab.session, `#ex-inv put ${slot}`)}
+            onGet={(no) => sendBag(tab.session, `#ex-inv get ${no}`)}
+            onDrop={(no, count) => sendBag(tab.session, `#ex-inv drop ${no} ${count}`)}
+            onOffer={() => offer(tab.session)}
+            onDropMany={(nos) => sendBag(tab.session, nos.map((no) => `#ex-inv drop ${no} 1`).join("\n"))}
+            onGetMany={(nos) => sendBag(tab.session, nos.map((no) => `#ex-inv get ${no}`).join("\n"))}
+            onUse={(no) => sendBag(tab.session, `#ex-inv use ${no}`)}
+            onEquip={(no) => sendBag(tab.session, `#ex-inv equip ${no}`)}
             onDestroy={(items, names) =>
               void confirmBox(`次の物を捨てます。捨てた物は戻せません。\n${names}`).then(
-                (ok) => ok && sendLines(tab.session, items.map(({ no, count }) => `#ex-inv destroy ${no} ${count}`).join("\n")),
+                (ok) => ok && sendBag(tab.session, items.map(({ no, count }) => `#ex-inv destroy ${no} ${count}`).join("\n")),
               )
             }
             onSend={(text) => {

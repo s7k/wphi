@@ -38,17 +38,17 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
     if (changed.length === 0) return props.onClose();
     void confirmBox("保存していない変更があります。\n保存せずに閉じますか？").then((ok) => ok && props.onClose());
   }
-  // Esc でも閉じる。他の画面 (札・カバン) と同じ
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.isComposing && !document.querySelector(".ask-backdrop")) close();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
-
   return (
-    <div className="settings-panel">
+    // キーを Philly の操作にしない (AskDialog と同じ)。開いている間に Space で攻撃したり矢印で歩いたりした。
+    // Esc は他の画面 (札・カバン) と同じく閉じる
+    <div
+      className="settings-panel"
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Escape" && !e.nativeEvent.isComposing && !document.querySelector(".ask-backdrop")) close();
+      }}
+      onKeyUp={(e) => e.stopPropagation()}
+    >
       <div className="board-title">設定</div>
       <div className="settings-body">
         <label>

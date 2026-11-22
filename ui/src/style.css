@@ -1542,7 +1542,8 @@ button > svg:only-child,
 .map-window.modern .map-follow {
   left: auto;
   right: 16px;
-  bottom: 12px;
+  /* 魔法の列 (.spell-bar、高さ 58px) の上。同じ所に置いていた為、列の裏に隠れて見えなかった */
+  bottom: 78px;
 }
 
 /* 看板などの本文の札(App.tsx の SignCard)。地図の上の真ん中寄り */
@@ -1686,6 +1687,26 @@ button > svg:only-child,
 
 .bag-offer:hover {
   background: rgb(255 255 255 / 25%);
+}
+
+/* 店へ全部渡すボタン。戻せない操作なので赤くし、「選ぶ」から離す */
+.bag-offer.bag-offer-sell {
+  margin-right: 16px;
+  border-color: rgb(255 120 100 / 70%);
+  color: #ffb4a6;
+}
+
+/* カバンで断られた理由。見出しのすぐ下に出す */
+.bag-note.bag-message {
+  margin: 6px 14px 0;
+  color: #ffd27a;
+}
+
+/* 捨てるボタンの行。他の操作と線で分ける */
+.bag-danger-row {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgb(255 255 255 / 15%);
 }
 
 .bag-offer[aria-pressed="true"] {
@@ -2002,6 +2023,17 @@ button > svg:only-child,
   gap: 4px;
   overflow: hidden;
   white-space: nowrap;
+}
+
+/* 名前が長い時は名前を「…」で詰め、後ろの自分の印と状態異常の印は縮めずに残す */
+.party-name > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.party-name > :not(:first-child) {
+  flex-shrink: 0;
 }
 
 .party-thin {
