@@ -1,5 +1,5 @@
 // カバン。手持ちの 8 個(#v6 I)とインベントリ(#ex-inv)をアイコンで並べ、出し入れする。
-// 行の書式は phi_dm の docs/dev/protocol-v6.md の「持ち物とインベントリ」。v6 で、世界が有効にしている時だけ届く
+// 行の書式は phi_dm の docs/dev/protocol-v6.md の「呪文・持ち物・カバン」。v6 で、世界が有効にしている時だけ届く
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { lightenColors } from "./logLines.ts";
 import { Search, X } from "lucide-react";

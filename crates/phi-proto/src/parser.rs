@@ -66,11 +66,11 @@ pub enum Event {
     },
     /// `#v6 J`。go 以外(スイッチ・ゲート・罠など)で動いた。予想と覚えた通れる・通れないを捨てる
     Jumped,
-    /// `#v6 S` 〜 `#v6 S .`。覚えている呪文を cast の番号の順に(phi_dm の docs/dev/protocol-v6.md の「呪文の行」)
+    /// `#v6 S` 〜 `#v6 S .`。覚えている呪文を cast の番号の順に(phi_dm の docs/dev/protocol-v6.md の「呪文・持ち物・カバン」)
     Spells {
         spells: Vec<Spell>,
     },
-    /// `#v6 I` 〜 `#v6 I .`。手持ちの 8 個。空いた枠は None(phi_dm の docs/dev/protocol-v6.md の「持ち物とインベントリ」)
+    /// `#v6 I` 〜 `#v6 I .`。手持ちの 8 個。空いた枠は None(phi_dm の docs/dev/protocol-v6.md の「呪文・持ち物・カバン」)
     Items {
         items: Vec<Option<Item>>,
     },

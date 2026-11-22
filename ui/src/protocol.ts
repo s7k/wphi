@@ -139,7 +139,7 @@ export const PARTY_OPEN_EVENT = "phi-party-open";
 /** map 窓で仲間を選び「ついて行く」を押した。payload は仲間の名前 */
 export const PARTY_FOLLOW_EVENT = "phi-party-follow";
 
-/** 持ち物 1 個(phi_dm の docs/dev/protocol-v6.md の「持ち物とインベントリ」) */
+/** 持ち物 1 個(phi_dm の docs/dev/protocol-v6.md の「呪文・持ち物・カバン」) */
 export type ItemInfo = {
   /** 装備の印。W 武器、A 防具、O その他、- 無し */
   eq: string;
