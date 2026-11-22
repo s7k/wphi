@@ -702,6 +702,13 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
           />
           {popEls}
           {fxEls}
+          {/* 攻撃の待ち (#attack 〜 #end-at) の間、自キャラの足元に輪を出す。この間の hit は待ちが明けた時に送る (#177) */}
+          {state?.mode?.attack && (
+            <div
+              className="fx fx-attack-wait"
+              style={{ ...cellAt(me), "--cell": `${CHIP_SIZE * zoom}px` } as React.CSSProperties}
+            />
+          )}
           {charMenu && state && (
             <div className="char-menu" style={{ left: charMenu.left, top: charMenu.top }} onMouseDown={(e) => e.stopPropagation()}>
               <div className="char-menu-name">{charMenu.name}</div>

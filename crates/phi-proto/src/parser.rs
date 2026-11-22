@@ -1032,6 +1032,11 @@ impl Parser {
     }
 
     /// モードを変え、変わった時だけ全項目の mode イベントを返す。
+    /// 攻撃の待ち (`#attack` 〜 `#end-at`) の最中か
+    pub fn attacking(&self) -> bool {
+        self.mode.attack
+    }
+
     fn set_mode(&mut self, f: impl FnOnce(&mut Mode)) -> Vec<Event> {
         let before = self.mode;
         f(&mut self.mode);

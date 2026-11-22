@@ -256,6 +256,39 @@ fn quickack(stream: &TcpStream) {
     let _ = stream;
 }
 
+/// 攻撃の待ちの間に押した hit の予約 (#177)。DM は待ちの間に hit を受けると「まだ攻撃できない」を返し、
+/// 待ちを 0.2 秒延ばすので、連打するほど遅くなっていた。待ちの間の hit は 1 回だけ覚え、`#end-at` で送る
+#[derive(Default)]
+struct HitGate {
+    /// 覚えた時刻。待ちが明けないまま HIT_HOLD_MAX 過ぎたら、明けたとみなして送る
+    held: Option<Instant>,
+}
+
+/// 予約した hit を待つ上限。武器の重い攻撃の待ちより長く取る
+const HIT_HOLD_MAX: Duration = Duration::from_secs(4);
+
+impl HitGate {
+    /// `text` が攻撃の待ちの間の hit なら覚えて true (送らない)
+    fn hold(&mut self, text: &str, attacking: bool, now: Instant) -> bool {
+        if text.trim() != "hit" || !attacking {
+            return false;
+        }
+        self.held.get_or_insert(now);
+        true
+    }
+
+    /// 覚えた hit を今送るか。待ちが明けたか、待ち過ぎた時に true
+    fn release(&mut self, attacking: bool, now: Instant) -> bool {
+        match self.held {
+            Some(t) if !attacking || now.duration_since(t) >= HIT_HOLD_MAX => {
+                self.held = None;
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
 /// 繋いでいるサーバとの接続。世界移動に成功したら移動先の物に作り直す
 struct Conn {
     stream: TcpStream,
@@ -343,6 +376,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
     let mut keepalive_sent = false;
     let mut warned = false;
     let mut auto = AutoUnequip::default();
+    let mut hits = HitGate::default();
 
     'conn: loop {
         let wake = next_wake(last_recv, keepalive_sent, warned);
@@ -399,6 +433,8 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     if text.starts_with(INTERNAL_PREFIX) {
                         // 確かめの期限が切れた後に届いた TRANSFER_YES などは、サーバへ送らない
                         keep_view(&text, &mut view);
+                    } else if hits.hold(&text, conn.parser.attacking(), Instant::now()) {
+                        // 攻撃の待ちの間の hit は送らず、待ちが明けた時に 1 回だけ送る (#177)
                     } else {
                         match auto.start(&text, std::time::Instant::now()) {
                             Some(unequip) => reply.push(unequip.into()),
@@ -418,6 +454,9 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     emit(error("サーバから3分間応答がありません".into()));
                 }
             }
+        }
+        if hits.release(conn.parser.attacking(), Instant::now()) {
+            reply.push("hit".into());
         }
         let want_view = view.map(|v| view_line(v, conn.parser.map_style() == Some("turn")));
         if want_view != conn.sent_view {
@@ -800,6 +839,22 @@ async fn put<W: tokio::io::AsyncWrite + Unpin>(w: &mut W, b: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 攻撃の待ちの間の hit は 1 回だけ覚え、待ちが明けたら送る (#177)
+    #[test]
+    fn hit_waits_for_end_of_attack() {
+        let t = Instant::now();
+        let mut g = HitGate::default();
+        assert!(!g.hold("hit", false, t), "待ちでなければそのまま送る");
+        assert!(!g.hold("say", true, t), "hit 以外はそのまま送る");
+        assert!(g.hold("hit", true, t) && g.hold("hit", true, t), "連打しても覚えるのは 1 回");
+        assert!(!g.release(true, t), "待ちの間は送らない");
+        assert!(g.release(false, t), "明けたら送る");
+        assert!(!g.release(false, t), "送るのは 1 回だけ");
+        // #end-at が来ないまま待ち過ぎたら送る
+        g.hold("hit", true, t);
+        assert!(g.release(true, t + HIT_HOLD_MAX));
+    }
     use serde_json::{Value, json};
 
     /// #more の中の行(看板の本文)は効果音と照合しない(#19)。
