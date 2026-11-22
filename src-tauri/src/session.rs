@@ -266,6 +266,49 @@ fn quickack(stream: &TcpStream) {
     let _ = stream;
 }
 
+/// 通信の量と往復の時間 (#197)。時刻の記録 (trace) を取っている時だけ、1 秒ごとに書く。
+/// raw は回線で受けたバイト数 (圧縮の前)、data は展開した後。rtt は go を送ってから #v6 G が届くまで
+#[derive(Default)]
+struct NetStats {
+    raw: usize,
+    data: usize,
+    sent: usize,
+    gos: VecDeque<Instant>,
+    rtts: Vec<Duration>,
+    since: Option<Instant>,
+}
+
+impl NetStats {
+    fn sent_go(&mut self, now: Instant) {
+        if self.gos.len() < 32 {
+            self.gos.push_back(now);
+        }
+    }
+
+    fn moved(&mut self, now: Instant) {
+        if let Some(t) = self.gos.pop_front() {
+            self.rtts.push(now.duration_since(t));
+        }
+    }
+
+    /// 1 秒経っていれば 1 行書いて数え直す
+    fn flush(&mut self, now: Instant) {
+        let since = *self.since.get_or_insert(now);
+        if now.duration_since(since) < Duration::from_secs(1) {
+            return;
+        }
+        let rtt = if self.rtts.is_empty() {
+            "-".to_string()
+        } else {
+            let mut v: Vec<u128> = self.rtts.iter().map(|d| d.as_millis()).collect();
+            v.sort_unstable();
+            format!("{}ms(中央) {}ms(最大) n={}", v[v.len() / 2], v[v.len() - 1], v.len())
+        };
+        crate::trace::write(&format!("net recv={}B/s 展開後={}B/s send={}B/s rtt={rtt}", self.raw, self.data, self.sent));
+        *self = Self { gos: std::mem::take(&mut self.gos), since: Some(now), ..Self::default() };
+    }
+}
+
 /// 攻撃の待ちの間に押した hit の予約 (#177)。DM は待ちの間に hit を受けると「まだ攻撃できない」を返し、
 /// 待ちを 0.2 秒延ばすので、連打するほど遅くなっていた。待ちの間の hit は 1 回だけ覚え、`#end-at` で送る
 #[derive(Default)]
@@ -392,6 +435,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
     let mut answers = false;
     let mut auto = AutoUnequip::default();
     let mut hits = HitGate::default();
+    let mut stats = NetStats::default();
 
     'conn: loop {
         let wake = next_wake(last_recv, keepalive_sent, warned, answers);
@@ -410,6 +454,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                 last_recv = Instant::now();
                 keepalive_sent = false;
                 warned = false;
+                stats.raw += n;
                 let data = match conn.inflate.feed(&buf[..n]) {
                     Ok(d) => d,
                     Err(e) => {
@@ -421,7 +466,14 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     use std::io::Write;
                     let _ = f.write_all(&data);
                 }
+                stats.data += data.len();
                 let mut queue: VecDeque<Vec<u8>> = conn.lines.feed(&data).into();
+                if crate::trace::on() {
+                    let now = Instant::now();
+                    for _ in queue.iter().filter(|l| l.starts_with(b"#v6 G ")) {
+                        stats.moved(now);
+                    }
+                }
                 answers |= queue.iter().any(|l| l.starts_with(b"#code-sjis-ok"));
                 loop {
                     let handled = handle_lines(&mut conn.parser, &mut queue, &mut auto, &mut reply, &opts, &mut emit);
@@ -492,6 +544,12 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
             reply.iter().for_each(|l| emit(debug_line("→", l)));
         }
         let bytes: Vec<u8> = reply.iter().flat_map(|l| line_bytes(l)).collect();
+        if crate::trace::on() {
+            let now = Instant::now();
+            reply.iter().filter(|l| l.starts_with("go")).for_each(|_| stats.sent_go(now));
+            stats.sent += bytes.len();
+            stats.flush(now);
+        }
         if !bytes.is_empty() {
             let sent = match timeout(WRITE_TIMEOUT, conn.stream.write_all(&bytes)).await {
                 Ok(r) => r.map_err(|e| e.to_string()),
