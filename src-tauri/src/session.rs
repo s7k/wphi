@@ -182,7 +182,9 @@ impl Inflate {
             pos += (z.total_in() - before) as usize;
             // 圧縮の終わり (StreamEnd) の後ろにバイトが来ると、入力も出力も進まずに回り続ける (#124)。
             // phi_dm は終わらせずに送り続けるので、終わりが来たら壊れた流れとして切る
-            if st == flate2::Status::StreamEnd && pos < raw.len() || (pos < raw.len() && out.len() == before_out && z.total_in() == before) {
+            if st == flate2::Status::StreamEnd && pos < raw.len()
+                || (pos < raw.len() && out.len() == before_out && z.total_in() == before)
+            {
                 return Err("圧縮した流れの後ろに余分なデータがあります".into());
             }
             // 出力の領域が余ったまま返ったら、届いた分を出し切っている
@@ -789,7 +791,6 @@ mod tests {
         net::TcpListener,
     };
 
-    /// 偽サーバに繋ぎ、ログインの送信、#lag への応答、送信の cp932 化、ログの HTML 化、切断を確かめる。
     #[test]
     fn no_wake_after_warning() {
         let t = Instant::now();
@@ -798,6 +799,7 @@ mod tests {
         assert_eq!(next_wake(t, true, true), None);
     }
 
+    /// 偽サーバに繋ぎ、ログインの送信、#lag への応答、送信の cp932 化、ログの HTML 化、切断を確かめる。
     #[tokio::test]
     async fn talks_to_server() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -864,11 +866,21 @@ mod tests {
     #[tokio::test]
     async fn refused_connect_reports_closed() {
         // 開いてすぐ閉じたポートは、繋ぐと断られる
-        let port = TcpListener::bind("127.0.0.1:0").await.unwrap().local_addr().unwrap().port();
+        let port = TcpListener::bind("127.0.0.1:0")
+            .await
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
         let (_tx, rx) = mpsc::channel(8);
         let mut events: Vec<Value> = Vec::new();
         run(
-            Login { host: "127.0.0.1".into(), port, id: "ID".into(), view: None },
+            Login {
+                host: "127.0.0.1".into(),
+                port,
+                id: "ID".into(),
+                view: None,
+            },
             rx,
             |ev| events.push(serde_json::to_value(ev).unwrap()),
         )
@@ -929,7 +941,11 @@ mod tests {
         assert!(got.contains(&"#ex-map mapsets=16 view=13 9\n".to_string()));
         assert_eq!(
             got[got.len() - 3..],
-            ["#ex-map mapsets=16 view=9 9\n", "#ex-map mapsets=16 view=11 11\n", "#ex-map mapsets=16 view=15 11\n"]
+            [
+                "#ex-map mapsets=16 view=9 9\n",
+                "#ex-map mapsets=16 view=11 11\n",
+                "#ex-map mapsets=16 view=15 11\n"
+            ]
         );
     }
 
@@ -940,6 +956,8 @@ mod tests {
         let dst_port = dst_listener.local_addr().unwrap().port();
         let src_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let src_port = src_listener.local_addr().unwrap().port();
+        // 移動元が #trans を受けた印
+        let (trans_tx, trans_rx) = tokio::sync::oneshot::channel();
 
         let dst = tokio::spawn(async move {
             let (sock, _) = dst_listener.accept().await.unwrap();
@@ -951,7 +969,7 @@ mod tests {
                 .unwrap();
             if rsv.starts_with("#rsv-ok\n") {
                 // 移動元が断る時は、#trans を待ってから理由を書く(移動先のコマンドは捨てる)
-                tokio::time::sleep(Duration::from_millis(100)).await;
+                trans_rx.await.unwrap();
                 w.write_all(rsv.split_once('\n').unwrap().1.as_bytes()).await.unwrap();
             } else if rsv == "#rsv-ok" {
                 // #ch-srv-ok と、#open の無いログイン時の設定
@@ -974,6 +992,7 @@ mod tests {
                 .unwrap();
             let mut got = vec![read_line(&mut r).await];
             if got[0].starts_with("#trans") {
+                let _ = trans_tx.send(());
                 w.write_all(trs.as_bytes()).await.unwrap();
                 if trs.contains("#trs-no") {
                     got.push(read_line(&mut r).await);
@@ -1111,15 +1130,9 @@ mod tests {
         let port = listener.local_addr().unwrap().port();
         let src = tokio::spawn(src_server(listener, format!("#ch-srv localhost {dst_port}\n")));
         let (tx, rx) = mpsc::channel(8);
-        let confirmed = std::sync::Arc::new(std::sync::Mutex::new(false));
-        let c = confirmed.clone();
-        let run = tokio::spawn(run(login()(port), rx, move |ev| {
-            if serde_json::to_value(ev).unwrap()["type"] == "confirmTransfer" {
-                *c.lock().unwrap() = true;
-            }
-        }));
-        tokio::time::sleep(Duration::from_millis(200)).await;
-        assert!(*confirmed.lock().unwrap());
+        let (emit, mut events) = event_channel();
+        let run = tokio::spawn(run(login()(port), rx, emit));
+        wait_event(&mut events, |e| e["type"] == "confirmTransfer").await;
         // 答えを待つ間に送った行はサーバへ送らない
         tx.send("say while-asking".into()).await.unwrap();
         tx.send(answer.into()).await.unwrap();
@@ -1168,8 +1181,9 @@ mod tests {
             got
         });
         let (tx, rx) = mpsc::channel(8);
-        let run = tokio::spawn(run(login()(port), rx, |_| {}));
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        let (emit, mut events) = event_channel();
+        let run = tokio::spawn(run(login()(port), rx, emit));
+        wait_event(&mut events, |e| e["type"] == "confirmTransfer").await;
         for l in [&format!("{VIEW_PREFIX}13 9"), TRANSFER_NO, TRANSFER_YES, "say end"] {
             tx.send(l.to_string()).await.unwrap();
         }
@@ -1192,7 +1206,6 @@ mod tests {
         let run = tokio::spawn(run(login()(port), rx, move |ev| {
             e.lock().unwrap().push(serde_json::to_value(ev).unwrap())
         }));
-        tokio::time::sleep(Duration::from_millis(100)).await;
         drop(tx);
         assert_eq!(timeout(Duration::from_secs(5), src).await.unwrap().unwrap(), "#x\n");
         timeout(Duration::from_secs(5), run).await.unwrap().unwrap();
@@ -1210,21 +1223,255 @@ mod tests {
         // 移動先は #reserve に答えない
         let dst_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let dst_port = dst_listener.local_addr().unwrap().port();
+        let (reserved_tx, reserved_rx) = tokio::sync::oneshot::channel();
         let dst = tokio::spawn(async move {
             let (sock, _) = dst_listener.accept().await.unwrap();
-            tokio::time::sleep(Duration::from_secs(60)).await;
-            drop(sock);
+            let mut r = BufReader::new(sock);
+            let mut l = String::new();
+            r.read_line(&mut l).await.unwrap();
+            let _ = reserved_tx.send(l);
+            std::future::pending::<()>().await;
         });
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
         let src = tokio::spawn(src_server(listener, format!("#ch-srv 127.0.0.1 {dst_port}\n")));
         let (tx, rx) = mpsc::channel(8);
         let run = tokio::spawn(run(login()(port), rx, |_| {}));
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        // #rsv-ok を待っている間に閉じる
+        assert_eq!(reserved_rx.await.unwrap(), "#reserve ID\n");
         drop(tx);
         timeout(Duration::from_secs(5), run).await.unwrap().unwrap();
         assert_eq!(src.await.unwrap(), "#x\n");
         dst.abort();
+    }
+
+    /// UI へのイベントを channel に流す。試験は固定時間を待たずに、イベントが届くのを待つ
+    fn event_channel() -> (impl FnMut(UiEvent) + Send + 'static, mpsc::UnboundedReceiver<Value>) {
+        let (tx, rx) = mpsc::unbounded_channel();
+        (move |ev| drop(tx.send(serde_json::to_value(ev).unwrap())), rx)
+    }
+
+    /// `pred` に合うイベントが届くまで待つ。それより前のイベントは読み捨てる
+    async fn wait_event(events: &mut mpsc::UnboundedReceiver<Value>, pred: impl Fn(&Value) -> bool) -> Value {
+        loop {
+            let e = events.recv().await.expect("待つイベントが届く前に接続が終わった");
+            if pred(&e) {
+                return e;
+            }
+        }
+    }
+
+    /// 無受信が2分続いたら #code-sjis を送り、3分続いたら警告する。時計は止めて進める
+    #[tokio::test(start_paused = true)]
+    async fn keepalive_then_warning() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (end_tx, end_rx) = tokio::sync::oneshot::channel::<()>();
+        let start = Instant::now();
+        let server = tokio::spawn(async move {
+            let (sock, _) = listener.accept().await.unwrap();
+            let (r, mut w) = sock.into_split();
+            let mut r = BufReader::new(r);
+            for _ in 0..login_lines(Some("ID"), None).len() {
+                read_line(&mut r).await;
+            }
+            let keepalive = read_line(&mut r).await;
+            let at = start.elapsed();
+            end_rx.await.unwrap();
+            w.write_all(b"#x\n").await.unwrap();
+            (keepalive, at, r, w)
+        });
+        let (_tx, rx) = mpsc::channel(8);
+        let (emit, mut events) = event_channel();
+        let run = tokio::spawn(run(login()(port), rx, emit));
+        let warn = wait_event(&mut events, |e| e["type"] == "error").await;
+        assert_eq!(warn["message"], "サーバから3分間応答がありません");
+        assert!(start.elapsed() >= WARN_AFTER);
+        end_tx.send(()).unwrap();
+        let (keepalive, at, _r, _w) = server.await.unwrap();
+        assert_eq!(keepalive, "#code-sjis\n");
+        assert!(at >= KEEPALIVE_AFTER && at < WARN_AFTER, "{at:?}");
+        run.await.unwrap();
+    }
+
+    /// 世界移動の確かめに TRANSFER_TIMEOUT まで答えが無ければ、確かめの窓を閉じさせて #no-srv を返す(#153)
+    #[tokio::test(start_paused = true)]
+    async fn transfer_confirm_expires() {
+        let dst_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let dst_port = dst_listener.local_addr().unwrap().port();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let start = Instant::now();
+        let src = tokio::spawn(src_server(listener, format!("#ch-srv localhost {dst_port}\n")));
+        let (_tx, rx) = mpsc::channel(8);
+        let (emit, mut events) = event_channel();
+        let run = tokio::spawn(run(login()(port), rx, emit));
+        wait_event(&mut events, |e| e["type"] == "confirmTransfer").await;
+        wait_event(&mut events, |e| e["type"] == "transferExpired").await;
+        assert!(start.elapsed() >= TRANSFER_TIMEOUT);
+        assert_eq!(src.await.unwrap(), "#no-srv\n");
+        run.await.unwrap();
+    }
+
+    /// `#ex-switch compress=deflate` の返事の後ろを展開して処理する
+    #[tokio::test]
+    async fn compressed_session() {
+        use flate2::{Compress, Compression, FlushCompress};
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = tokio::spawn(async move {
+            let (sock, _) = listener.accept().await.unwrap();
+            let (r, mut w) = sock.into_split();
+            let mut r = BufReader::new(r);
+            for _ in 0..login_lines(Some("ID"), None).len() {
+                read_line(&mut r).await;
+            }
+            let mut z = Compress::new(Compression::default(), true);
+            let mut packed = Vec::with_capacity(1024);
+            let mut plain = codec::encode("勇者 > やあ\n");
+            plain.extend_from_slice(b"#x\n");
+            z.compress_vec(&plain, &mut packed, FlushCompress::Sync).unwrap();
+            let mut wire = b"#ex-switch compress=deflate\n".to_vec();
+            wire.extend_from_slice(&packed);
+            w.write_all(&wire).await.unwrap();
+            (r, w)
+        });
+        let (_tx, rx) = mpsc::channel(8);
+        let mut events: Vec<Value> = Vec::new();
+        timeout(
+            Duration::from_secs(5),
+            run(login()(port), rx, |ev| events.push(serde_json::to_value(ev).unwrap())),
+        )
+        .await
+        .unwrap();
+        let _conn = server.await.unwrap();
+        let raws: Vec<&str> = events.iter().filter_map(|e| e["raw"].as_str()).collect();
+        assert_eq!(raws, ["勇者 > やあ"]);
+        assert_eq!(
+            events.last().unwrap(),
+            &json!({"type": "connection", "state": "closed"})
+        );
+    }
+
+    /// 世界移動の後は移動先を今の接続先として覚える。同じホストへの次の移動は確かめない
+    #[tokio::test]
+    async fn world_move_updates_host() {
+        // 2度目の移動先。開いてすぐ閉じたので繋がらない
+        let closed_port = TcpListener::bind("127.0.0.1:0")
+            .await
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        let dst_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let dst_port = dst_listener.local_addr().unwrap().port();
+        let dst = tokio::spawn(async move {
+            let (sock, _) = dst_listener.accept().await.unwrap();
+            let (r, mut w) = sock.into_split();
+            let mut r = BufReader::new(r);
+            assert_eq!(read_line(&mut r).await, "#reserve ID\n");
+            w.write_all(b"#rsv-ok\n").await.unwrap();
+            // #ch-srv-ok と、#open の無いログイン時の設定
+            for _ in 0..login_lines(None, None).len() + 1 {
+                read_line(&mut r).await;
+            }
+            w.write_all(format!("#ch-srv localhost {closed_port}\n").as_bytes())
+                .await
+                .unwrap();
+            let got = timeout(Duration::from_secs(5), read_line(&mut r))
+                .await
+                .expect("2度目の移動で確かめを待った");
+            drop(w);
+            got
+        });
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let src = tokio::spawn(async move {
+            let (sock, _) = listener.accept().await.unwrap();
+            let (r, mut w) = sock.into_split();
+            let mut r = BufReader::new(r);
+            for _ in 0..login_lines(Some("ID"), None).len() {
+                read_line(&mut r).await;
+            }
+            w.write_all(format!("#ch-srv localhost {dst_port}\n").as_bytes())
+                .await
+                .unwrap();
+            let trans = read_line(&mut r).await;
+            w.write_all(b"#trs-ok\n").await.unwrap();
+            (trans, r, w)
+        });
+        let (tx, rx) = mpsc::channel(8);
+        let (emit, mut events) = event_channel();
+        let run = tokio::spawn(run(login()(port), rx, emit));
+        wait_event(&mut events, |e| e["type"] == "confirmTransfer").await;
+        tx.send(TRANSFER_YES.into()).await.unwrap();
+        let moved = wait_event(&mut events, |e| e["type"] == "worldMoved").await;
+        assert_eq!(moved["host"], "localhost");
+        assert_eq!(dst.await.unwrap(), "#no-srv\n");
+        let (trans, _r, _w) = src.await.unwrap();
+        assert!(trans.starts_with("#trans "), "{trans}");
+        timeout(Duration::from_secs(5), run).await.unwrap().unwrap();
+        while let Ok(e) = events.try_recv() {
+            assert_ne!(e["type"], "confirmTransfer");
+        }
+    }
+
+    /// #trs-ok の後に移動先へ送れなければ、移動をやめて移動元のまま続ける
+    #[tokio::test]
+    async fn transfer_fails_when_dst_resets() {
+        let (trans_tx, trans_rx) = tokio::sync::oneshot::channel::<()>();
+        let (reset_tx, reset_rx) = tokio::sync::oneshot::channel::<()>();
+        let (end_tx, end_rx) = tokio::sync::oneshot::channel::<()>();
+        let dst_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let dst_port = dst_listener.local_addr().unwrap().port();
+        let dst = tokio::spawn(async move {
+            let (mut sock, _) = dst_listener.accept().await.unwrap();
+            let mut l = Vec::new();
+            BufReader::new(&mut sock).read_until(b'\n', &mut l).await.unwrap();
+            sock.write_all(b"#rsv-ok\n").await.unwrap();
+            // 移動元が #trans を受けたら RST で切る。こちらからの #ch-srv-ok の送信が失敗する
+            trans_rx.await.unwrap();
+            sock.set_zero_linger().unwrap();
+            drop(sock);
+            reset_tx.send(()).unwrap();
+        });
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let src = tokio::spawn(async move {
+            let (sock, _) = listener.accept().await.unwrap();
+            let (r, mut w) = sock.into_split();
+            let mut r = BufReader::new(r);
+            for _ in 0..login_lines(Some("ID"), None).len() {
+                read_line(&mut r).await;
+            }
+            w.write_all(format!("#ch-srv 127.0.0.1 {dst_port}\n").as_bytes())
+                .await
+                .unwrap();
+            let trans = read_line(&mut r).await;
+            trans_tx.send(()).unwrap();
+            reset_rx.await.unwrap();
+            w.write_all(b"#trs-ok\n").await.unwrap();
+            end_rx.await.unwrap();
+            w.write_all(b"#x\n").await.unwrap();
+            (trans, r, w)
+        });
+        let (_tx, rx) = mpsc::channel(8);
+        let (emit, mut events) = event_channel();
+        let run = tokio::spawn(run(login()(port), rx, emit));
+        wait_event(&mut events, |e| {
+            e["html"]
+                .as_str()
+                .is_some_and(|h| h.contains("転送先世界への送信に失敗しました"))
+        })
+        .await;
+        end_tx.send(()).unwrap();
+        timeout(Duration::from_secs(5), run).await.unwrap().unwrap();
+        dst.await.unwrap();
+        let (trans, _r, _w) = src.await.unwrap();
+        assert!(trans.starts_with("#trans "), "{trans}");
+        while let Ok(e) = events.try_recv() {
+            assert_ne!(e["type"], "worldMoved");
+        }
     }
 
     fn dst_port_of(events: &[Value]) -> u64 {
