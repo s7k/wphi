@@ -12,6 +12,10 @@ use serde::Serialize;
 /// 1つの LZH の上限。一番大きい chara_tofup で 3MB 弱
 const MAX_BYTES: u64 = 30 * 1024 * 1024;
 
+/// 1つの LZH を展開した後の合計の上限。配布元は http なので、途中で中身を差し替えると、
+/// 展開すると巨大になるファイルでメモリとディスクを使い切りうる。BMP の圧縮率を 10 倍と見ても余る大きさ
+const MAX_EXTRACTED: u64 = 300 * 1024 * 1024;
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Item {
@@ -78,9 +82,15 @@ pub fn fetch(url: &str) -> Result<Vec<u8>, String> {
 
 /// LZH を `dest` に展開し、書いたファイルの名前を返す。中のフォルダは無視し、ファイル名だけで置く
 pub fn extract(lzh: &[u8], dest: &Path) -> Result<Vec<String>, String> {
+    extract_up_to(lzh, dest, MAX_EXTRACTED)
+}
+
+/// `extract` の本体。展開した合計が `limit` を超えたら Err
+fn extract_up_to(lzh: &[u8], dest: &Path, limit: u64) -> Result<Vec<String>, String> {
     let err = |e: &dyn std::fmt::Display| format!("LZH を展開出来ません: {e}");
     let mut rd = delharc::LhaDecodeReader::new(lzh).map_err(|e| err(&e))?;
     let mut names = Vec::new();
+    let mut left = limit;
     loop {
         let h = rd.header();
         if !h.is_directory() {
@@ -91,7 +101,11 @@ pub fn extract(lzh: &[u8], dest: &Path) -> Result<Vec<String>, String> {
                 return Err(err(&format!("{name} の圧縮の形式に対応していません")));
             }
             let mut buf = Vec::new();
-            rd.read_to_end(&mut buf).map_err(|e| err(&e))?;
+            // 1バイト多く読み、上限を超えたかを見分ける
+            (&mut rd).take(left + 1).read_to_end(&mut buf).map_err(|e| err(&e))?;
+            left = left
+                .checked_sub(buf.len() as u64)
+                .ok_or_else(|| err(&format!("展開すると {} MB を超えます", limit / 1024 / 1024)))?;
             rd.crc_check().map_err(|e| err(&e))?;
             std::fs::create_dir_all(dest).map_err(|e| e.to_string())?;
             std::fs::write(dest.join(&name), buf).map_err(|e| e.to_string())?;
@@ -179,11 +193,8 @@ mod tests {
         assert_eq!(file_name("dir/"), None);
     }
 
-    #[test]
-    fn extracts_lh0() {
-        // 無圧縮(-lh0-)・レベル0のヘッダを1つ組み立てる
-        let data = b"hello";
-        let name = b"sub\\a.bmp";
+    /// 無圧縮(-lh0-)・レベル0のヘッダを1つ組み立てる
+    fn lh0(name: &[u8], data: &[u8]) -> Vec<u8> {
         let mut h = vec![0u8, 0];
         h.extend_from_slice(b"-lh0-");
         h.extend_from_slice(&(data.len() as u32).to_le_bytes());
@@ -197,10 +208,27 @@ mod tests {
         h[1] = h[2..].iter().fold(0u8, |a, b| a.wrapping_add(*b));
         h.extend_from_slice(data);
         h.push(0);
+        h
+    }
+
+    #[test]
+    fn extracts_lh0() {
+        let data = b"hello";
+        let h = lh0(b"sub\\a.bmp", data);
         let dir = std::env::temp_dir().join(format!("wphi-lzh-{}", std::process::id()));
         let names = extract(&h, &dir).unwrap();
         assert_eq!(names, ["a.bmp"]);
         assert_eq!(std::fs::read(dir.join("a.bmp")).unwrap(), data);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn extract_stops_at_limit() {
+        let h = lh0(b"a.bmp", b"hello");
+        let dir = std::env::temp_dir().join(format!("wphi-lzh-limit-{}", std::process::id()));
+        assert!(extract_up_to(&h, &dir, 4).is_err());
+        assert!(!dir.join("a.bmp").exists());
+        assert_eq!(extract_up_to(&h, &dir, 5).unwrap(), ["a.bmp"]);
         std::fs::remove_dir_all(dir).unwrap();
     }
 
