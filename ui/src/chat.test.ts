@@ -11,6 +11,8 @@ test("発言の前処理", () => {
   assert.equal(prepareLine("叫ぶ", { ...plain, loud: true }), "*叫ぶ");
   assert.equal(prepareLine("みんな", { ...plain, ctrl: true }), "+みんな");
   assert.equal(prepareLine("*仲間だけ", { ...plain, ctrl: true }), "+*仲間だけ");
+  assert.equal(prepareLine("区域へ", { ...plain, area: true }), "&区域へ");
+  assert.equal(prepareLine("仲間へ", { ...plain, area: true, ctrl: true }), "+仲間へ", "パーティが先");
   assert.equal(prepareLine("", plain), null);
   assert.equal(prepareLine("", { ...plain, lastLine: false }), "/**/");
 });

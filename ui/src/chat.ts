@@ -11,9 +11,11 @@ export const EDIT_MAX_LINE = 100;
  * - 大声モードでないのに先頭が `*` なら `/**\/` を前置して大声にしない
  * - Ctrl+Enter とパーティのタブはパーティの発言(先頭に `+`)。`*` で始まっても `+` を付ける
  */
-export function prepareLine(text: string, opts: { ctrl: boolean; loud: boolean; lastLine: boolean }): string | null {
+export function prepareLine(text: string, opts: { ctrl: boolean; loud: boolean; area?: boolean; lastLine: boolean }): string | null {
   if (text.length === 0) return opts.lastLine ? null : "/**/";
   if (opts.loud) return `*${text}`;
+  // エリアの発言 (DM は & で始まる行を同じ区域の全員へ送る。#190)
+  if (opts.area && !opts.ctrl) return `&${text}`;
   // パーティ発言は + の後ろを本文として扱うので、* で始まっても大声にならない。先に見ないと全員に届く
   if (opts.ctrl) return `+${text}`;
   if (text.startsWith("*")) return `/**/${text}`;

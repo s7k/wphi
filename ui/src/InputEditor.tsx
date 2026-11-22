@@ -3,7 +3,7 @@ import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { sendLine } from "./keyInput";
 import { confirmBox } from "./MessageDialog";
 import { popupTagMenu } from "./TagMenuPopup";
-import { ArrowDownToLine, Check, FolderOpen, Megaphone, MessageSquare, Layers, Save, X } from "lucide-react";
+import { ArrowDownToLine, Check, FolderOpen, Megaphone, MessageSquare, Layers, Save, X, MapPin } from "lucide-react";
 
 /** 入力欄のツールバーと同じ切り替えのメニュー項目(src-tauri/src/menu.rs の 操作)。App から InputEditor へ送る */
 export const INPUT_MENU = ["loud", "all-tab", "log-save", "log-follow", "open-log-dir"];
@@ -31,6 +31,8 @@ export function InputEditor(props: {
   onLogFollow: (on: boolean) => void;
 }) {
   const [loud, setLoud] = useState(false);
+  // エリアの発言 (同じ区域の全員へ。#190)。大声とは同時に選ばない
+  const [area, setArea] = useState(false);
   // 確認で「すべて大声」を選んだ。大声を解除するまで確認せず、送っても大声のままにする(Philly の大声の確認)
   const [loudAll, setLoudAll] = useState(false);
   // 大声の確認で答えを待っている発言
@@ -48,6 +50,7 @@ export function InputEditor(props: {
     const text = prepareLine(line.text, {
       ctrl: ctrl || !!props.party?.mode,
       loud: loud && !allTab,
+      area,
       lastLine: line.index + 1 >= line.count,
     });
     if (text === null) return;
@@ -184,11 +187,27 @@ export function InputEditor(props: {
             checked={loud}
             onChange={(e) => {
               setLoud(e.target.checked);
+              if (e.target.checked) setArea(false);
               if (!e.target.checked) setLoudAll(false);
             }}
           />
           <Megaphone />
           {loudAll ? "すべて大声" : "大声"}
+        </label>
+        <label className={area ? "toggle on" : "toggle"} title="同じ区域の全員に発言する (先頭に & を付けて送る)">
+          <input
+            type="checkbox"
+            checked={area}
+            onChange={(e) => {
+              setArea(e.target.checked);
+              if (e.target.checked) {
+                setLoud(false);
+                setLoudAll(false);
+              }
+            }}
+          />
+          <MapPin />
+          エリア
         </label>
         <label className={allTab ? "toggle on" : "toggle"}>
           <input type="checkbox" checked={allTab} onChange={(e) => setAllTab(e.target.checked)} />
