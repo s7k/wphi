@@ -229,6 +229,12 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
             "#ex-inv .",
         ],
         "party-end" => &["#v6 P ."],
+        // 確かめ用: 足元の物 (#ex-inv F)
+        "fx-floor" => &[
+            "#ex-inv F 1\teq=-\tit=5\twt=0\tmt=1\tfn=1\twp=1\top=1,0,1,0\tready=0\ttype=Food\twtype=claw\tmat=Wood\telem=Earth\tname=Nuts",
+            "#ex-inv F 2\tgp=120",
+            "#ex-inv F .",
+        ],
         // 確かめ用: HP バーと狙いの印、詠唱バー、攻撃の待ち
         "fx-hpbar" => &[
             "#v6 H C0005 hp=35 ag=1",

@@ -2007,6 +2007,26 @@ button > svg:only-child,
   position: relative;
 }
 
+/* カバンの窓の足元の欄 (#189) */
+.bag-floor {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.bag-floor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bag-floor-row .bag-tile {
+  transform: scale(0.75);
+  margin: -6px;
+}
+.bag-floor-name {
+  flex: 1;
+}
 /* カバン(BagPanel.tsx)。看板の札(.sign-card)と同じ見た目で、右に寄せる */
 /* 方角(右上)の左へ横に並べる。下へ並べると、右に開く priv の欄の閉じるボタンに重なる */
 .bag-button {

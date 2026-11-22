@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { lightenColors } from "./logLines.ts";
 import { Search, X } from "lucide-react";
 import { PALETTE } from "./pixelIcons.ts";
-import type { ItemInfo } from "./protocol";
+import type { FloorItem, ItemInfo } from "./protocol";
 import { SORTS, sortItems } from "./bagSort.ts";
 
 /** 用途(IT_*)の番号 */
@@ -195,6 +195,12 @@ export function BagPanel(props: {
   onEquip: (no: number) => void;
   /** カバンの物を捨てる。nos は番号の大きい順、count はそれぞれの個数 (#ex-inv destroy)。確かめるのは呼ぶ側 */
   onDestroy: (items: { no: number; count: number }[], names: string) => void;
+  /** 足元の物 (#ex-inv floor。#189)。求めていなければ undefined、届くのを待つ間は null */
+  floor?: FloorItem[] | null;
+  onFloorLook: () => void;
+  /** 足元の no 番の物をカバンへ (#ex-inv pick) / 手持ちへ (get の一覧で選ぶ) */
+  onFloorPick: (no: number) => void;
+  onFloorGet: (no: number) => void;
   /** サーバへ1行か複数行を送る(use・equip・unequip・put) */
   onSend: (text: string) => void;
   onClose: () => void;
@@ -286,6 +292,39 @@ export function BagPanel(props: {
             />
           ))}
         </div>
+        <div className="bag-title">
+          足元{props.floor ? ` (${props.floor.length})` : ""}
+          <button type="button" className="bag-offer" title="足元に落ちている物を一覧にします (#ex-inv floor)" onClick={props.onFloorLook}>
+            {props.floor === undefined ? "足元を見る" : "見直す"}
+          </button>
+        </div>
+        {props.floor === null && <p className="bag-note">読み込んでいます...</p>}
+        {props.floor && props.floor.length === 0 && <p className="bag-note">足元には何もありません</p>}
+        {props.floor && props.floor.length > 0 && (
+          <div className="bag-floor">
+            {props.floor.map((f) =>
+              f.item ? (
+                <div key={f.no} className="bag-floor-row">
+                  <Tile item={f.item} selected={false} />
+                  <span className="bag-floor-name">{f.item.name}</span>
+                  <button type="button" onClick={() => props.onFloorPick(f.no)}>
+                    カバンへ
+                  </button>
+                  <button type="button" onClick={() => props.onFloorGet(f.no)}>
+                    手持ちへ
+                  </button>
+                </div>
+              ) : (
+                <div key={f.no} className="bag-floor-row">
+                  <span className="bag-floor-name">{f.gp ?? 0} gp</span>
+                  <button type="button" onClick={() => props.onFloorGet(f.no)}>
+                    拾う
+                  </button>
+                </div>
+              ),
+            )}
+          </div>
+        )}
         <div className="bag-title">
           カバンの中{props.bag ? ` (${props.bag.length})` : ""}
           <button

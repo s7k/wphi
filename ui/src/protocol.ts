@@ -109,7 +109,7 @@ export type UiEvent =
   | { type: "castEnd" }
   | { type: "wait"; who?: number; kind: string; ticks?: number; spell?: number }
   | { type: "charHp"; id: number; hp: number; ag: boolean }
-  | { type: "floor"; items: { no: number; gp?: number; item?: ItemInfo }[] }
+  | { type: "floor"; items: FloorItem[] }
   | { type: "effect"; kind: string; from?: { x: number; y: number }; at: { x: number; y: number }; element?: string; category?: string; wait?: number }
   /** #v6 S。覚えている呪文を cast の番号の順に */
   | { type: "spells"; spells: Spell[] }
@@ -151,6 +151,9 @@ export const CHAR_ACTION_EVENT = "phi-char-action";
 export type CharAction = { action: "priv" | "pay"; name: string; turn: string | null };
 
 /** 持ち物 1 個(phi_dm の docs/dev/protocol-v6.md の「呪文・持ち物・カバン」) */
+/** 足元の物 1 つ (#ex-inv F。#189)。番号は get の一覧と #ex-inv pick と同じ数え方。お金は gp だけ */
+export type FloorItem = { no: number; gp?: number; item?: ItemInfo };
+
 export type ItemInfo = {
   /** 装備の印。W 武器、A 防具、O その他、- 無し */
   eq: string;

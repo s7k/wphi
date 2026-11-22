@@ -32,7 +32,7 @@ import { checkAll, listNo, listOk, moreNo, moveListCursor, receiveList, type Lis
 import { trace } from "./trace.ts";
 import { PREDICT_TICK_MS, predictedMap, Predictor } from "./predict.ts";
 import { selfPos } from "./mapRender.ts";
-import { CHAR_ACTION_EVENT, EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, type CharAction, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type ItemInfo, type MapListAction, type PartyMember, type MapState, type Spell, type UiEvent } from "./protocol";
+import { CHAR_ACTION_EVENT, EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, type CharAction, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type FloorItem, type ItemInfo, type MapListAction, type PartyMember, type MapState, type Spell, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogFind } from "./LogFind";
 import { pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
@@ -107,6 +107,8 @@ export type Tab = {
   /** 手持ちの 8 個(#v6 I)とインベントリ(#ex-inv)。v6 で届いた時だけ */
   items?: (ItemInfo | null)[];
   bag?: ItemInfo[] | null;
+  /** 足元の物 (#ex-inv F。#189)。求めていなければ undefined */
+  floor?: FloorItem[] | null;
   bagOpen?: boolean;
   bagMessage?: string;
   /** 仲間の一覧(#v6 P。自分が先頭)。パーティに入っていなければ空 */
@@ -370,7 +372,9 @@ export function App() {
   /** カバンの操作を送る。前の操作で断られた理由 (bagMessage) は、ここで消す */
   const sendBag = (session: number, lines: string) => {
     update(session, (t) => (t.bagMessage ? { ...t, bagMessage: "" } : t));
-    sendLines(session, lines);
+    // 足元の一覧を一度でも受けていれば (#ex-inv floor に答えるサーバ)、出し入れの後に取り直す (#189)
+    const floor = tabOf(session)?.floor !== undefined;
+    sendLines(session, floor ? `${lines}\n#ex-inv floor` : lines);
   };
   /** 足元の店の買い取りへ全部渡す。渡した物は戻せないので、捨てる時と同じく確かめる */
   const offer = (session: number) =>
@@ -1530,6 +1534,9 @@ export function App() {
           update(session, (t) => ({ ...t, party: ev.members, partyMode: ev.members.length ? t.partyMode : false }));
           onMapEvent(session, ev);
           break;
+        case "floor":
+          update(session, (t) => ({ ...t, floor: ev.items }));
+          break;
         case "bag":
           // 断られた理由 (bagMessage) は残す。まとめて送った途中の 1 行が断られても、後の一覧で消えない様に。
           // 消すのは次の操作を送る時 (sendBag)
@@ -1874,6 +1881,17 @@ export function App() {
             onGet={(no) => sendBag(tab.session, `#ex-inv get ${no}`)}
             onDrop={(no, count) => sendBag(tab.session, `#ex-inv drop ${no} ${count}`)}
             onOffer={() => offer(tab.session)}
+            floor={tab.floor}
+            onFloorLook={() => {
+              update(tab.session, (t) => ({ ...t, floor: t.floor ?? null }));
+              sendBag(tab.session, "#ex-inv floor");
+            }}
+            onFloorPick={(no) => sendBag(tab.session, `#ex-inv pick ${no}`)}
+            onFloorGet={(no) => {
+              // get の一覧は出さずに番号で選ぶ (番号は #ex-inv F と同じ数え方)
+              listFlow(tab.session).cancel += 1;
+              sendBag(tab.session, `get\n${no}`);
+            }}
             onDropMany={(nos) => sendBag(tab.session, nos.map((no) => `#ex-inv drop ${no} 1`).join("\n"))}
             onGetMany={(nos) => sendBag(tab.session, nos.map((no) => `#ex-inv get ${no}`).join("\n"))}
             onUse={(no) => sendBag(tab.session, `#ex-inv use ${no}`)}
