@@ -32,7 +32,7 @@ import { checkAll, listNo, listOk, moreNo, moveListCursor, receiveList, type Lis
 import { trace } from "./trace.ts";
 import { PREDICT_TICK_MS, predictedMap, Predictor } from "./predict.ts";
 import { selfPos } from "./mapRender.ts";
-import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type ItemInfo, type MapListAction, type PartyMember, type MapState, type Spell, type UiEvent } from "./protocol";
+import { CHAR_ACTION_EVENT, EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, type CharAction, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type ItemInfo, type MapListAction, type PartyMember, type MapState, type Spell, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogFind } from "./LogFind";
 import { pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
@@ -993,9 +993,26 @@ export function App() {
       const session = activeRef.current;
       if (session !== null) startFollow(session, e.payload);
     });
+    // 地図のキャラのメニューの、ささやく・お金を渡す (#192)
+    const charAction = listen<CharAction>(CHAR_ACTION_EVENT, (e) => {
+      const session = activeRef.current;
+      if (session === null) return;
+      const { action, name, turn } = e.payload;
+      if (action === "priv") {
+        requestUlist(session);
+        update(session, (t) => ({
+          ...t,
+          privs: upsertConv(t.privs, [name], (c) => ({ ...(c ?? { to: [name], lines: [], unread: false }), open: true, min: false, z: topZ(t.privs) })),
+        }));
+      } else
+        void ask({ title: "お金を渡す", label: `${name} に渡す金額`, numeric: true }).then((v) => {
+          if (v) sendLines(session, turn ? `turn ${turn}\npay ${v}` : `pay ${v}`);
+        });
+    });
     return () => {
       partyOpen.then((f) => f());
       partyFollow.then((f) => f());
+      charAction.then((f) => f());
       document.removeEventListener("keydown", onDom);
       document.removeEventListener("keyup", onDom);
       document.removeEventListener("click", onClick);

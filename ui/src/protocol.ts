@@ -140,6 +140,9 @@ export type PartyMember = {
 export const PARTY_OPEN_EVENT = "phi-party-open";
 /** map 窓で仲間を選び「ついて行く」を押した。payload は仲間の名前 */
 export const PARTY_FOLLOW_EVENT = "phi-party-follow";
+/** 地図のキャラのメニューの、ささやく・お金を渡す (map.tsx → App。#192)。turn は相手の方を向く turn の向き */
+export const CHAR_ACTION_EVENT = "phi-char-action";
+export type CharAction = { action: "priv" | "pay"; name: string; turn: string | null };
 
 /** 持ち物 1 個(phi_dm の docs/dev/protocol-v6.md の「呪文・持ち物・カバン」) */
 export type ItemInfo = {
