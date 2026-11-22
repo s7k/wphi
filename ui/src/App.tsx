@@ -19,7 +19,7 @@ import { PartyHud, PartyPanel } from "./PartyPanel.tsx";
 import { AskDialog } from "./AskDialog";
 import { alertBox, confirmBox, MessageDialogHost } from "./MessageDialog";
 import { assetUrl } from "./asset";
-import { MAP_POP_EVENT, newPopState, popsFromLine } from "./mapPop.ts";
+import { MAP_POP_EVENT, newPopState, popsFromLine, stripTags } from "./mapPop.ts";
 import { BoardEditor } from "./BoardEditor";
 import { DEFAULT_SETTINGS, EXPERIMENT_EVENT, shortcutText, type Settings } from "./settings.ts";
 import { DownloadPanel } from "./DownloadPanel";
@@ -39,6 +39,7 @@ import { pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
 import { createLogWriter } from "./logSave.ts";
 import { characterTarget, needsCloseConfirm } from "./tabs.ts";
 import { signLine, signMode, type SignReading } from "./signHead.ts";
+import { afterClose, DEAD_LINE, KICKED_LINE, lossText, RETRY_DELAYS } from "./reconnect.ts";
 import { applyMapset, holdMapset, type PendingMapset } from "./mapsetPending.ts";
 import { castLines, loadSpellOrder, moveSpell, orderSpells, saveSpellOrder, SPELL_WAIT_MS, waitsForOrder } from "./spells.ts";
 import { SpellBar } from "./SpellBar";
@@ -1285,9 +1286,22 @@ export function App() {
     handle = (ev) => {
       // タブを閉じた後と繋ぎ直した後は、前のセッションの分を捨てる。届いた地図や行で、消した物を入れ直していた (#163)
       if (forgotten.current.has(session)) return;
+      if (ev.type === "status") {
+        // 繋がったので、続けて繋ぎ直した回数を戻す。死んで繋ぎ直した時は、下がった最大 HP・MP を出す (#178)
+        retries.current.delete(label);
+        const before = beforeDeath.current.get(label);
+        beforeDeath.current.delete(label);
+        const loss = before && lossText(before, ev);
+        if (loss) append(session, systemNg(loss));
+      }
       switch (ev.type) {
         case "log":
           append(session, ev.html, ev.raw);
+          if (ev.raw) {
+            const plain = stripTags(ev.raw);
+            if (DEAD_LINE.test(plain)) died.current.add(session);
+            if (KICKED_LINE.test(plain)) kicked.current.add(session);
+          }
           recentLines.current.set(session, [...(recentLines.current.get(session) ?? []), ev.raw ?? ""].slice(-2));
           signLine(signReads.current.get(session), ev.html);
           notifyTalk(session, ev.channel, ev.html, !!ev.noFlash);
@@ -1342,7 +1356,8 @@ export function App() {
         case "connection": {
           // Philly と同じく、自分で切った時とサーバから切れた時で行を分ける(Character.cpp・PersonalThread.cpp)
           const mine = userClosing.current.delete(session);
-          if (!tabOf(session)?.closed)
+          const wasOpen = !tabOf(session)?.closed;
+          if (wasOpen)
             if (mine) append(session, systemOk("--- 切断しました ---"));
             else {
               // 1 行目は Philly と同じ文言 (docs/04-client-spec.md)。繋ぎ直し方は次の行に出す (#132)
@@ -1350,6 +1365,7 @@ export function App() {
               append(session, systemNg("ファイルのメニューの「接続」で繋ぎ直せます。"));
             }
           update(session, (t) => ({ ...t, closed: true }));
+          if (wasOpen) afterClosed(session, label, mine);
           // 切れたら、ついて行くのをやめる。裏のタブは切れたセッションへ go を送り続けた (#160)
           if (follows.current.has(session)) stopFollow(session, "切断したので、ついて行くのをやめました。");
           break;
@@ -1529,12 +1545,42 @@ export function App() {
     invoke("disconnect", { session }).catch(console.error);
   }
 
+  // 切れた時の繋ぎ直し (ui/src/reconnect.ts。#178 #179)。died と kicked は切れる前に届いた知らせ、
+  // retries は表示名ごとの続けて自動で繋ぎ直した回数、beforeDeath は死ぬ前の最大 HP・MP
+  const died = useRef(new Set<number>());
+  const kicked = useRef(new Set<number>());
+  const retries = useRef(new Map<string, number>());
+  const beforeDeath = useRef(new Map<string, { maxHp?: number; maxMp?: number }>());
+  function afterClosed(session: number, label: string, mine: boolean) {
+    const next = afterClose(
+      { mine, died: died.current.has(session), kicked: kicked.current.has(session) },
+      retries.current.get(label) ?? 0,
+    );
+    // 繋ぎ直すのは、そのタブがまだ同じセッションで切れたままの時だけ (閉じた時と、手で繋ぎ直した時はしない)
+    const stillClosed = () => tabsRef.current.some((t) => t.session === session && t.closed);
+    if (next.kind === "ask-dead") {
+      const st = mapStates.current.get(session)?.status;
+      beforeDeath.current.set(label, { maxHp: st?.maxHp, maxMp: st?.maxMp });
+      void confirmBox(`${label} は死亡しました。\n同じキャラで繋ぎ直しますか？`).then((ok) => {
+        if (ok && stillClosed()) void connect(label, session);
+      });
+    } else if (next.kind === "retry") {
+      retries.current.set(label, next.nth);
+      append(session, systemOk(`${next.delay / 1000} 秒後に繋ぎ直します (${next.nth}/${RETRY_DELAYS.length})。`));
+      window.setTimeout(() => {
+        if (stillClosed()) void connect(label, session);
+      }, next.delay);
+    }
+  }
+
   /** 閉じたか繋ぎ直したセッション。番号は使い回さないので、残しておく (数は接続した回数だけ) */
   const forgotten = useRef(new Set<number>());
   /** セッションごとに覚えた物を消す(#35)。セッションごとの Map を足したら、ここにも足す */
   function forgetSession(session: number) {
     forgotten.current.add(session);
     userClosing.current.delete(session);
+    died.current.delete(session);
+    kicked.current.delete(session);
     mapStates.current.delete(session);
     pendingMapsets.current.delete(session);
     clearSpellWait(session);

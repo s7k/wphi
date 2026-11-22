@@ -24,8 +24,12 @@ use tokio::{
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// 送信の期限。相手が読まずに送信バッファが埋まると、受信も切断も止まる(#72)
 const WRITE_TIMEOUT: Duration = Duration::from_secs(30);
-/// 無受信がこの時間続いたら `#code-sjis` を送る(Philly の DISCONNECT_CHECK_TIME)。
-const KEEPALIVE_AFTER: Duration = Duration::from_secs(2 * 60);
+/// 無受信がこの時間続いたら `#code-sjis` を送る。Philly の DISCONNECT_CHECK_TIME は 2 分だったが、
+/// 切れたのを早く見つけて繋ぎ直す為に短くする (#179)
+const KEEPALIVE_AFTER: Duration = Duration::from_secs(15);
+/// `#code-sjis` に `#code-sjis-ok` を返すサーバで、`#code-sjis` を送った後この時間何も届かなければ、切れたとみなす (#179)。
+/// 返事をしないサーバ (古い v5y) では使わず、WARN_AFTER で警告を出すだけにする
+const DEAD_AFTER: Duration = Duration::from_secs(20);
 /// 無受信がこの時間続いたら UI に警告を出す(Philly の DISCONNECT_WARNING_TIME)。
 const WARN_AFTER: Duration = Duration::from_secs(3 * 60);
 /// 世界移動の各段階で返事を待つ時間(Philly の classTransportCharacter::TimeoutMs)。
@@ -202,9 +206,10 @@ fn line_bytes(text: &str) -> Vec<u8> {
 }
 
 /// 無応答の時に次に起きる時刻。2分で #code-sjis を送り、3分で警告する。警告の後は None(待たない)
-fn next_wake(last_recv: Instant, keepalive_sent: bool, warned: bool) -> Option<Instant> {
+fn next_wake(last_recv: Instant, keepalive_sent: bool, warned: bool, answers: bool) -> Option<Instant> {
     match (keepalive_sent, warned) {
         (_, true) => None,
+        (true, false) if answers => Some(last_recv + KEEPALIVE_AFTER + DEAD_AFTER),
         (true, false) => Some(last_recv + WARN_AFTER),
         (false, false) => Some(last_recv + KEEPALIVE_AFTER),
     }
@@ -375,11 +380,13 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
     let mut last_recv = Instant::now();
     let mut keepalive_sent = false;
     let mut warned = false;
+    // `#code-sjis` に返事をするサーバか。返事を見たら、無応答を切断とみなせる
+    let mut answers = false;
     let mut auto = AutoUnequip::default();
     let mut hits = HitGate::default();
 
     'conn: loop {
-        let wake = next_wake(last_recv, keepalive_sent, warned);
+        let wake = next_wake(last_recv, keepalive_sent, warned, answers);
         let mut reply: Vec<String> = Vec::new();
         tokio::select! {
             r = conn.stream.read(&mut buf) => {
@@ -407,6 +414,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     let _ = f.write_all(&data);
                 }
                 let mut queue: VecDeque<Vec<u8>> = conn.lines.feed(&data).into();
+                answers |= queue.iter().any(|l| l.starts_with(b"#code-sjis-ok"));
                 loop {
                     let handled = handle_lines(&mut conn.parser, &mut queue, &mut auto, &mut reply, &opts, &mut emit);
                     let server = match handled {
@@ -449,6 +457,9 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                 if !keepalive_sent {
                     reply.push("#code-sjis".into());
                     keepalive_sent = true;
+                } else if answers {
+                    emit(error("サーバから応答が無いので切断しました".into()));
+                    break;
                 } else if !warned {
                     warned = true;
                     emit(error("サーバから3分間応答がありません".into()));
@@ -916,9 +927,11 @@ mod tests {
     #[test]
     fn no_wake_after_warning() {
         let t = Instant::now();
-        assert_eq!(next_wake(t, false, false), Some(t + KEEPALIVE_AFTER));
-        assert_eq!(next_wake(t, true, false), Some(t + WARN_AFTER));
-        assert_eq!(next_wake(t, true, true), None);
+        assert_eq!(next_wake(t, false, false, false), Some(t + KEEPALIVE_AFTER));
+        assert_eq!(next_wake(t, true, false, false), Some(t + WARN_AFTER));
+        assert_eq!(next_wake(t, true, true, false), None);
+        // #code-sjis に返事をするサーバは、返事が無ければ早く切断とみなす (#179)
+        assert_eq!(next_wake(t, true, false, true), Some(t + KEEPALIVE_AFTER + DEAD_AFTER));
     }
 
     /// 偽サーバに繋ぎ、ログインの送信、#lag への応答、送信の cp932 化、ログの HTML 化、切断を確かめる。
