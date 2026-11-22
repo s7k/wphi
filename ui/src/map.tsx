@@ -737,11 +737,30 @@ function ModernHud(props: { title: string; now?: StatusEvent; cond?: CondEvent; 
         <div className="modern-place">{props.title}</div>
         {props.show.includes("hp") && bar("hp", s?.hp, s?.maxHp)}
         {props.show.includes("mp") && bar("mp", s?.mp, s?.maxMp)}
-        {props.show.includes("exp") && <div className="modern-stat">EXP {s?.exp ?? "-"}</div>}
-        {props.show.includes("gp") && <div className="modern-stat">GP {s?.gp ?? "-"}</div>}
+        {(props.show.includes("exp") || props.show.includes("gp")) && (
+          <div className="modern-stats">
+            {props.show.includes("exp") && (
+              <span className="modern-stat">
+                <b>EXP</b>
+                {s?.exp ?? "-"}
+              </span>
+            )}
+            {props.show.includes("gp") && (
+              <span className="modern-stat">
+                <b>GP</b>
+                {s?.gp ?? "-"}
+              </span>
+            )}
+          </div>
+        )}
         {props.show.includes("lv") && (
-          <div className="modern-stat">
-            Lv F {s?.f ?? "-"} W {s?.w ?? "-"} M {s?.m ?? "-"} C {s?.c ?? "-"}
+          <div className="modern-stats modern-levels" title="Fighter・Wizard・Merchant・Creater のレベル">
+            {(["f", "w", "m", "c"] as const).map((k) => (
+              <span key={k} className={`modern-stat lv-${k}`}>
+                <b>{k.toUpperCase()}</b>
+                {s?.[k] ?? "-"}
+              </span>
+            ))}
           </div>
         )}
         <CondBadges cond={props.cond} />

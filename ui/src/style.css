@@ -1282,13 +1282,57 @@ button > svg:only-child,
   font-variant-numeric: tabular-nums;
 }
 
-/* HP・MP のバーの下に出す経験値・所持金・レベル */
+/* HP・MP のバーの下に出す経験値・所持金・レベル。バーと同じ下地に、左右に並べる */
+.modern-stats {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+}
+
 .modern-stat {
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+  height: 16px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  background: rgb(0 0 0 / 45%);
+  border: 1px solid rgb(0 0 0 / 80%);
+  border-radius: 3px;
+  font-size: 11px;
   font-weight: bold;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  overflow: hidden;
 }
+
+.modern-stat > b {
+  font-size: 10px;
+  color: rgb(255 255 255 / 75%);
+}
+
+/* レベルは職ごとの色の札。左端の文字に色を付ける */
+.modern-levels .modern-stat {
+  padding: 0 4px 0 0;
+  gap: 4px;
+}
+
+.modern-levels .modern-stat > b {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  color: #fff;
+  text-shadow: none;
+}
+
+.lv-f > b { background: #c4482f; }
+.lv-w > b { background: #3577c4; }
+.lv-m > b { background: #b8901c; }
+.lv-c > b { background: #3f9d6e; }
 
 .modern-compass {
   position: absolute;
