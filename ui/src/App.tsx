@@ -1278,7 +1278,11 @@ export function App() {
           append(session, systemNg(ev.message));
           break;
         case "confirmTransfer": {
-          // 悪意のあるサーバが、任意のホストへキャラ ID を送らせない為(#51)
+          // 悪意のあるサーバが、任意のホストへキャラ ID を送らせない為(#51)。設定で確かめる様にした時だけ聞く
+          if (!settingsRef.current.confirmTransfer) {
+            invoke("send_line", { session, text: TRANSFER_YES }).catch(console.error);
+            break;
+          }
           confirmBox(
             `別のサーバ(${ev.host}:${ev.port})の世界へ移動します。\n移動先へキャラの ID を送ります。よろしいですか？`,
           )

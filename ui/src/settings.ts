@@ -50,6 +50,8 @@ export type Settings = {
   autoConnect: boolean;
   /** モダンの左上に出すステータス(HUD_STATS のキー) */
   hudStats: string[];
+  /** 別のサーバの世界へ移る時に、キャラの ID を送ってよいか確かめる(#51) */
+  confirmTransfer: boolean;
 };
 
 /** モダンの左上に出せるステータス。設定の画面の並びと、出す順 */

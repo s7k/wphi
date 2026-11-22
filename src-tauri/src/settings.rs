@@ -67,6 +67,8 @@ pub struct Settings {
     pub auto_connect: bool,
     /// モダンの左上に出すステータス。hp・mp・exp・gp・lv (レベル 4 つ) を、この順で出す(Philly に無い)
     pub hud_stats: Vec<String>,
+    /// 別のサーバ (違うホストかポート) の世界へ移る時に、キャラの ID を送ってよいか確かめる(#51)。既定はオフ(Philly に無い)
+    pub confirm_transfer: bool,
 }
 
 impl Default for Settings {
@@ -100,6 +102,7 @@ impl Default for Settings {
             map_effects: true,
             auto_connect: true,
             hud_stats: vec!["hp".into(), "mp".into()],
+            confirm_transfer: false,
         }
     }
 }

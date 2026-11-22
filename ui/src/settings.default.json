@@ -41,5 +41,6 @@
   "hudStats": [
     "hp",
     "mp"
-  ]
+  ],
+  "confirmTransfer": false
 }

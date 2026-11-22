@@ -94,6 +94,10 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
             </label>
           ))}
         </fieldset>
+        <label>
+          <input type="checkbox" checked={s.confirmTransfer} onChange={(e) => set("confirmTransfer", e.target.checked)} />
+          別のサーバ(違うアドレスかポート)の世界へ移る時に、キャラの ID を送ってよいか確かめる
+        </label>
         {/* 画面の形などは表示メニューにだけあり、ここを探して見つからなかった (#137) */}
         <p className="settings-note">
           画面の形(モダン・クラシック)、吹き出しの演出、木と草の揺らぎは、メニューの「表示」で切り替えます。

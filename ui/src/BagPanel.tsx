@@ -5,6 +5,7 @@ import { lightenColors } from "./logLines.ts";
 import { Search, X } from "lucide-react";
 import { PALETTE } from "./pixelIcons.ts";
 import type { ItemInfo } from "./protocol";
+import { SORTS, sortItems } from "./bagSort.ts";
 
 /** 用途(IT_*)の番号 */
 const IT = { armor: 1, weapon: 2, food: 3, resource: 4, jewel: 5, charge: 6, accessory: 7, spellJewel: 8, evently: 12, scroll: 13, currency: 14 };
@@ -104,6 +105,8 @@ const TABS: { label: string; match: (it: ItemInfo) => boolean }[] = [
   },
 ];
 
+const SORT_KEY = "wphi:bagSort";
+
 /** 詳しい情報の行。数値の意味は用途で変わる(phi_dm の phi_magic/detect.rs の detect_item。ER・Effect・S.E. は Detect の呼び名) */
 function details(it: ItemInfo): string[] {
   const kind = it.it === IT.weapon ? `${it.type} / ${it.wtype}` : it.type;
@@ -200,6 +203,15 @@ export function BagPanel(props: {
   const [tab, setTab] = useState(0);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
+  // 並べ方 (SORTS の番号)。この窓の localStorage に覚える
+  const [sort, setSort] = useState(() => {
+    try {
+      const v = Number(localStorage.getItem(SORT_KEY));
+      return v >= 0 && v < SORTS.length ? v : 0;
+    } catch {
+      return 0;
+    }
+  });
   // 選択モード。カバンの番号 (1 から) の集合。null なら選択モードでない
   const [checked, setChecked] = useState<Set<number> | null>(null);
   // カバンの中身が届き直すと番号がずれるので、選択をやめる
@@ -209,10 +221,13 @@ export function BagPanel(props: {
   // カバンは番号(1 から)を保ったまま、タブと検索で絞る
   const shown = useMemo(
     () =>
-      (props.bag ?? [])
-        .map((it, i) => ({ it, no: i + 1 }))
-        .filter(({ it }) => TABS[tab].match(it) && it.name.toLowerCase().includes(query.trim().toLowerCase())),
-    [props.bag, tab, query],
+      sortItems(
+        (props.bag ?? [])
+          .map((it, i) => ({ it, no: i + 1 }))
+          .filter(({ it }) => TABS[tab].match(it) && it.name.toLowerCase().includes(query.trim().toLowerCase())),
+        sort,
+      ),
+    [props.bag, tab, query, sort],
   );
   const pages = Math.max(1, Math.ceil(shown.length / PAGE));
   const at = Math.min(page, pages - 1);
@@ -234,7 +249,21 @@ export function BagPanel(props: {
         </button>
       </div>
       <div className="bag-body">
-        <div className="bag-title">手持ち</div>
+        <div className="bag-title">
+          手持ち
+          {/* sort (V キー)。装備中の物を武器・防具・その他の順に前へ寄せ、空きを詰める */}
+          <button
+            type="button"
+            className="bag-offer"
+            title="装備中の物を武器・防具・その他の順に前へ寄せ、空きを詰めます (sort、V キー)"
+            onClick={() => {
+              props.onSend("sort");
+              setSel(null);
+            }}
+          >
+            整理
+          </button>
+        </div>
         <div className="bag-grid">
           {hand.map((it, i) => (
             <Tile
@@ -286,6 +315,28 @@ export function BagPanel(props: {
               {t.label}
             </button>
           ))}
+          <label className="bag-sort">
+            並び
+            <select
+              value={sort}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setSort(v);
+                setPage(0);
+                try {
+                  localStorage.setItem(SORT_KEY, String(v));
+                } catch {
+                  // 覚えられなくても、今の並びのまま使う
+                }
+              }}
+            >
+              {SORTS.map((s, i) => (
+                <option key={s.label} value={i}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="bag-search">
             <Search size={14} />
             <input

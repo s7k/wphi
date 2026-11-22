@@ -1822,6 +1822,33 @@ button > svg:only-child,
   background: rgb(255 255 255 / 22%);
 }
 
+/* カバンの並べ方。検索欄の左に置く */
+.bag-sort {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 12px;
+  color: rgb(255 255 255 / 70%);
+}
+
+.bag-sort select {
+  font: inherit;
+  color: #fff;
+  background: rgb(255 255 255 / 12%);
+  border: 1px solid rgb(255 255 255 / 35%);
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+
+.bag-sort option {
+  color: #000;
+}
+
+.bag-sort + .bag-search {
+  margin-left: 0;
+}
+
 .bag-search {
   display: flex;
   align-items: center;
