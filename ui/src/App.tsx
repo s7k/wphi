@@ -198,6 +198,9 @@ export function App() {
   // ログを最下行に固定する(既定 on。off は Philly の「ログスクロール停止」)
   const [logFollow, setLogFollow] = useState(true);
   const [logHeight, setLogHeight] = useLogHeight();
+  // モダンのログの横幅 (px。0 なら CSS の既定) と、窓いっぱいに広げてログだけ見るモード
+  const [logWidth, setLogWidth] = useStored(LOG_WIDTH_KEY, 0);
+  const [logMax, setLogMax] = useStored(LOG_MAX_KEY, 0);
   // 新しい版があれば、Release のページを開くか聞く(#25)。見られなくても何も出さない
   useEffect(() => {
     getVersion()
@@ -1623,8 +1626,18 @@ export function App() {
             onClose={() => update(tab.session, (t) => ({ ...t, bagOpen: false }))}
           />
         )}
-        <div className="log-area" style={settings.modern ? ({ "--log-h": `${logHeight}vh` } as React.CSSProperties) : undefined}>
-          {settings.modern && <LogHeight value={logHeight} onChange={setLogHeight} />}
+        <div
+          className={logMax && settings.modern ? "log-area log-max" : "log-area"}
+          style={
+            settings.modern
+              ? ({ "--log-h": `${logHeight}vh`, "--log-w": logWidth ? `${logWidth}px` : undefined } as React.CSSProperties)
+              : undefined
+          }
+        >
+          {settings.modern && (
+            <LogHeight value={logHeight} onChange={setLogHeight} max={!!logMax} onMax={() => setLogMax(logMax ? 0 : 1)} />
+          )}
+          {settings.modern && !logMax && <LogWidthHandle onChange={setLogWidth} />}
           <div
             className="log-menu-area"
             onContextMenu={(e) => {
@@ -2297,16 +2310,71 @@ function useLogHeight(): [number, (v: number) => void] {
   return [h, set];
 }
 
-/** モダンのログの右上の、高さを選ぶボタン */
-function LogHeight(props: { value: number; onChange: (v: number) => void }) {
+const LOG_WIDTH_KEY = "wphi:modernLogWidth";
+const LOG_MAX_KEY = "wphi:modernLogMax";
+/** ログの横幅の下限 (px)。これより狭いと 1 行に数文字しか入らない */
+const LOG_MIN_WIDTH = 280;
+
+/** この窓の localStorage に覚える数。読めなければ既定の値 */
+function useStored(key: string, initial: number): [number, (v: number) => void] {
+  const [v, setV] = useState(() => {
+    try {
+      const n = Number(localStorage.getItem(key) ?? initial);
+      return Number.isFinite(n) ? n : initial;
+    } catch {
+      return initial;
+    }
+  });
+  const set = (n: number) => {
+    setV(n);
+    try {
+      localStorage.setItem(key, String(n));
+    } catch {
+      // 覚えられなくても、今の値のまま使う
+    }
+  };
+  return [v, set];
+}
+
+/** モダンのログの右上の、高さを選ぶボタンと、窓いっぱいに広げるボタン */
+function LogHeight(props: { value: number; onChange: (v: number) => void; max: boolean; onMax: () => void }) {
   return (
     <div className="log-height" role="group" aria-label="ログの高さ">
       {LOG_HEIGHTS.map(([label, v]) => (
-        <button key={v} type="button" aria-pressed={props.value === v} onClick={() => props.onChange(v)}>
+        <button key={v} type="button" aria-pressed={!props.max && props.value === v} disabled={props.max} onClick={() => props.onChange(v)}>
           {label}
         </button>
       ))}
+      <button type="button" aria-pressed={props.max} title={props.max ? "ログを元の大きさに戻す" : "ログを窓いっぱいに広げる"} onClick={props.onMax}>
+        全
+      </button>
     </div>
+  );
+}
+
+/** モダンのログの右端。ドラッグで横幅を変える。ダブルクリックで既定の幅に戻す */
+function LogWidthHandle(props: { onChange: (px: number) => void }) {
+  const drag = useRef<{ left: number } | null>(null);
+  return (
+    <div
+      className="log-width-handle"
+      title="ドラッグで横幅を変える(ダブルクリックで元に戻す)"
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        const area = e.currentTarget.parentElement!.getBoundingClientRect();
+        drag.current = { left: area.left };
+        e.currentTarget.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      }}
+      onPointerMove={(e) => {
+        if (!drag.current) return;
+        const right = window.innerWidth - 16;
+        props.onChange(Math.round(Math.max(LOG_MIN_WIDTH, Math.min(right, e.clientX) - drag.current.left)));
+      }}
+      onPointerUp={() => (drag.current = null)}
+      onPointerCancel={() => (drag.current = null)}
+      onDoubleClick={() => props.onChange(0)}
+    />
   );
 }
 
