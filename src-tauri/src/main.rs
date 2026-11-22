@@ -82,6 +82,7 @@ fn list_characters(app: tauri::AppHandle) -> Result<Store, String> {
 #[tauri::command]
 fn save_character(app: tauri::AppHandle, character: Character, id: String) -> Result<(), String> {
     Store::update(&store_path(&app)?, |store| {
+        store.check(&character.label, &id)?;
         let dir = config_dir(&app)?;
         if !id.is_empty() {
             characters::set_id(&dir, &character, &id)?;
@@ -179,6 +180,22 @@ mod tests {
     }
 
     #[test]
+    fn concurrent_downloads_keep_every_date() {
+        let dir = std::env::temp_dir().join(format!("wphi-downloaded-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("downloaded.json");
+        std::thread::scope(|s| {
+            for i in 0..8 {
+                let path = &path;
+                s.spawn(move || super::remember_download(path, format!("S{i}"), "d".into()).unwrap());
+            }
+        });
+        let got: std::collections::HashMap<String, String> = super::jsonfile::load(&path);
+        assert_eq!(got.len(), 8);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn stays_in_app() {
         let ok = |s: &str| super::is_app_url(&tauri::Url::parse(s).unwrap());
         assert!(ok("tauri://localhost/map.html"));
@@ -253,6 +270,7 @@ async fn import_philly(
         store.philly_folder = Some(folder.clone());
         let mut labels = Vec::new();
         for p in characters::read_philly(std::path::Path::new(&folder))? {
+            store.check(&p.character.label, &p.id)?;
             characters::set_id(&config_dir(&app)?, &p.character, &p.id)?;
             labels.push(p.character.label.clone());
             store.upsert(p.character);
@@ -395,11 +413,17 @@ async fn fetch_item(app: &tauri::AppHandle, item: download::Item) -> Result<usiz
         .await
         .map_err(|e| e.to_string())??
         .len();
-    let path = data.join("downloaded.json");
-    let mut got: HashMap<String, String> = jsonfile::load(&path);
-    got.insert(item.id, item.date);
-    jsonfile::save(&path, &got)?;
+    remember_download(&data.join("downloaded.json"), item.id, item.date)?;
     Ok(n)
+}
+
+/// downloaded.json に取った時の更新日を足す。取得を2つ同時に動かす事がある(新規キャラ作成の画面と取得の画面)ので、
+/// jsonfile::update のロックを通す。通さないと、後から保存した側が先の取得日を消す
+fn remember_download(path: &std::path::Path, id: String, date: String) -> Result<(), String> {
+    jsonfile::update(path, |got: &mut HashMap<String, String>| {
+        got.insert(id, date);
+        Ok(())
+    })
 }
 
 /// 1つ取って展開し、画像を読み直す。書いたファイルの数を返す
@@ -452,9 +476,12 @@ async fn register_character(
     image: u32,
     mail: String,
 ) -> Result<String, String> {
+    // サーバにキャラを作る前に確かめる。作った後に保存出来ないと、ID を失う
+    Store::load(&store_path(&app)?).check_new(&name)?;
     match register::register(&host, port, &name, &pass, image, &mail).await? {
         register::Outcome::Created(id) => {
             Store::update(&store_path(&app)?, |store| {
+                store.check_new(&name)?;
                 let ch = Character {
                     label: name.clone(),
                     host,
@@ -712,15 +739,7 @@ async fn append_log(
     };
     // 開いたファイルは覚えておき、1行ごとに開き直さない(#65)。UI が1つ前の書き込みを待ってから呼ぶので、順番は保たれる
     static OPEN: std::sync::Mutex<Vec<(std::path::PathBuf, std::fs::File)>> = std::sync::Mutex::new(Vec::new());
-    let head = || {
-        as_html.then(|| {
-            let css = log_css().unwrap_or_default();
-            let title = phi_proto::tag_to_html::escape_html(&label);
-            format!(
-                "<!doctype html>\n<meta charset=\"utf-8\">\n<title>{title} {date}</title>\n<style>\n{css}\n</style>\n"
-            )
-        })
-    };
+    let head = || as_html.then(|| log_html_head(&format!("{label} {date}")));
     write_log(&mut OPEN.lock().unwrap_or_else(|e| e.into_inner()), &path, &line, head)?;
     Ok(path.display().to_string())
 }
@@ -790,8 +809,12 @@ fn html_to_text(html: &str) -> String {
 /// 設定フォルダ(characters.json と settings.json の置き場)を開く
 #[tauri::command]
 async fn open_config_dir(app: tauri::AppHandle) -> Result<(), String> {
+    open_dir(&app, config_dir(&app)?)
+}
+
+/// フォルダを OS のファイルマネージャで開く。無ければ作る
+fn open_dir(app: &tauri::AppHandle, dir: std::path::PathBuf) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
-    let dir = config_dir(&app)?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     app.opener()
         .open_path(dir.display().to_string(), None::<&str>)
@@ -938,23 +961,13 @@ fn trace(at: f64, what: String) {
 /// 表示名のログの保存先のフォルダを、OS のファイルマネージャで開く。無ければ作る
 #[tauri::command]
 async fn open_log_dir(app: tauri::AppHandle, label: String) -> Result<(), String> {
-    use tauri_plugin_opener::OpenerExt;
-    let dir = log_dir(&app, &label)?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    app.opener()
-        .open_path(dir.display().to_string(), None::<&str>)
-        .map_err(|e| e.to_string())
+    open_dir(&app, log_dir(&app, &label)?)
 }
 
 /// キャラのフォルダ(設定フォルダの `<表示名>.chara`。.phirc の置き場)を開く(Philly の OpenFolder。#82)
 #[tauri::command]
 async fn open_character_dir(app: tauri::AppHandle, label: String) -> Result<(), String> {
-    use tauri_plugin_opener::OpenerExt;
-    let dir = config_dir(&app)?.join(format!("{}.chara", dir_name(&label)));
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    app.opener()
-        .open_path(dir.display().to_string(), None::<&str>)
-        .map_err(|e| e.to_string())
+    open_dir(&app, config_dir(&app)?.join(format!("{}.chara", dir_name(&label))))
 }
 
 /// グラキャッシュ初期化(Philly の InitializeGraCache。#82)。画像を探し直し、map 窓と EagleEye に読み直させる。
@@ -1025,13 +1038,17 @@ fn save_log_buffer(app: tauri::AppHandle, label: String, lines: Vec<String>) -> 
         .map_err(|e| e.to_string())?
         .as_secs();
     let path = dir.join(format!("LogBuffer-{secs}.html"));
-    let title = phi_proto::tag_to_html::escape_html(&label);
-    let css = log_css().unwrap_or_default();
     let body: String = lines.iter().map(|l| format!("<div>{l}</div>\n")).collect();
-    let html =
-        format!("<!doctype html>\n<meta charset=\"utf-8\">\n<title>{title}</title>\n<style>\n{css}\n</style>\n{body}");
+    let html = log_html_head(&label) + &body;
     std::fs::write(&path, html).map_err(|e| format!("{}: {e}", path.display()))?;
     Ok(path.display().to_string())
+}
+
+/// ログの HTML の頭。スキンの Log.css を埋め込み、ブラウザで開いた時もログ欄と同じ見た目にする
+fn log_html_head(title: &str) -> String {
+    let css = log_css().unwrap_or_default();
+    let title = phi_proto::tag_to_html::escape_html(title);
+    format!("<!doctype html>\n<meta charset=\"utf-8\">\n<title>{title}</title>\n<style>\n{css}\n</style>\n")
 }
 
 /// スキンのログ用スタイルシート(Philly の `Skins/<スキン>/Style/Log.css`)。

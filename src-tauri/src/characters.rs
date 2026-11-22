@@ -49,6 +49,35 @@ impl Store {
         self.characters.iter().find(|c| c.label == label)
     }
 
+    /// `label` を `id` と保存してよいか確かめる。`id` が空なのは、登録済みのキャラの接続先だけを変える時に限る。
+    /// 他の表示名と ID の置き場(`<dir_name>.chara`)が重なると、片方の ID を書き換えたり消したりした時にもう一方も変わる。
+    /// Windows と macOS はファイル名の大小文字を区別しないので、小文字にして比べる
+    pub fn check(&self, label: &str, id: &str) -> Result<(), String> {
+        if id.trim().is_empty() && self.find(label).is_none() {
+            return Err(format!("{label} のキャラ ID を入れてください"));
+        }
+        let key = |l: &str| crate::dir_name(l).to_lowercase();
+        match self
+            .characters
+            .iter()
+            .find(|c| c.label != label && key(&c.label) == key(label))
+        {
+            Some(c) => Err(format!(
+                "{label} は登録済みの {} と ID の置き場が重なるので登録出来ません。表示名を変えてください",
+                c.label
+            )),
+            None => Ok(()),
+        }
+    }
+
+    /// 新しく作ったキャラを `label` で足してよいか確かめる。同じ表示名があれば、置き換えると旧キャラの ID が消える
+    pub fn check_new(&self, label: &str) -> Result<(), String> {
+        if self.find(label).is_some() {
+            return Err(format!("{label} は登録済みです。先に一覧から消してください"));
+        }
+        self.check(label, "new")
+    }
+
     /// 同じ表示名があれば置き換える。
     pub fn upsert(&mut self, ch: Character) {
         match self.characters.iter_mut().find(|c| c.label == ch.label) {
@@ -227,6 +256,27 @@ mod tests {
         assert_eq!(Store::load(&path), s);
         assert_eq!(s.characters.len(), 1);
         std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn rejects_empty_id_and_shared_folder() {
+        let ch = |label: &str| Character {
+            label: label.into(),
+            host: "h".into(),
+            port: 1,
+        };
+        let mut s = Store::default();
+        s.upsert(ch("a/b"));
+        // 新しい表示名は ID が要る。登録済みなら ID を空にして接続先だけを変更出来る
+        assert!(s.check("c", "").is_err());
+        assert!(s.check("c", "ID").is_ok());
+        assert!(s.check("a/b", "").is_ok());
+        // `a_b`・`A/B`・`a/b.` は `a/b` と同じフォルダになる
+        for label in ["a_b", "A/B", "a/b."] {
+            assert!(s.check(label, "ID").is_err(), "{label}");
+        }
+        assert!(s.check_new("a/b").is_err());
+        assert!(s.check_new("c").is_ok());
     }
 
     #[test]
