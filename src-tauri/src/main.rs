@@ -180,6 +180,22 @@ mod tests {
     }
 
     #[test]
+    fn concurrent_downloads_keep_every_date() {
+        let dir = std::env::temp_dir().join(format!("wphi-downloaded-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("downloaded.json");
+        std::thread::scope(|s| {
+            for i in 0..8 {
+                let path = &path;
+                s.spawn(move || super::remember_download(path, format!("S{i}"), "d".into()).unwrap());
+            }
+        });
+        let got: std::collections::HashMap<String, String> = super::jsonfile::load(&path);
+        assert_eq!(got.len(), 8);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn stays_in_app() {
         let ok = |s: &str| super::is_app_url(&tauri::Url::parse(s).unwrap());
         assert!(ok("tauri://localhost/map.html"));
@@ -397,11 +413,17 @@ async fn fetch_item(app: &tauri::AppHandle, item: download::Item) -> Result<usiz
         .await
         .map_err(|e| e.to_string())??
         .len();
-    let path = data.join("downloaded.json");
-    let mut got: HashMap<String, String> = jsonfile::load(&path);
-    got.insert(item.id, item.date);
-    jsonfile::save(&path, &got)?;
+    remember_download(&data.join("downloaded.json"), item.id, item.date)?;
     Ok(n)
+}
+
+/// downloaded.json に取った時の更新日を足す。取得を2つ同時に動かす事がある(新規キャラ作成の画面と取得の画面)ので、
+/// jsonfile::update のロックを通す。通さないと、後から保存した側が先の取得日を消す
+fn remember_download(path: &std::path::Path, id: String, date: String) -> Result<(), String> {
+    jsonfile::update(path, |got: &mut HashMap<String, String>| {
+        got.insert(id, date);
+        Ok(())
+    })
 }
 
 /// 1つ取って展開し、画像を読み直す。書いたファイルの数を返す
