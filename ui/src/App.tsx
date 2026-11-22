@@ -1729,7 +1729,8 @@ export function App() {
             className="log-menu-area"
             onContextMenu={(e) => {
               e.preventDefault();
-              setLogMenu({ x: e.clientX, y: e.clientY, lines: linesAt(tab.lines, e.target as Element) });
+              // 表に出しているログ (パーティのタブならパーティの行) から探す。全体の行から探すと、id が合わず空か別の行をコピーした (#161)
+              setLogMenu({ x: e.clientX, y: e.clientY, lines: linesAt(tab.partyMode ? tab.partyLines : tab.lines, e.target as Element) });
             }}
           >
             {/* 検索中は最下行へ戻さない。戻すと、見つけた行が新しいログで流れる */}
