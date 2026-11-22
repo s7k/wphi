@@ -1560,8 +1560,8 @@ button > svg:only-child,
 /* 看板などの本文の札(App.tsx の SignCard)。地図の上の真ん中寄り */
 .sign-card {
   position: absolute;
-  /* モダンの左上の地名と HP・MP の下から */
-  top: 100px;
+  /* モダンの左上の地名と HP・MP の下から。HUD の下端は map.tsx の ModernHud が --hud-bottom に入れる */
+  top: max(100px, calc(var(--hud-bottom, 88px) + 12px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 6;

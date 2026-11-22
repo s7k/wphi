@@ -106,7 +106,8 @@ export function PrivWindow(props: {
   const style: React.CSSProperties = {
     top: y,
     zIndex: 10 + (conv.z ?? 0),
-    ...(x === null ? { right: 16 + props.index * 28 } : { left: x }),
+    // 既定の位置は右上の仲間の一覧 (.party-hud、幅 168px) の左。同じ所に出して一覧を隠していた (#170)
+    ...(x === null ? { right: 16 + 168 + 8 + props.index * 28 } : { left: x }),
   };
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {

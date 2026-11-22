@@ -720,6 +720,20 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
 /** モダンの左上の地名と HP・MP、右上の方角。文字は白に黒の縁取り(style.css の .modern-hud) */
 function ModernHud(props: { title: string; now?: StatusEvent; cond?: CondEvent; dir: number; northFix: boolean; show: string[] }) {
   const s = props.now;
+  // HUD の下端を main-body に --hud-bottom で知らせる。看板の札はその下に出す。
+  // 経験値や状態異常の印で HUD が伸びると、固定の位置の札が HUD の最下行に重なった (#170)
+  const hudRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = hudRef.current;
+    const body = el?.closest<HTMLElement>(".main-body");
+    if (!el || !body) return;
+    const ro = new ResizeObserver(() => body.style.setProperty("--hud-bottom", `${el.offsetTop + el.offsetHeight}px`));
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      body.style.removeProperty("--hud-bottom");
+    };
+  }, []);
   const bar = (kind: "hp" | "mp", v = 0, max = 0) => (
     <div className={`modern-bar ${kind}`}>
       <i style={{ width: `${max > 0 ? Math.max(0, Math.min(100, (v / max) * 100)) : 0}%` }} />
@@ -733,7 +747,7 @@ function ModernHud(props: { title: string; now?: StatusEvent; cond?: CondEvent; 
   );
   return (
     <>
-      <div className="modern-hud">
+      <div className="modern-hud" ref={hudRef}>
         <div className="modern-place">{props.title}</div>
         {props.show.includes("hp") && bar("hp", s?.hp, s?.maxHp)}
         {props.show.includes("mp") && bar("mp", s?.mp, s?.maxMp)}
