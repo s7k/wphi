@@ -123,9 +123,9 @@ const NONE: Record<string, KeyAction> = {
   KeyC: { send: "use" },
   KeyD: { send: "erase" },
   KeyF: { send: "floor item" },
+  // カバンを開く。I はフルキー移動 (既定でオン) の時に移動 (FULL_KEY_MOVE) が先に取り、効かなかった。E はどちらの設定でも空いている
+  KeyE: { menu: "bag-open" },
   KeyH: { send: "hi" },
-  // フルキーで移動する設定の時は、I は移動 (FULL_KEY_MOVE) が先に取る
-  KeyI: { menu: "bag-open" },
   KeyM: { send: "check\nlook" },
   KeyN: { send: "n" },
   KeyP: { ask: { title: "支払い金額", label: "支払う金額", numeric: true }, send: "pay {}" },
@@ -164,8 +164,9 @@ const NONE: Record<string, KeyAction> = {
   NumpadDivide: { send: "equip" },
   NumpadMultiply: { send: "use" },
   NumpadDecimal: { send: "." },
-  // 所持魔法の1〜7番(FuncKeyMagicFix=off)。F8〜F12 は設定のショートカットなので設定画面と一緒に作る
-  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((n) => [`F${n}`, { send: `cast\n${n}`, cancelList: 1 }])),
+  // 魔法の列の左から 1〜7 番目 (Alt+数字と同じ)。魔法の列が無いサーバでは所持魔法の 1〜7 番 (Philly の FuncKeyMagicFix=off)。
+  // サーバの番号のまま送ると、唱えるたびに番号が入れ替わって魔法の列と違う呪文になった。F8〜F12 は設定のショートカット
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((n) => [`F${n}`, { spellSlot: n }])),
 };
 
 const SHIFT: Record<string, KeyAction> = {

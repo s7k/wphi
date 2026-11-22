@@ -43,7 +43,8 @@ test("行動キーと修飾キー", () => {
   assert.equal(act(key("Digit3", { ctrl: true }), north), null);
   assert.deepEqual(act(key("KeyL", { alt: true, shift: true }), north), { send: "cast\nlist", cancelList: 1, systemMagic: "reequip" });
   assert.ok((act(key("KeyR", { alt: true }), north) as { confirm?: string }).confirm);
-  assert.deepEqual(act(key("F3"), north), { send: "cast\n3", cancelList: 1 });
+  // F1〜F7 も魔法の列の何番目か (Alt+数字と同じ)
+  assert.deepEqual(act(key("F3"), north), { spellSlot: 3 });
   assert.deepEqual(act(key("F5", { shift: true }), north), { toggleMap: true });
   // Alt の時はフルキー移動の読み替えをしない
   assert.deepEqual(act(key("KeyU", { alt: true }), { northFix: true, fullKeyMove: true }), { send: "cast\nunlock\nsee", cancelList: 1, systemMagic: "reequip" });
@@ -60,8 +61,9 @@ test("フルキー移動", () => {
   assert.deepEqual(act(key("KeyJ"), full), { send: "hit" });
   // 無効なら数字はリストの番号
   assert.deepEqual(act(key("Digit8"), north), { send: "8" });
-  // I はカバンを開く。フルキー移動の時はテンキーの 5 (後ろを向く)
-  assert.deepEqual(act(key("KeyI"), north), { menu: "bag-open" });
+  // E はカバンを開く。フルキー移動の時も同じ (I はテンキーの 5 なので後ろを向く)
+  assert.deepEqual(act(key("KeyE"), north), { menu: "bag-open" });
+  assert.deepEqual(act(key("KeyE"), full), { menu: "bag-open" });
   assert.deepEqual(act(key("KeyI"), full), { send: "turn b" });
 });
 
