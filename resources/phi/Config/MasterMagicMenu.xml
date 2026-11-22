@@ -190,7 +190,7 @@
     <item caption="-"/>
 
     <item caption="Wish" hint="アイテムを作成する">
-      <string_dialog>アイテム性能を入れてください&amp;#xa;aaa  0000 00 n 00 00 00 00 00</string_dialog>
+      <string_dialog>アイテム性能を入れてください(名前の後は空白を 2 つ以上)&amp;#xa;aaa  0000 00 n 00 00 00 00</string_dialog>
       <send list="no">cast</send>
       <send>Wish %string</send>
     </item>
