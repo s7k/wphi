@@ -911,7 +911,8 @@ export function App() {
             if (await confirmBox(`新しい版 ${r.version} があります。\nダウンロードのページを開きますか？`)) await openUrl(r.url);
           })
           .catch((e) => fail(`新しい版を確かめる事が出来ません: ${e}`));
-      if (session === null) return;
+      // キャラのタブで使う項目。黙って何もしないと、押した事が届いたか分からない (#172)
+      if (session === null) return void alertBox("キャラに接続してから選んでください。");
       // 入力欄のツールバーと同じ切り替え。状態は InputEditor が持つ
       if (INPUT_MENU.includes(id)) return void window.dispatchEvent(new CustomEvent(INPUT_MENU_EVENT, { detail: id }));
       if (id === "priv") return togglePriv(session);
