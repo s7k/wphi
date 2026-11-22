@@ -292,6 +292,8 @@ export function App() {
 
   // タブごとのマップとステータス。map 窓にはアクティブなタブの分だけ送る
   const mapStates = useRef(new Map<number, MapState>());
+  /** 地図より先に届き、まだ地図の状態へ入れていないマップセット (#mapset と #mapset-define / #v6 D)。次の地図で入れる */
+  const pendingMapsets = useRef(new Map<number, { mapset?: string; defines?: string[] }>());
   const activeRef = useRef<number | null>(null);
   activeRef.current = active;
   // map 窓へは、続けて届いた分を次のタスクでまとめて送る。#m57 と #status がそれぞれ 0.2 秒ごとに届き、1つ届くたびに MapState 全体を送っていた。
@@ -941,6 +943,13 @@ export function App() {
     switch (ev.type) {
       case "map": {
         s.map = ev;
+        // 地図より先に届いたマップセットは、この地図と一緒に地図の窓へ送る
+        const p = pendingMapsets.current.get(session);
+        if (p) {
+          if (p.mapset !== undefined) s.mapset = p.mapset;
+          if (p.defines) s.defines = p.defines;
+          pendingMapsets.current.delete(session);
+        }
         const f = follows.current.get(session);
         if (f) f.pending = undefined;
         trace("main map");
@@ -977,15 +986,17 @@ export function App() {
         s.world = s.area = "???";
         break;
       case "notice":
-        // マップセットは続いて届く地図と一緒に地図の窓へ送る。先に送ると、古い地図を新しい枠の割り当てで描いて一瞬違う絵になる
+        // マップセットは続いて届く地図と一緒に地図の窓へ送る。地図の状態へすぐ入れると、地図より先に届く #v6 G などで
+        // 地図の窓へ送り、古い地図を新しいマップセットで描いて一瞬違う絵になる (区域の境を越えた時に道の絵が変わった)
         if (ev.mapset !== undefined || ev.mapsetDefine) {
-          if (ev.mapset !== undefined) s.mapset = ev.mapset;
+          const p = pendingMapsets.current.get(session) ?? {};
+          if (ev.mapset !== undefined) p.mapset = ev.mapset;
           else if (ev.mapsetDefine) {
-            const defines = [...(s.defines ?? [])];
+            const defines = [...(p.defines ?? s.defines ?? [])];
             defines[ev.mapsetDefine[0]] = ev.mapsetDefine[1];
-            s.defines = defines;
+            p.defines = defines;
           }
-          mapStates.current.set(session, s);
+          pendingMapsets.current.set(session, p);
           return;
         } else if (ev.world !== undefined) s.world = ev.world;
         else if (ev.area !== undefined) s.area = ev.area;
@@ -1440,6 +1451,7 @@ export function App() {
   function forgetSession(session: number) {
     userClosing.current.delete(session);
     mapStates.current.delete(session);
+    pendingMapsets.current.delete(session);
     listFlows.current.delete(session);
     lastUlist.current.delete(session);
     pendingLines.current.delete(session);
