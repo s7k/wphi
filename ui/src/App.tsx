@@ -131,6 +131,14 @@ function systemOk(message: string): string {
   return `<font class="class_system_ok">${escapeHtml(message)}</font>`;
 }
 
+/** 新しい版があれば、Release のページを開くか聞く。quiet なら最新の時に何も出さない (起動の時) */
+async function checkUpdate(quiet: boolean) {
+  const v = await getVersion();
+  const r = await latestRelease(v);
+  if (!r) return quiet ? undefined : alertBox(`WPHI ${v} は最新です。`);
+  if (await confirmBox(`新しい版 ${r.version} があります。\nダウンロードのページを開きますか？`)) await openUrl(r.url);
+}
+
 /** ログを利用者の地域の日付のファイルに足す。保存先のパスを返す (ui/src/logSave.ts) */
 const saveLog = createLogWriter((args) => invoke<string>("append_log", args));
 
@@ -191,20 +199,13 @@ export function App() {
     );
   // ログを最下行に固定する(既定 on。off は Philly の「ログスクロール停止」)
   const [logFollow, setLogFollow] = useState(true);
-  const [logHeight, setLogHeight] = useLogHeight();
+  const [logHeight, setLogHeight] = useStored(LOG_HEIGHT_KEY, 42, (v) => LOG_HEIGHTS.some(([, x]) => x === v));
   // モダンのログの横幅 (px。0 なら CSS の既定) と、窓いっぱいに広げてログだけ見るモード
   const [logWidth, setLogWidth] = useStored(LOG_WIDTH_KEY, 0);
   const [logMax, setLogMax] = useStored(LOG_MAX_KEY, 0);
   // 新しい版があれば、Release のページを開くか聞く(#25)。見られなくても何も出さない
   useEffect(() => {
-    getVersion()
-      .then(latestRelease)
-      .then((r) => {
-        if (r) return confirmBox(`新しい版 ${r.version} があります。\nダウンロードのページを開きますか？`).then(async (ok) => {
-            if (ok) await openUrl(r.url);
-          });
-      })
-      .catch(console.error);
+    checkUpdate(true).catch(console.error);
   }, []);
   useEffect(() => {
     invoke<Settings>("get_settings").then(setSettings).catch(console.error);
@@ -315,7 +316,7 @@ export function App() {
   const signAuthors = useRef(new Map<number, ReturnType<typeof signAuthor>>());
   /** 魔法の列の呪文を、今の番号で唱える。先頭以外なら、番号が入れ替わる (#v6 S が届く) まで次を押させない */
   const castSpell = (session: number, spell: Spell) => {
-    const tab = tabsRef.current.find((t) => t.session === session);
+    const tab = tabOf(session);
     if (!tab || tab.spellWaiting || tab.closed) return;
     // cast の一覧は出さない
     listFlow(session).cancel += 1;
@@ -348,7 +349,7 @@ export function App() {
       return { ...t, spells: orderSpells(order, t.spells ?? []).ordered };
     });
   const castSpellSlot = (session: number, n: number) => {
-    const spells = tabsRef.current.find((t) => t.session === session)?.spells;
+    const spells = tabOf(session)?.spells;
     // 魔法の列が無いサーバ (#v6 S を送らない) では、所持魔法の何番目かを唱える (Philly の Alt+数字)
     if (!spells?.length) {
       listFlow(session).cancel += 1;
@@ -367,6 +368,11 @@ export function App() {
     void confirmBox("足元の店が買い取る物を、カバンと手持ち(装備中の物を除く)から全部渡します。\n渡した物は戻せません。よろしいですか？").then(
       (ok) => ok && sendBag(session, "#ex-inv offer"),
     );
+  /** 持ち物の操作を送る。unequip は装備中の物の一覧を出してから番号を受け取るが、番号も一緒に送るので一覧は出さない (Alt+数字の cast と同じ) */
+  const sendItemLines = (session: number, text: string) => {
+    if (text.startsWith("unequip")) listFlow(session).cancel += 1;
+    sendLines(session, text);
+  };
   /** カバンを開き、インベントリの中身を求める */
   const openBag = (session: number) => {
     // パーティの窓は閉じる。カバンの間は描かないが開いたままにしていた為、カバンを閉じると勝手に戻ってきた
@@ -375,7 +381,7 @@ export function App() {
   };
   /** 看板の札を閉じる */
   const closeSign = (session: number) => {
-    if (tabsRef.current.find((t) => t.session === session)?.sign) update(session, (t) => ({ ...t, sign: null }));
+    if (tabOf(session)?.sign) update(session, (t) => ({ ...t, sign: null }));
   };
   const walkWaiting = useRef(false);
   /** リストが出て歩くのを止めた。押したままのキーリピートでは歩き出さず、押し直すまで待つ */
@@ -392,7 +398,7 @@ export function App() {
   const stopFollow = (session: number, message?: string) => {
     const was = follows.current.delete(session);
     // follows に無くても帯 (following) は消す。再接続の後に帯だけが残り、「やめる」で消えなかった (#160)
-    if (!was && !tabsRef.current.find((t) => t.session === session)?.following) return;
+    if (!was && !tabOf(session)?.following) return;
     if (session === activeRef.current) walker.current.clear();
     update(session, (t) => ({ ...t, following: null }));
     if (was) append(session, systemOk(message ?? "ついて行くのをやめました。"));
@@ -411,12 +417,8 @@ export function App() {
     const raw = s?.map;
     const walk = predictor.current.walk;
     // walk (#v6 G で確かめた歩いた位置) はログインしてから一度歩くまで無い。無くても歩き始め、ゲートの判断だけ省く
-    if (!raw?.v6 || !isNorthFix(raw)) {
-      if (raw) stopFollow(session, "ついて行けるのは、v6 のサーバで北固定の地図の時だけです。");
-      return;
-    }
-    const party = tabsRef.current.find((t) => t.session === session)?.party ?? [];
-    if (!party.some((m) => m.name === f.name)) return stopFollow(session, `${f.name} はパーティにいません。ついて行くのをやめました。`);
+    const party = followParty(session, f.name, raw);
+    if (!raw || !party) return;
     const o = predictor.current.offset;
     const map = predictedMap(raw, o.dx, o.dy);
     const me = selfPos(map.width, map.height, false);
@@ -436,15 +438,24 @@ export function App() {
     f.lastSend = now;
     sendMove(session, moveCommand(step, "none", true));
   };
+  /** ついて行ける時は仲間の一覧を返す。v6 の北固定の地図でない時と、相手がパーティにいない時はやめる */
+  const followParty = (session: number, name: string, raw: MapState["map"]) => {
+    if (!raw?.v6 || !isNorthFix(raw)) {
+      if (raw) stopFollow(session, "ついて行けるのは、v6 のサーバで北固定の地図の時だけです。");
+      return null;
+    }
+    const party = tabOf(session)?.party ?? [];
+    if (!party.some((m) => m.name === name)) {
+      stopFollow(session, `${name} はパーティにいません。ついて行くのをやめました。`);
+      return null;
+    }
+    return party;
+  };
   /** 裏のタブのついて行く 1 回分。ゲートで飛んだかの判断は省く (歩いた位置を確かめる予想が無い) */
   const followBackground = (session: number, f: { name: string; mem: FollowMemory; lastSend: number; pending?: number }) => {
     const raw = mapStates.current.get(session)?.map;
-    if (!raw?.v6 || !isNorthFix(raw)) {
-      if (raw) stopFollow(session, "ついて行けるのは、v6 のサーバで北固定の地図の時だけです。");
-      return;
-    }
-    const party = tabsRef.current.find((t) => t.session === session)?.party ?? [];
-    if (!party.some((m) => m.name === f.name)) return stopFollow(session, `${f.name} はパーティにいません。ついて行くのをやめました。`);
+    const party = followParty(session, f.name, raw);
+    if (!raw || !party) return;
     const now = performance.now();
     if (f.pending !== undefined && now - f.pending < FOLLOW_PENDING_MS) return;
     const me = selfPos(raw.width, raw.height, false);
@@ -462,7 +473,7 @@ export function App() {
     if (session === null || !walking(session)) return;
     // リスト(ゲートの行き先など)を出している間は歩かない。サーバは選択の最中の go を番号として読み、選択をやめてしまう。
     // 押していたキーは離したとみなし、閉じた後は押し直すまで歩かない
-    if (tabsRef.current.find((t) => t.session === session)?.list) {
+    if (tabOf(session)?.list) {
       walker.current.clear();
       walkHalted.current = true;
       return;
@@ -675,6 +686,8 @@ export function App() {
   // map 窓で押したキーも KEY_EVENT で届き、ここでまとめて処理する
   const tabsRef = useRef<Tab[]>([]);
   tabsRef.current = tabs;
+  /** セッションのタブ。描き直しを待たない今の物 */
+  const tabOf = (session: number | null) => tabsRef.current.find((t) => t.session === session);
 
   useEffect(() => {
     const focusInput = () => {
@@ -690,6 +703,17 @@ export function App() {
     const systemMagic = () => ({
       unequip: settingsRef.current.autoUnequipSystemMagic,
       equip: settingsRef.current.autoEquipSystemMagic,
+    });
+    // キーとメニューの操作 (runKeyAction) に渡す物。キーとメニューで同じ物を組み立てていた
+    const keyHooks = (session: number) => ({
+      focusInput,
+      nextTab,
+      openBoard: () => update(session, (t) => ({ ...t, board: true })),
+      toggleMap,
+      cancelList: (n: number) => (listFlow(session).cancel += n),
+      ask,
+      systemMagic,
+      castSpellSlot: (n: number) => castSpellSlot(session, n),
     });
     // マップ窓の表示・非表示(Philly の Shift+F5 DispMap)
     const toggleMap = () => {
@@ -721,7 +745,7 @@ export function App() {
       if (session === null) return false;
       // カバン・パーティ・看板の札・priv の欄は Esc で閉じる。上に重なっている方 (カバン 11、札 6) から閉じる。
       // 札を先に閉じていた為、両方開いていると見えているカバンでなく裏の札が閉じた
-      const open = tabsRef.current.find((t) => t.session === session);
+      const open = tabOf(session);
       if (e.type === "keydown" && e.code === "Escape" && open?.bagOpen) {
         update(session, (t) => ({ ...t, bagOpen: false }));
         return true;
@@ -746,7 +770,7 @@ export function App() {
       const ctx = keyContext(mapStates.current.get(session), settingsRef.current.fullKeyMove);
       // リスト表示中は、番号・取り消し・カーソルのキーを移動より先に見る(Philly の KeyDown は KeyBindListMode が先)。
       // フルキー移動の 7・8・9 やテンキーの 2・4・6・8、上下の矢印は、リスト表示中は番号とカーソルになる
-      const list = tabsRef.current.find((t) => t.session === session)?.list;
+      const list = tabOf(session)?.list;
       const listAction = list && e.type === "keydown" ? listKeyAction(e, ctx) : null;
       if (list && listAction) {
         // 押し続けのリピートは、カーソルとチェックと、9(続き。押し続けるとページを次々に足す。#84)だけ受け付ける
@@ -802,9 +826,7 @@ export function App() {
       const action = keyAction(e, ctx);
       if (!action) return false;
       // 押し続けによる自動リピートは送らない
-      const openBoard = () => update(session, (t) => ({ ...t, board: true }));
-      const cancelList = (n: number) => (listFlow(session).cancel += n);
-      if (!e.repeat) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList, ask, systemMagic, castSpellSlot: (n) => castSpellSlot(session, n) });
+      if (!e.repeat) runKeyAction(action, session, keyHooks(session));
       return true;
     };
     const onDom = (e: globalThis.KeyboardEvent) => {
@@ -840,7 +862,7 @@ export function App() {
     // リスト表示中に何かを送ったら、続きのページの番号(ずれ+9)でない限りリストを閉じる(Philly の SendTextListCancel)。
     // v5y は「番号ではありません」でリストを取り消しても、リストの終わりを送ってこない
     const onSent = ({ session, text }: Sent) => {
-      const list = tabsRef.current.find((t) => t.session === session)?.list;
+      const list = tabOf(session)?.list;
       if (!list || text.trim() === moreNo(list)) return;
       closeList(session);
     };
@@ -866,7 +888,7 @@ export function App() {
       // カバンの操作は、断られた理由 (#ex-inv no) がカバンの画面に出るので、開いてから送る
       if (id === "bag-stash" && session !== null) {
         // 装備中以外の手持ちを、枠の後ろから入れる (入れるたびに後ろの枠が詰まる為)
-        const hand = tabsRef.current.find((t) => t.session === session)?.items ?? [];
+        const hand = tabOf(session)?.items ?? [];
         const slots = hand.flatMap((it, i) => (it && it.eq === "-" ? [i + 1] : [])).reverse();
         openBag(session);
         if (slots.length) sendBag(session, slots.map((k) => `#ex-inv put ${k}`).join("\n"));
@@ -903,26 +925,19 @@ export function App() {
           (ok) => ok && invoke("reset_windows").catch(console.error),
         );
       if (id === "guide") return void openUrl("https://s7k.github.io/wphi/guide/").catch((e) => fail(String(e)));
-      if (id === "update-check")
-        return void getVersion()
-          .then(async (v) => {
-            const r = await latestRelease(v);
-            if (!r) return alertBox(`WPHI ${v} は最新です。`);
-            if (await confirmBox(`新しい版 ${r.version} があります。\nダウンロードのページを開きますか？`)) await openUrl(r.url);
-          })
-          .catch((e) => fail(`新しい版を確かめる事が出来ません: ${e}`));
+      if (id === "update-check") return void checkUpdate(false).catch((e) => fail(`新しい版を確かめる事が出来ません: ${e}`));
       // キャラのタブで使う項目。黙って何もしないと、押した事が届いたか分からない (#172)
       if (session === null) return void alertBox("キャラに接続してから選んでください。");
       // 入力欄のツールバーと同じ切り替え。状態は InputEditor が持つ
       if (INPUT_MENU.includes(id)) return void window.dispatchEvent(new CustomEvent(INPUT_MENU_EVENT, { detail: id }));
       if (id === "priv") return togglePriv(session);
       if (id === "log-find") return setFindOpen(true);
-      const label = tabsRef.current.find((t) => t.session === session)?.label ?? "";
+      const label = tabOf(session)?.label ?? "";
       if (id === "open-char-dir") return void invoke("open_character_dir", { label }).catch((e) => fail(String(e)));
       if (id === "ss-map" || id === "ss-eagleeye")
         return void emit("phi-ss", { kind: id.slice(3), label, to: mapPlace() }).catch(console.error);
       if (id === "talk-add") {
-        const t = tabsRef.current.find((t) => t.session === session);
+        const t = tabOf(session);
         return void ask({ title: "発言の前に付ける言葉", label: "発言の前に付ける言葉を入力してください(空欄なら付けない)", initial: t?.talkAdd ?? "" }).then((v) => {
           if (v === null) return;
           update(session, (t) => ({ ...t, talkAdd: v }));
@@ -932,7 +947,7 @@ export function App() {
         });
       }
       if (id === "log-buffer-save") {
-        const t = tabsRef.current.find((t) => t.session === session);
+        const t = tabOf(session);
         if (!t) return;
         return void invoke<string>("save_log_buffer", { label: t.label, lines: t.lines.map((l) => l.html) })
           .then((path) => alertBox(`ログ欄の内容を保存しました。\n${path}`))
@@ -947,9 +962,7 @@ export function App() {
       // 選んだ項目はチェックが勝手に切り替わるので、今のモードに付け直す。サーバが切り替えたら地図を受けた時にまた付け直す
       if (["map-turn", "map-solid"].includes(id)) syncViewChecks(true);
       const action = menuAction(id);
-      const openBoard = () => update(session, (t) => ({ ...t, board: true }));
-      const cancelList = (n: number) => (listFlow(session).cancel += n);
-      if (action) runKeyAction(action, session, { focusInput, nextTab, openBoard, toggleMap, cancelList, ask, systemMagic, castSpellSlot: (n) => castSpellSlot(session, n) });
+      if (action) runKeyAction(action, session, keyHooks(session));
     });
     // マップのマウス操作(Philly の MapForm.cpp の FormMouseDown)
     let lastFollow = 0;
@@ -979,7 +992,7 @@ export function App() {
     // map 窓のリストのクリック(#9)
     const mapList = listen<MapListAction>(MAP_LIST_EVENT, (e) => {
       const session = activeRef.current;
-      const list = tabsRef.current.find((t) => t.session === session)?.list;
+      const list = tabOf(session)?.list;
       if (session === null || !list) return;
       const a = e.payload;
       if (a.type === "toggle")
@@ -1200,14 +1213,14 @@ export function App() {
 
   /** priv の画面を開くか閉じる。開く時は相手の一覧を取り直す(メニューから開いた時も。取り直さないと一覧が空のまま) */
   function togglePriv(session: number) {
-    if (!tabsRef.current.find((t) => t.session === session)?.privOpen) requestUlist(session);
+    if (!tabOf(session)?.privOpen) requestUlist(session);
     update(session, (t) => ({ ...t, privOpen: !t.privOpen }));
   }
 
   /** priv を送る。先に #ulist で番号を取り直す(Philly の PrivForm.cpp の SendPrivMessage) */
   async function sendPriv(session: number, to: string[], text: string): Promise<boolean> {
     const key = partnersKey(to);
-    const conv = tabsRef.current.find((t) => t.session === session)?.privs.find((c) => partnersKey(c.to) === key);
+    const conv = tabOf(session)?.privs.find((c) => partnersKey(c.to) === key);
     if (conv?.confirm) {
       const ok = await confirmBox(
         `この会話の宛先は、受けた priv に書かれていた名前から作りました。\n送り先: ${to.join("、")}\nこの全員に送りますか？`,
@@ -1219,7 +1232,7 @@ export function App() {
       }));
     }
     requestUlist(session, () => {
-      const t = tabsRef.current.find((t) => t.session === session);
+      const t = tabOf(session);
       if (!t) return;
       const { lines, failed } = privLines(to, text, t.users, t.self);
       lines.forEach((l) => sendLine(session, l));
@@ -1254,7 +1267,7 @@ export function App() {
   const append = (session: number, html: string, raw?: string) => {
     const time = timePrefix();
     const line = { html: shownTime(time) + html, raw };
-    const tab = tabsRef.current.find((t) => t.session === session);
+    const tab = tabOf(session);
     // 保存するログには、時刻を出さない設定でも時刻を入れる(Philly の LogSaveTextWithTime=on)
     if (tab?.logSave) saveLog(tab.label, time + html, settingsRef.current.logSaveHtml);
     const queued = pendingLines.current.size > 0;
@@ -1349,7 +1362,7 @@ export function App() {
         case "connection": {
           // Philly と同じく、自分で切った時とサーバから切れた時で行を分ける(Character.cpp・PersonalThread.cpp)
           const mine = userClosing.current.delete(session);
-          if (!tabsRef.current.find((t) => t.session === session)?.closed)
+          if (!tabOf(session)?.closed)
             if (mine) append(session, systemOk("--- 切断しました ---"));
             else {
               // 1 行目は Philly と同じ文言 (docs/04-client-spec.md)。繋ぎ直し方は次の行に出す (#132)
@@ -1427,7 +1440,7 @@ export function App() {
           break;
         case "list": {
           // 続きのページは、出しているリストの下に足す(#84)。map 窓にも溜めた全部を出す
-          const r = receiveList(listFlow(session), ev.active, ev.lines, tabsRef.current.find((t) => t.session === session)?.list);
+          const r = receiveList(listFlow(session), ev.active, ev.lines, tabOf(session)?.list);
           if (r === "close") closeList(session);
           else if (r) {
             // ゲートで行き先を選ぶ一覧が出た。仲間がどれを選んだかは分からないので、ついて行くのをやめる
@@ -1707,11 +1720,7 @@ export function App() {
                 (ok) => ok && sendBag(tab.session, items.map(({ no, count }) => `#ex-inv destroy ${no} ${count}`).join("\n")),
               )
             }
-            onSend={(text) => {
-              // unequip は装備中の物の一覧を出してから番号を受け取る。番号も一緒に送るので、一覧は出さずに閉じる(Alt+数字の cast と同じ)
-              if (text.startsWith("unequip")) listFlow(tab.session).cancel += 1;
-              sendLines(tab.session, text);
-            }}
+            onSend={(text) => sendItemLines(tab.session, text)}
             onClose={() => update(tab.session, (t) => ({ ...t, bagOpen: false }))}
           />
         )}
@@ -1766,11 +1775,7 @@ export function App() {
                 ta.setRangeText(text + "\n", ta.selectionStart, ta.selectionEnd, "end");
                 ta.focus();
               }}
-              onSend={(text) => {
-              // unequip は装備中の物の一覧を出してから番号を受け取る。番号も一緒に送るので、一覧は出さずに閉じる(Alt+数字の cast と同じ)
-              if (text.startsWith("unequip")) listFlow(tab.session).cancel += 1;
-              sendLines(tab.session, text);
-            }}
+              onSend={(text) => sendItemLines(tab.session, text)}
               onShow={(text) => alertBox(text)}
               onToggle={(key) => {
                 const next = { ...settings, [key]: !settings[key] };
@@ -2394,38 +2399,17 @@ const LOG_HEIGHTS: [string, number][] = [
   ["大", 65],
 ];
 
-/** モダンのログの高さ。この窓の localStorage に覚える */
-function useLogHeight(): [number, (v: number) => void] {
-  const [h, setH] = useState(() => {
-    try {
-      const v = Number(localStorage.getItem(LOG_HEIGHT_KEY));
-      return LOG_HEIGHTS.some(([, x]) => x === v) ? v : 42;
-    } catch {
-      return 42;
-    }
-  });
-  const set = (v: number) => {
-    setH(v);
-    try {
-      localStorage.setItem(LOG_HEIGHT_KEY, String(v));
-    } catch {
-      // 覚えられなくても、今の高さのまま使う
-    }
-  };
-  return [h, set];
-}
-
 const LOG_WIDTH_KEY = "wphi:modernLogWidth";
 const LOG_MAX_KEY = "wphi:modernLogMax";
 /** ログの横幅の下限 (px)。これより狭いと 1 行に数文字しか入らない */
 const LOG_MIN_WIDTH = 280;
 
-/** この窓の localStorage に覚える数。読めなければ既定の値 */
-function useStored(key: string, initial: number): [number, (v: number) => void] {
+/** この窓の localStorage に覚える数。読めないか valid に合わなければ既定の値 */
+function useStored(key: string, initial: number, valid: (n: number) => boolean = Number.isFinite): [number, (v: number) => void] {
   const [v, setV] = useState(() => {
     try {
       const n = Number(localStorage.getItem(key) ?? initial);
-      return Number.isFinite(n) ? n : initial;
+      return valid(n) ? n : initial;
     } catch {
       return initial;
     }
