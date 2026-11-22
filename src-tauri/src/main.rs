@@ -82,6 +82,7 @@ fn list_characters(app: tauri::AppHandle) -> Result<Store, String> {
 #[tauri::command]
 fn save_character(app: tauri::AppHandle, character: Character, id: String) -> Result<(), String> {
     Store::update(&store_path(&app)?, |store| {
+        store.check(&character.label, &id)?;
         let dir = config_dir(&app)?;
         if !id.is_empty() {
             characters::set_id(&dir, &character, &id)?;
@@ -253,6 +254,7 @@ async fn import_philly(
         store.philly_folder = Some(folder.clone());
         let mut labels = Vec::new();
         for p in characters::read_philly(std::path::Path::new(&folder))? {
+            store.check(&p.character.label, &p.id)?;
             characters::set_id(&config_dir(&app)?, &p.character, &p.id)?;
             labels.push(p.character.label.clone());
             store.upsert(p.character);
@@ -452,9 +454,12 @@ async fn register_character(
     image: u32,
     mail: String,
 ) -> Result<String, String> {
+    // サーバにキャラを作る前に確かめる。作った後に保存出来ないと、ID を失う
+    Store::load(&store_path(&app)?).check_new(&name)?;
     match register::register(&host, port, &name, &pass, image, &mail).await? {
         register::Outcome::Created(id) => {
             Store::update(&store_path(&app)?, |store| {
+                store.check_new(&name)?;
                 let ch = Character {
                     label: name.clone(),
                     host,
