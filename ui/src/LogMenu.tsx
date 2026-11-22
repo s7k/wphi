@@ -8,7 +8,7 @@ import type { Settings } from "./settings.ts";
 export type LogMenuAt = { x: number; y: number; lines: LogLine[] };
 
 /** チェックで切り替えるコピーの設定 */
-const TOGGLES: [keyof Settings, string][] = [
+export const COPY_TOGGLES: [keyof Settings, string][] = [
   ["logTagDeleteCopy", "コピーでタグを除く"],
   ["logTagDeleteAlways", "発言欄にコピー・発言する時もタグを除く"],
   ["logTimeDelete", "時刻を除く"],
@@ -59,7 +59,7 @@ export function LogMenu(props: {
       {item("発言する", () => props.onSend(text(s.logTagDeleteAlways)))}
       {item("タグを表示する", () => props.onShow(text(false)))}
       <li className="separator" />
-      {TOGGLES.map(([key, label]) => (
+      {COPY_TOGGLES.map(([key, label]) => (
         <li key={key} onClick={() => props.onToggle(key)}>
           <span className="menu-check">{s[key] ? "✓" : ""}</span>
           {label}

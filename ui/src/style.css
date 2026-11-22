@@ -894,6 +894,28 @@ body {
   width: 80px;
 }
 
+/* 設定の見出しごとの枠 (#173) */
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 10px 10px;
+  border: 1px solid rgb(128 128 128 / 40%);
+  border-radius: 6px;
+}
+
+.settings-group legend {
+  padding: 0 4px;
+  font-weight: bold;
+}
+
+.settings-hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
 /*
  * スクロールバーを常に出す。WebKitGTK は重ねて出す作りで、普段は見えずスクロールの位置が分からない
  */
