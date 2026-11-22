@@ -96,7 +96,7 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
         </fieldset>
         <label>
           <input type="checkbox" checked={s.confirmTransfer} onChange={(e) => set("confirmTransfer", e.target.checked)} />
-          別のサーバ(違うアドレスかポート)の世界へ移る時に、キャラの ID を送ってよいか確かめる
+          別のサーバ(違うアドレスかポート)の世界へ移る時に、キャラの ID を送ってよいか確かめる(オフだと確かめずに移った先のサーバへ ID を渡す)
         </label>
         {/* 画面の形などは表示メニューにだけあり、ここを探して見つからなかった (#137) */}
         <p className="settings-note">
@@ -104,7 +104,7 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
         </p>
         <label>
           <input type="checkbox" checked={s.fullKeyMove} onChange={(e) => set("fullKeyMove", e.target.checked)} />
-          フルキーの 789 uio jkl m をテンキーとして使う(フルキー移動)
+          フルキーの 789 uio jkl m を移動に、- ; / ' を置く・拾う・装備・使うに使う(フルキー移動。テンキーと同じ)
         </label>
         <label>
           <input type="checkbox" checked={s.soundPlay} onChange={(e) => set("soundPlay", e.target.checked)} />
@@ -214,7 +214,9 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
           保存
         </button>
         <button
-          onClick={() =>
+          onClick={async () => {
+            // 取り込みはすぐ保存するので、編集中の値を捨ててよいか確かめる。確かめずに上書きしていた (#168)
+            if (changed.length > 0 && !(await confirmBox("保存していない変更は捨てます。\nPhilly.ini から取り込みますか？"))) return;
             invoke<Settings>("import_philly_settings")
               .then((next) => {
                 setS(next);
@@ -222,11 +224,11 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
                 props.onSaved(next);
                 setMessage("Philly.ini から取り込んで保存しました");
               })
-              .catch((e) => setMessage(String(e)))
-          }
+              .catch((e) => setMessage(String(e)));
+          }}
         >
           <Import />
-          Philly.ini から取り込む
+          Philly.ini から取り込んで保存
         </button>
         <button onClick={close}>
           <X />

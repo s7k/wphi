@@ -71,6 +71,11 @@ const VIEW_CHECKS: [&str; 2] = ["map-turn", "map-solid"];
 /// (メニュー名, 項目)。項目の id が "-" なら区切り線。
 type Table = &'static [(&'static str, &'static [(&'static str, &'static str)])];
 
+/// メニューの項目名。macOS はログの検索を Cmd+F で開くので、表記もそれに合わせる (#175)
+fn label(text: &str) -> String {
+    if cfg!(target_os = "macos") { text.replace("(Ctrl+F)", "(Cmd+F)") } else { text.to_string() }
+}
+
 const MENUS: Table = &[
     (
         "ファイル",
@@ -356,7 +361,7 @@ pub fn model(menu_txt: &str) -> Vec<MenuModel> {
                 .iter()
                 .map(|(id, text)| MenuItemModel {
                     id: id.to_string(),
-                    text: text.to_string(),
+                    text: label(text),
                     check: experiment(&mut crate::settings::Settings::default(), id).is_some()
                         || VIEW_CHECKS.contains(id)
                         || LAYOUTS.iter().any(|l| l.0 == *id),
@@ -434,9 +439,9 @@ pub fn build<R: Runtime>(
                 || LAYOUTS.iter().any(|l| l.0 == *id)
             {
                 let checked = experiment(&mut settings, id).is_some_and(|v| *v) || layout_id(&settings) == *id;
-                sub.append(&CheckMenuItem::with_id(app, *id, *text, true, checked, None::<&str>)?)?;
+                sub.append(&CheckMenuItem::with_id(app, *id, label(text), true, checked, None::<&str>)?)?;
             } else {
-                sub.append(&MenuItem::with_id(app, *id, *text, true, None::<&str>)?)?;
+                sub.append(&MenuItem::with_id(app, *id, label(text), true, None::<&str>)?)?;
             }
         }
         menu.append(&sub)?;
