@@ -104,6 +104,8 @@ await board.fill("/*color=#2080d0*/ようこそ/*.*/ お城の入口です\n/*si
 await page.waitForTimeout(500);
 await shot("board");
 await button("キャンセル").click();
+// 書きかけがあるので、捨てて閉じるか確かめる窓が出る
+await button("はい").click();
 
 // キャラグラとマップチップの取得
 await page.evaluate(() => window.menu("download"));
