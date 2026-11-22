@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { capConvs, privLines, privPartners, upsertConv, usersFromEvent } from "./priv.ts";
+import { capConvs, ULIST_INTERVAL_MS, ulistRequest, privLines, privPartners, upsertConv, usersFromEvent } from "./priv.ts";
 
 const users = usersFromEvent([
   { key: "u3", name: "自分" },
@@ -46,4 +46,11 @@ test("相手の組の会話を書き換え、無ければ足す", () => {
     upsertConv(convs, ["C"], (c) => c ?? { to: ["C"], n: 0 }),
     [...convs, { to: ["C"], n: 0 }],
   );
+});
+
+test("#ulist は待っている間は待ちに加わり、10 秒に 1 回まで送る", () => {
+  assert.equal(ulistRequest(true, undefined, 0), "join");
+  assert.equal(ulistRequest(false, undefined, 0), "send");
+  assert.equal(ulistRequest(false, 1000, 1000 + ULIST_INTERVAL_MS - 1), "skip");
+  assert.equal(ulistRequest(false, 1000, 1000 + ULIST_INTERVAL_MS), "send");
 });

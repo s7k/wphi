@@ -56,3 +56,16 @@ export function privLines(to: string[], text: string, users: User[], self: strin
   return { lines, failed };
 }
 
+
+/** #ulist を送る間隔の下限 (ms)。セッションごとに 10 秒に 1 回まで (PrivForm.cpp の RequestUlistWait) */
+export const ULIST_INTERVAL_MS = 10_000;
+
+/**
+ * #ulist を求められた時の動き。待っている間は待ちに加わり (join)、前に送ってから間が無ければ送らずに今の一覧を使う (skip)。
+ * それ以外は送る (send)
+ */
+export function ulistRequest(waiting: boolean, lastSent: number | undefined, now: number): "join" | "skip" | "send" {
+  if (waiting) return "join";
+  if (lastSent !== undefined && now - lastSent < ULIST_INTERVAL_MS) return "skip";
+  return "send";
+}

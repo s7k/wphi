@@ -25,7 +25,7 @@ import { DEFAULT_SETTINGS, EXPERIMENT_EVENT, shortcutText, type Settings } from 
 import { DownloadPanel } from "./DownloadPanel";
 import { MapView, type MapPlace } from "./map";
 import { SettingsPanel } from "./SettingsPanel";
-import { capConvs, partnersKey, privLines, privPartners, upsertConv, usersFromEvent, type User } from "./priv.ts";
+import { capConvs, ulistRequest, partnersKey, privLines, privPartners, upsertConv, usersFromEvent, type User } from "./priv.ts";
 import { PrivLauncher, PrivWindow, type PrivConv } from "./PrivPanel";
 import { ListOverlay } from "./ListOverlay";
 import { checkAll, listNo, listOk, moreNo, moveListCursor, receiveList, type ListFlow, type ListState } from "./list.ts";
@@ -39,6 +39,7 @@ import { pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
 import { createLogWriter } from "./logSave.ts";
 import { characterTarget, needsCloseConfirm } from "./tabs.ts";
 import { signLine, signMode, type SignReading } from "./signHead.ts";
+import { applyMapset, holdMapset, type PendingMapset } from "./mapsetPending.ts";
 import { castLines, loadSpellOrder, moveSpell, orderSpells, saveSpellOrder, SPELL_WAIT_MS, waitsForOrder } from "./spells.ts";
 import { SpellBar } from "./SpellBar";
 import { followGoal, followStep, targetPos, type FollowMemory } from "./follow.ts";
@@ -287,7 +288,7 @@ export function App() {
   // タブごとのマップとステータス。map 窓にはアクティブなタブの分だけ送る
   const mapStates = useRef(new Map<number, MapState>());
   /** 地図より先に届き、まだ地図の状態へ入れていないマップセット (#mapset と #mapset-define / #v6 D)。次の地図で入れる */
-  const pendingMapsets = useRef(new Map<number, { mapset?: string; defines?: string[] }>());
+  const pendingMapsets = useRef(new Map<number, PendingMapset>());
   const activeRef = useRef<number | null>(null);
   activeRef.current = active;
   // map 窓へは、続けて届いた分を次のタスクでまとめて送る。#m57 と #status がそれぞれ 0.2 秒ごとに届き、1つ届くたびに MapState 全体を送っていた。
@@ -1011,13 +1012,9 @@ export function App() {
     switch (ev.type) {
       case "map": {
         s.map = ev;
-        // 地図より先に届いたマップセットは、この地図と一緒に地図の窓へ送る
-        const p = pendingMapsets.current.get(session);
-        if (p) {
-          if (p.mapset !== undefined) s.mapset = p.mapset;
-          if (p.defines) s.defines = p.defines;
-          pendingMapsets.current.delete(session);
-        }
+        // 地図より先に届いたマップセットは、この地図と一緒に地図の窓へ送る (ui/src/mapsetPending.ts)
+        applyMapset(s, pendingMapsets.current.get(session));
+        pendingMapsets.current.delete(session);
         const f = follows.current.get(session);
         if (f) f.pending = undefined;
         trace("main map");
@@ -1054,17 +1051,9 @@ export function App() {
         s.world = s.area = "???";
         break;
       case "notice":
-        // マップセットは続いて届く地図と一緒に地図の窓へ送る。地図の状態へすぐ入れると、地図より先に届く #v6 G などで
-        // 地図の窓へ送り、古い地図を新しいマップセットで描いて一瞬違う絵になる (区域の境を越えた時に道の絵が変わった)
+        // マップセットは続いて届く地図と一緒に地図の窓へ送る (ui/src/mapsetPending.ts)
         if (ev.mapset !== undefined || ev.mapsetDefine) {
-          const p = pendingMapsets.current.get(session) ?? {};
-          if (ev.mapset !== undefined) p.mapset = ev.mapset;
-          else if (ev.mapsetDefine) {
-            const defines = [...(p.defines ?? s.defines ?? [])];
-            defines[ev.mapsetDefine[0]] = ev.mapsetDefine[1];
-            p.defines = defines;
-          }
-          pendingMapsets.current.set(session, p);
+          pendingMapsets.current.set(session, holdMapset(pendingMapsets.current.get(session), ev, s.defines));
           return;
         } else if (ev.world !== undefined) s.world = ev.world;
         else if (ev.area !== undefined) s.area = ev.area;
@@ -1166,15 +1155,10 @@ export function App() {
   const ulistWaits = useRef(new Map<number, { thens: (() => void)[]; timer: number }>());
   function requestUlist(session: number, then?: () => void) {
     const wait = ulistWaits.current.get(session);
-    if (wait) {
-      if (then) wait.thens.push(then);
-      return;
-    }
     const now = performance.now();
-    if (now - (lastUlist.current.get(session) ?? -Infinity) < 10_000) {
-      then?.();
-      return;
-    }
+    const how = ulistRequest(!!wait, lastUlist.current.get(session), now);
+    if (how === "join") return void (then && wait?.thens.push(then));
+    if (how === "skip") return then?.();
     lastUlist.current.set(session, now);
     ulistWaits.current.set(session, { thens: then ? [then] : [], timer: window.setTimeout(() => ulistDone(session), 60_000) });
     sendLine(session, "#ulist");
