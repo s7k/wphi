@@ -251,6 +251,16 @@ export function moveCommand(key: MoveKey, mods: Mods, northFix: boolean): string
   return (northFix ? NORTH_FIX : TURN)[mods][key];
 }
 
+/**
+ * 1 歩 (斜めなら縦と横の 2 行) のコマンド。北固定の斜めは、縦の 1 行を向きを変えない go n / go s (Ctrl の移動) にし、
+ * 横を向いたまま歩く。縦も go N / go S で送ると、1 歩ごとに上下と左右を交互に向いた
+ */
+export function stepCommands(keys: MoveKey[], mods: Mods, northFix: boolean): string[] {
+  const diagonal = northFix && mods === "none" && keys.length > 1;
+  const vertical = (k: MoveKey) => k === "8" || k === "2" || k === "up" || k === "down";
+  return keys.map((k) => moveCommand(k, diagonal && vertical(k) ? "ctrl" : mods, northFix));
+}
+
 /** 入力欄の外で押したキーを、移動以外の操作にする。操作でなければ null。 */
 export function keyAction(e: KeyInput, ctx: KeyContext): KeyAction | null {
   const n = normalize(e, ctx);

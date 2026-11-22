@@ -13,7 +13,7 @@ import { MASTER_EXP, parseMasterMagic, runMasterItem, type MasterMenu } from "./
 import { afterSend, caretLine, prepareLine } from "./chat.ts";
 import { SENT_EVENT, type Sent } from "./keyInput";
 import { isNorthFix, isTextTarget, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
-import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type AskOptions, type Mods, type MoveKey } from "./keys.ts";
+import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, stepCommands, type AskOptions, type Mods, type MoveKey } from "./keys.ts";
 import { MAX_UNCONFIRMED, walkable, Walker } from "./walker.ts";
 import { BAG_ICON, BagPanel, ItemIcon, STATUS_ICON } from "./BagPanel.tsx";
 import { PartyHud, PartyPanel } from "./PartyPanel.tsx";
@@ -464,7 +464,7 @@ export function App() {
     const canStep = room > 0;
     // 斜めのうち壁の側の向きは送らず、壁に沿って滑らせる
     const pick = (keys: MoveKey[], mods: Mods) => {
-      const texts = keys.map((k) => moveCommand(k, mods, true));
+      const texts = stepCommands(keys, mods, true);
       const kept = predictor.current.pick(texts);
       return keys.filter((_, i) => kept.includes(texts[i]));
     };
@@ -477,8 +477,7 @@ export function App() {
     if (!s) return;
     trace(`walk ${s.keys.join("")} ${s.ms}ms`);
     closeSign(session);
-    for (const k of s.keys) {
-      const text = moveCommand(k, s.mods, true);
+    for (const text of stepCommands(s.keys, s.mods, true)) {
       predictor.current.walkStep(text, s.ms, s.at);
       sendLine(session, text);
     }
@@ -963,7 +962,7 @@ export function App() {
         }
         // 斜めは2方向を1歩ずつ送り、斜めに1マス進む(#76)
         const northFix = keyContext(mapStates.current.get(session), true).northFix;
-        for (const k of m.keys) sendMove(session, moveCommand(k, "none", northFix));
+        for (const text of stepCommands(m.keys, "none", northFix)) sendMove(session, text);
       }
     });
     // map 窓のリストのクリック(#9)

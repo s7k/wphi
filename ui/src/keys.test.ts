@@ -1,7 +1,7 @@
 // node --test ui/src/keys.test.ts で実行する(Node 24 は型を外して .ts を直接読む)
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, type KeyContext } from "./keys.ts";
+import { keyAction, listKeyAction, menuAction, moveCommand, moveInput, stepCommands, type KeyContext } from "./keys.ts";
 
 const key = (code: string, mods: { shift?: boolean; ctrl?: boolean; alt?: boolean } = {}) => ({
   code,
@@ -98,4 +98,12 @@ test("メニューの項目", () => {
   assert.deepEqual(menuAction("map-solid"), { send: "#ex-map style=solid" });
   assert.ok((menuAction("return") as { confirm?: string }).confirm);
   assert.equal(menuAction("no-such"), null);
+});
+
+test("北固定の斜めは、縦を向きを変えない go n / go s にして横向きのまま歩く", () => {
+  assert.deepEqual(stepCommands(["8", "6"], "none", true), ["go n", "go E"]);
+  assert.deepEqual(stepCommands(["2", "4"], "none", true), ["go s", "go W"]);
+  // 縦横 1 方向と、回転する地図はそのまま
+  assert.deepEqual(stepCommands(["8"], "none", true), ["go N"]);
+  assert.deepEqual(stepCommands(["8", "6"], "none", false), [moveCommand("8", "none", false), moveCommand("6", "none", false)]);
 });
