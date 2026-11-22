@@ -15,7 +15,8 @@
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
     "erasableSyntaxOnly": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "noUnusedLocals": true
   },
   "include": [
     "ui/src",

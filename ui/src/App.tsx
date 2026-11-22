@@ -116,12 +116,6 @@ type Tab = {
 /** priv の窓を一番前に出す時の重なりの順 */
 const topZ = (convs: PrivConv[]) => Math.max(0, ...convs.map((c) => c.z ?? 0)) + 1;
 
-/**
- * リストの受信の状態。受信の順番に関わるので、再描画を待たない ref で持つ。
- * cancel は次に届くリストを出さない数(Philly の NextListCancelCount)、started は #list を受けて #end-list を待っている事
- */
-/** Philly のログバッファに合わせ、古い行から捨てる */
-
 function timePrefix(): string {
   const d = new Date();
   const hh = String(d.getHours()).padStart(2, "0");
@@ -247,7 +241,6 @@ export function App() {
     return () => {
       unlisten.then((f) => f());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // ログ欄の右クリックメニュー(#81)
   const [logMenu, setLogMenu] = useState<LogMenuAt | null>(null);
@@ -320,7 +313,6 @@ export function App() {
   const recentLines = useRef(new Map<number, string[]>());
   /** 読んでいる看板を書いた人。#more で決め、#end-more で札に付ける */
   const signAuthors = useRef(new Map<number, ReturnType<typeof signAuthor>>());
-  /** カバンを開き、インベントリの中身を求める */
   /** 魔法の列の呪文を、今の番号で唱える。先頭以外なら、番号が入れ替わる (#v6 S が届く) まで次を押させない */
   const castSpell = (session: number, spell: Spell) => {
     const tab = tabsRef.current.find((t) => t.session === session);
@@ -375,6 +367,7 @@ export function App() {
     void confirmBox("足元の店が買い取る物を、カバンと手持ち(装備中の物を除く)から全部渡します。\n渡した物は戻せません。よろしいですか？").then(
       (ok) => ok && sendBag(session, "#ex-inv offer"),
     );
+  /** カバンを開き、インベントリの中身を求める */
   const openBag = (session: number) => {
     // パーティの窓は閉じる。カバンの間は描かないが開いたままにしていた為、カバンを閉じると勝手に戻ってきた
     update(session, (t) => ({ ...t, bagOpen: true, partyOpen: false, bagMessage: "" }));
@@ -1281,10 +1274,6 @@ export function App() {
 
   // 自分で切断したセッション。切れた知らせが届いた時に、サーバから切れたのと見分ける
   const userClosing = useRef(new Set<number>());
-  /**
-   * 接続する。replace を渡すと、そのタブ(切れたタブ)で接続し直し、ログと priv はそのまま残す(Philly の 接続。#77)。
-   * 渡さなければ新しいタブを開く
-   */
   /** 登録したキャラを開く。タブがあればそのタブへ移り、切れていれば同じタブで繋ぎ直す。無ければ接続する。
    * 一覧の「接続」からも同じにする。新しいタブを作ると、同じキャラのタブが二重に開いた (#133) */
   function openCharacter(label: string) {
@@ -1294,6 +1283,10 @@ export function App() {
     if (target.kind === "reconnect") void connect(label, target.session);
   }
 
+  /**
+   * 接続する。replace を渡すと、そのタブ(切れたタブ)で接続し直し、ログと priv はそのまま残す(Philly の 接続。#77)。
+   * 渡さなければ新しいタブを開く
+   */
   async function connect(label: string, replace?: number) {
     // connect が返る前に届いた分は貯めておき、タブを作ってから流す。Channel は onmessage の無い間に届いた分を捨てる(#70)
     const early: UiEvent[] = [];
@@ -2004,7 +1997,6 @@ function InputEditor(props: {
   // 大声の確認で答えを待っている発言
   const [loudAsk, setLoudAsk] = useState<{ deliver: () => void; ta: HTMLTextAreaElement } | null>(null);
   const [allTab, setAllTab] = useState(false);
-  // 右クリックのタグメニュー(Philly の InputEdit の PopupMenu)
   // 連続送信を 100ms 空ける(Philly の SendFromInputEdit)
   const lastSend = useRef(0);
 

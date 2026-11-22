@@ -1,6 +1,6 @@
 // 設定画面(Philly は Philly.ini を直接書き換える)。
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { confirmBox } from "./MessageDialog";
 import { changedKeys, clampZoom, HUD_STATS, MAP_ZOOMS, mergeChanged, type Settings } from "./settings.ts";
 import { Import, Save, X } from "lucide-react";

@@ -1,7 +1,7 @@
 // ログ欄の右クリックメニュー(Philly の MainForm.dfm の PopupMenu)。#81
 // 選んだ行(選んでいなければ押した行)を、設定のコピーの仕方でコピー・発言欄へ・発言する。
 import { useEffect } from "react";
-import { copyText, type CopyOptions } from "./logCopy.ts";
+import { copyText } from "./logCopy.ts";
 import type { LogLine } from "./logLines.ts";
 import type { Settings } from "./settings.ts";
 
