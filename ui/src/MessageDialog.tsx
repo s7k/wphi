@@ -7,10 +7,16 @@ import { Check, X } from "lucide-react";
 type Request = { message: string; confirm: boolean; resolve: (ok: boolean) => void };
 
 let show: ((r: Request) => void) | null = null;
+let drop: ((r: Request) => void) | null = null;
 
-/** はい・いいえで確かめる。いいえか Esc なら false */
-export const confirmBox = (message: string) =>
-  new Promise<boolean>((resolve) => (show ? show({ message, confirm: true, resolve }) : resolve(false)));
+/** はい・いいえで確かめる。いいえか Esc なら false。signal で取り下げると、窓を閉じて false */
+export const confirmBox = (message: string, signal?: AbortSignal) =>
+  new Promise<boolean>((resolve) => {
+    if (!show) return resolve(false);
+    const r: Request = { message, confirm: true, resolve };
+    signal?.addEventListener("abort", () => drop?.(r), { once: true });
+    show(r);
+  });
 
 /** 知らせる。閉じたら終わる */
 export const alertBox = (message: string) =>
@@ -22,8 +28,15 @@ export function MessageDialogHost() {
   const [queue, setQueue] = useState<Request[]>([]);
   useEffect(() => {
     show = (r) => setQueue((q) => [...q, r]);
+    drop = (r) =>
+      setQueue((q) => {
+        if (!q.includes(r)) return q;
+        r.resolve(false);
+        return q.filter((x) => x !== r);
+      });
     return () => {
       show = null;
+      drop = null;
     };
   }, []);
   const req = queue[0];

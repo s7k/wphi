@@ -308,6 +308,8 @@ export function App() {
   const walker = useRef(new Walker<Mods>());
   /** #more の中で届いた本文の行と書いた人 (セッションごと)。#end-more で札にする (ui/src/signHead.ts) */
   const signReads = useRef(new Map<number, SignReading>());
+  /** 世界移動の確かめの窓。期限が切れたら取り下げる (#153) */
+  const transferAsks = useRef(new Map<number, AbortController>());
   /** 直近の 2 行 (タグ付きの生の行)。#more の前の「名前 (日付)」と区切りの線から、看板を書いた人を取る */
   const recentLines = useRef(new Map<number, string[]>());
   /** 魔法の列の呪文を、今の番号で唱える。先頭以外なら、番号が入れ替わる (#v6 S が届く) まで次を押させない */
@@ -1324,13 +1326,28 @@ export function App() {
             invoke("send_line", { session, text: TRANSFER_YES }).catch(console.error);
             break;
           }
-          confirmBox(
-            `別のサーバ(${ev.host}:${ev.port})の世界へ移動します。\n移動先へキャラの ID を送ります。よろしいですか？`,
-          )
-            .then((ok) => invoke("send_line", { session, text: ok ? TRANSFER_YES : TRANSFER_NO }))
-            .catch(console.error);
+          {
+            // 答えを待つ間に期限が切れたら (transferExpired)、窓を閉じる。開いたまま残っていた (#153)
+            const expire = new AbortController();
+            transferAsks.current.set(session, expire);
+            confirmBox(
+              `別のサーバ(${ev.host}:${ev.port})の世界へ移動します。\n移動先へキャラの ID を送ります。よろしいですか？`,
+              expire.signal,
+            )
+              .then((ok) => {
+                if (expire.signal.aborted) return;
+                transferAsks.current.delete(session);
+                return invoke("send_line", { session, text: ok ? TRANSFER_YES : TRANSFER_NO });
+              })
+              .catch(console.error);
+          }
           break;
         }
+        case "transferExpired":
+          transferAsks.current.get(session)?.abort();
+          transferAsks.current.delete(session);
+          append(session, systemNg("世界移動の確かめに答えが無かったので、移動をやめました。"));
+          break;
         case "sound":
           // Philly の SoundPlay。ファイルの無い規則はタスクバーの点滅
           if (!settingsRef.current.soundPlay) break;
@@ -1532,6 +1549,8 @@ export function App() {
     lastUlist.current.delete(session);
     pendingLines.current.delete(session);
     signReads.current.delete(session);
+    transferAsks.current.get(session)?.abort();
+    transferAsks.current.delete(session);
     follows.current.delete(session);
     recentLines.current.delete(session);
     const wait = ulistWaits.current.get(session);

@@ -88,6 +88,7 @@ export type UiEvent =
   | { type: "worldMoved"; host: string; port: number }
   /** 今と違うホストへの世界移動を確かめる。TRANSFER_YES か TRANSFER_NO を送る(#51) */
   | { type: "confirmTransfer"; host: string; port: number }
+  | { type: "transferExpired" }
   | MapEvent
   | StatusEvent
   | CondEvent
