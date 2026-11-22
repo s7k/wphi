@@ -36,6 +36,8 @@ pub const TRANSFER_NO: &str = "#wphi-transfer no";
 /// 地図の窓から決めた視界の大きさ(`#wphi-view W H`)。送信キューで届き、サーバへは送らない。
 /// セッションが覚え、型に合わせた `#ex-map view=` に直して送る
 pub const VIEW_PREFIX: &str = "#wphi-view ";
+/// UI からセッションへの内部行の頭。どの時点で届いてもサーバへは送らない
+const INTERNAL_PREFIX: &str = "#wphi-";
 
 /// UI へ送るイベント。ログの行は `Event::Message` の代わりに HTML にした `log` を送る。
 #[derive(Debug, Clone, Serialize)]
@@ -71,6 +73,8 @@ pub enum UiOnly {
     WorldMoved { host: String, port: u16 },
     /// 今と違うホストへの世界移動を確かめる。UI は TRANSFER_YES か TRANSFER_NO を送る(#51)
     ConfirmTransfer { host: String, port: u16 },
+    /// 世界移動の確かめの答えを TRANSFER_TIMEOUT まで待っても来ないので、移動をやめた。UI は確かめの窓を閉じる(#153)
+    TransferExpired,
 }
 
 pub struct Login {
@@ -118,6 +122,13 @@ fn view_line((w, h): (u8, u8), turn: bool) -> String {
     let (w, h) = (w.min(97) + 2, h.min(97) + 2);
     // mapsets=16 はマップセットを 16 枠で受ける印(phi_dm の #v6 A と #v6 D)。view= より前に置く。知らないサーバは読み捨てる
     format!("#ex-map mapsets=16 view={w} {h}")
+}
+
+/// `#wphi-view W H` なら、その大きさを `view` に覚える。世界移動の確かめと移動の間も覚え、移動の後に送る(#153)
+fn keep_view(text: &str, view: &mut Option<(u8, u8)>) {
+    if let Some(v) = parse_view(text) {
+        *view = Some(v);
+    }
 }
 
 /// `#wphi-view W H` の大きさ
@@ -356,7 +367,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                         let bytes: Vec<u8> = reply.drain(..).flat_map(|l| line_bytes(&l)).collect();
                         let _ = put(&mut stream, &bytes).await;
                     }
-                    // 移動の間に UI が送った行は捨てる(Philly の RejectMainThreadSend)。
+                    // 移動の間に UI が送った行は、視界の大きさの他は捨てる(Philly の RejectMainThreadSend)。
                     // 送信キューが閉じたら(タブを閉じた)移動をやめる。待たないと、閉じたタブのキャラが移動先へログインする(#71)
                     // 今と違うホストへ移る時は、キャラ ID を送る前に確かめる(#51)。
                     // 悪意のあるサーバか乗っ取られたサーバが、任意のホストへ #reserve <ID> を送らせられる為
@@ -367,12 +378,19 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                                 match outgoing.recv().await {
                                     Some(l) if l == TRANSFER_YES => break Some(true),
                                     Some(l) if l == TRANSFER_NO => break Some(false),
-                                    Some(_) => {}
+                                    Some(l) => keep_view(&l, &mut view),
                                     None => break None,
                                 }
                             }
                         };
-                        match timeout(TRANSFER_TIMEOUT, answer).await.unwrap_or(Some(false)) {
+                        let answer = match timeout(TRANSFER_TIMEOUT, answer).await {
+                            Ok(a) => a,
+                            Err(_) => {
+                                emit(UiEvent::Ui(UiOnly::TransferExpired));
+                                Some(false)
+                            }
+                        };
+                        match answer {
                             None => {
                                 let _ = put(&mut stream, &line_bytes("#x")).await;
                                 // UI が切った時も、切れた事を知らせる(知らせないとタブが接続中のまま残る)
@@ -388,9 +406,11 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                         }
                     }
                     let mut skipped = Vec::new();
+                    // 移動先へ送る視界。移動の間に変わったら、移動の後に送り直す
+                    let moving_view = view;
                     let moved = tokio::select! {
-                        r = transfer(&mut stream, &mut lines, &mut inflate, &mut skipped, &server, &login.id, view, &mut emit) => Some(r),
-                        _ = async { while outgoing.recv().await.is_some() {} } => None,
+                        r = transfer(&mut stream, &mut lines, &mut inflate, &mut skipped, &server, &login.id, moving_view, &mut emit) => Some(r),
+                        _ = async { while let Some(l) = outgoing.recv().await { keep_view(&l, &mut view) } } => None,
                     };
                     match moved {
                         None => {
@@ -407,8 +427,10 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                             lines = LineBuffer::new();
                             inflate = Inflate::new();
                             parser = Parser::new();
-                            sent_view = view.map(|v| view_line(v, false));
-                            while outgoing.try_recv().is_ok() {}
+                            sent_view = moving_view.map(|v| view_line(v, false));
+                            while let Ok(l) = outgoing.try_recv() {
+                                keep_view(&l, &mut view);
+                            }
                             last_recv = Instant::now();
                             break;
                         }
@@ -423,8 +445,9 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     if text == "#ulist" {
                         parser.clear_users();
                     }
-                    if let Some(v) = parse_view(&text) {
-                        view = Some(v);
+                    if text.starts_with(INTERNAL_PREFIX) {
+                        // 確かめの期限が切れた後に届いた TRANSFER_YES などは、サーバへ送らない
+                        keep_view(&text, &mut view);
                     } else {
                         match auto.start(&text, std::time::Instant::now()) {
                             Some(unequip) => reply.push(unequip.into()),
@@ -1124,6 +1147,41 @@ mod tests {
         // 答えたら移動先へ #reserve を送る(偽の移動先は #rsv-ok を返さずに閉じるので、移動は失敗する)
         let (_, reserved) = transfer_to_other_host(TRANSFER_YES).await;
         assert_eq!(reserved.as_deref(), Some("#reserve ID\n"));
+    }
+
+    /// 確かめを待つ間に地図の窓の大きさが変わったら覚えておき、答えた後に送る。
+    /// 確かめの外で届いた答え(期限切れの後に答えた時)はサーバへ送らない(#153)
+    #[tokio::test]
+    async fn internal_lines_never_reach_server() {
+        let dst_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let dst_port = dst_listener.local_addr().unwrap().port();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let src = tokio::spawn(async move {
+            let (sock, _) = listener.accept().await.unwrap();
+            let (r, mut w) = sock.into_split();
+            let mut r = BufReader::new(r);
+            for _ in 0..login_lines(Some("ID"), None).len() {
+                read_line(&mut r).await;
+            }
+            w.write_all(format!("#ch-srv localhost {dst_port}\n").as_bytes()).await.unwrap();
+            let mut got = Vec::new();
+            for _ in 0..3 {
+                got.push(read_line(&mut r).await);
+            }
+            got
+        });
+        let (tx, rx) = mpsc::channel(8);
+        let run = tokio::spawn(run(login()(port), rx, |_| {}));
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        for l in [&format!("{VIEW_PREFIX}13 9"), TRANSFER_NO, TRANSFER_YES, "say end"] {
+            tx.send(l.to_string()).await.unwrap();
+        }
+        let got = timeout(Duration::from_secs(5), src).await.unwrap().unwrap();
+        assert_eq!(got, ["#no-srv\n", "#ex-map mapsets=16 view=15 11\n", "say end\n"]);
+        drop(tx);
+        let _ = timeout(Duration::from_secs(5), run).await;
+        drop(dst_listener);
     }
 
     /// UI が切った時(送信キューを閉じた時)も #x を送り、切れた事を UI に知らせる(#77)
