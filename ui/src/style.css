@@ -304,6 +304,10 @@ body {
   background: linear-gradient(to top, rgba(255, 150, 0, 0.95), rgba(255, 200, 60, 0.5) 60%, rgba(255, 220, 120, 0));
   animation: map-aura-up 0.9s ease-out forwards;
 }
+/* #v6 E で属性の分かる呪文は、その色の光にする */
+.map-aura.buff[class*=" fx-"] {
+  background: linear-gradient(to top, var(--fx), transparent);
+}
 .map-aura.debuff {
   background: linear-gradient(to bottom, rgba(90, 130, 255, 0.85), rgba(90, 130, 255, 0));
   animation: map-aura-down 0.9s ease-in forwards;
@@ -331,6 +335,14 @@ body {
   30% { transform: translate(-50%, -55%) scale(1.1); opacity: 1; }
   to { transform: translate(-50%, -110%) scale(1.3, 0.3); opacity: 0; }
 }
+/* #v6 E の属性ごとの色 (map.tsx の fxEls)。--fx が光の色、--fx-core が魔法弾の芯 */
+.fx-fire { --fx: #ff7a30; --fx-core: #fff0c0; }
+.fx-water { --fx: #4aa8ff; --fx-core: #e0f0ff; }
+.fx-earth { --fx: #d0a050; --fx-core: #fff0d0; }
+.fx-wind { --fx: #70e090; --fx-core: #e8fff0; }
+.fx-light { --fx: #ffe060; --fx-core: #fffff0; }
+.fx-dark { --fx: #a070ff; --fx-core: #f0e0ff; }
+.fx-mental { --fx: #ff70c8; --fx-core: #ffe8f6; }
 /* 斬撃と魔法弾。--a は攻撃したキャラから受けたキャラへの向き、--dx・--dy はその距離(map.tsx) */
 .map-slash,
 .map-bolt,
@@ -353,7 +365,7 @@ body {
   border: 4px solid transparent;
   border-right-color: #fff;
   /* 明るい地面でも見えるように縁を付ける */
-  filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 3px #6fd0ff);
+  filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 3px var(--fx, #6fd0ff));
   animation: map-slash 0.35s ease-out forwards;
 }
 @keyframes map-slash {
@@ -366,7 +378,7 @@ body {
   margin: -3px 0 0 -28px;
   transform-origin: right center;
   border-radius: 3px;
-  background: linear-gradient(to right, transparent, #6fd0ff);
+  background: linear-gradient(to right, transparent, var(--fx, #6fd0ff));
   animation: map-bolt 0.3s linear forwards;
 }
 .map-bolt::after {
@@ -377,8 +389,8 @@ body {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #e8f8ff;
-  box-shadow: 0 0 6px #6fd0ff;
+  background: var(--fx-core, #e8f8ff);
+  box-shadow: 0 0 6px var(--fx, #6fd0ff);
 }
 @keyframes map-bolt {
   from { transform: translate(0, 0) rotate(var(--a)); opacity: 1; }
@@ -390,8 +402,8 @@ body {
   height: 36px;
   margin: -18px 0 0 -18px;
   border-radius: 50%;
-  border: 2px solid #6fd0ff;
-  box-shadow: 0 0 8px #6fd0ff;
+  border: 2px solid var(--fx, #6fd0ff);
+  box-shadow: 0 0 8px var(--fx, #6fd0ff);
   opacity: 0;
   animation: map-burst 0.35s ease-out 0.27s forwards;
 }

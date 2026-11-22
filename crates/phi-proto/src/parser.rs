@@ -66,6 +66,17 @@ pub enum Event {
     },
     /// `#v6 J`。go 以外(スイッチ・ゲート・罠など)で動いた。予想と覚えた通れる・通れないを捨てる
     Jumped,
+    /// `#v6 E 種類 AX AY TX TY [属性]`。攻撃と呪文の演出の位置(視界の座標。`#v6 O` と同じ)。戦闘のログの行の直前に届く。
+    /// 種類は hit・miss・magic・spell。攻撃した側が視界の外なら from は None。属性は武器か呪文の属性 (fire など)。
+    /// 属性を送らないサーバでは None(phi_dm の docs/dev/protocol-v6.md の「演出の位置」)
+    Effect {
+        kind: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        from: Option<Pos>,
+        at: Pos,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        element: Option<String>,
+    },
     /// `#v6 S` 〜 `#v6 S .`。覚えている呪文を cast の番号の順に(phi_dm の docs/dev/protocol-v6.md の「呪文・持ち物・カバン」)
     Spells {
         spells: Vec<Spell>,
@@ -206,6 +217,19 @@ fn strip_tags(s: &str) -> String {
     }
     out.push_str(rest);
     out.trim().to_string()
+}
+
+/// `#v6 E` の欄。座標は 2 桁の数か、視界の外なら `--`。受けた側が読めなければ捨てる
+fn parse_effect(rest: &str) -> Option<Event> {
+    let f: Vec<&str> = rest.split_whitespace().collect();
+    let [kind, ax, ay, tx, ty, ref more @ ..] = f[..] else { return None };
+    let pos = |x: &str, y: &str| Some(Pos { x: x.parse().ok()?, y: y.parse().ok()? });
+    Some(Event::Effect {
+        kind: kind.to_string(),
+        from: pos(ax, ay),
+        at: pos(tx, ty)?,
+        element: more.first().map(|e| e.to_string()),
+    })
 }
 
 /// `#v6 I` / `#ex-inv I` の番号の後ろの欄(タブで区切った キー=値)を読む
@@ -898,6 +922,9 @@ impl Parser {
         if text.trim_end() == "#v6 J" {
             return vec![Event::Jumped];
         }
+        if let Some(rest) = text.strip_prefix("#v6 E ") {
+            return parse_effect(rest).into_iter().collect();
+        }
         if let Some(rest) = text.strip_prefix("#v6 M ") {
             self.parse_v6_m(raw, rest);
             return Vec::new();
@@ -1577,6 +1604,17 @@ mod tests {
             vec![Event::Moved { dx: 1, dy: 0, reason: Some("push".into()) }]
         );
         assert_eq!(p.feed(b"#v6 J"), vec![Event::Jumped]);
+        assert_eq!(
+            p.feed(b"#v6 E hit 10 12 11 12"),
+            vec![Event::Effect { kind: "hit".into(), from: Some(Pos { x: 10, y: 12 }), at: Pos { x: 11, y: 12 }, element: None }]
+        );
+        // 攻撃した側が視界の外
+        assert_eq!(
+            p.feed(b"#v6 E magic -- -- 03 04 fire"),
+            vec![Event::Effect { kind: "magic".into(), from: None, at: Pos { x: 3, y: 4 }, element: Some("fire".into()) }]
+        );
+        // 受けた側が読めなければ捨てる
+        assert_eq!(p.feed(b"#v6 E hit 01 01 -- --"), vec![]);
         assert!(p.feed(b"#v6 S 1\tef=1\tfn=6\tname=Fire ball").is_empty());
         assert!(p.feed(b"#v6 S 2\tef=9\tfn=0\tname=/*color=cyan*/Cure/*.*/").is_empty());
         let evs = p.feed(b"#v6 S .");

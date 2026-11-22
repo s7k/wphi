@@ -253,10 +253,15 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
             "#end-more",
         ],
         "slash" => {
-            &["DM Mirai は 市場の猫 を /*.*/木の枝 /*color=gray*/で攻撃した. [/*color=-hp*/12/*color=gray*/ hp] "]
+            // #v6 E は視界の座標。自分 (Mirai) が真ん中の 16 12、市場の猫が 16 13、Kotone が 19 12
+            &[
+                "#v6 E hit 16 12 16 13 none",
+                "DM Mirai は 市場の猫 を /*.*/木の枝 /*color=gray*/で攻撃した. [/*color=-hp*/12/*color=gray*/ hp] ",
+            ]
         }
         "bolt" => &[
             "Kotone > Fire ball",
+            "#v6 E magic 19 12 16 13 fire",
             "DM Kotone は 市場の猫 を /*.*/Fire ball /*color=gray*/で攻撃した. [/*color=-hp*/30/*color=gray*/ hp] ",
         ],
         "heal" => &[
@@ -271,6 +276,7 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
         "dead" => &["DM 市場の猫 は Mirai に殺された. "],
         "buff" => &[
             "DM 攻撃力が 12 point 上がった. ",
+            "#v6 E spell 16 12 19 12 light",
             "DM Mirai は Kotone に /*.*/Protect /*color=gray*/をかけた. ",
             "DM 防御率が 20% 上がった. ",
         ],

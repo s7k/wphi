@@ -19,7 +19,7 @@ import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
 import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, PARTY_OPEN_EVENT, type CondEvent, type MapChar, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
 import { hideOnClose, useImages, useScreenshot } from "./windowUtil";
-import { findChar, MAP_POP_EVENT, type Pop, type PopKind } from "./mapPop.ts";
+import { findChar, MAP_POP_EVENT, type Fx, type Pop, type PopKind } from "./mapPop.ts";
 import { Pixels } from "./BagPanel.tsx";
 import { COMPASS_PIXELS } from "./pixelIcons.ts";
 
@@ -50,6 +50,10 @@ const stripTags = (s: string) => s.replace(/\/\*.*?\*\//g, "").trim();
 /** 吹き出しと増減の数字を出す時間 */
 const TALK_MS = 4000;
 const AMOUNT_MS = 1200;
+/** #v6 E の演出を出しておく時間 (ms)。斬撃と魔法弾のアニメーションより長く */
+const FX_MS = 900;
+/** #v6 E の後、この間に届いた同じ名前の増減の数字は、当たった位置に出す (ms) */
+const FX_PIN_MS = 1500;
 
 /** 吹き出しの下に浮かせる文字の色(style.css) */
 const AMOUNT_CLASS: Partial<Record<PopKind, string>> = {
@@ -163,13 +167,35 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
   // キャラの上に出す吹き出しと増減の数字(ui/src/mapPop.ts)。キャラが動いても付いて行くよう、位置は描く時に名前で探す
   const [pops, setPops] = useState<(Pop & { id: number; at?: { x: number; y: number } })[]>([]);
   // 倒されたキャラはすぐ地図から消えるので、届いた時の位置を覚えて出す
-  const popCharsRef = useRef<{ chars: MapChar[]; me: { x: number; y: number } }>({ chars: [], me: { x: 0, y: 0 } });
+  // view は窓に見せている範囲の左上 (地図の座標)。#v6 E の座標は地図の座標なので、これを引いて窓の座標にする
+  const popCharsRef = useRef<{ chars: MapChar[]; me: { x: number; y: number }; view: { x: number; y: number } }>({
+    chars: [],
+    me: { x: 0, y: 0 },
+    view: { x: 0, y: 0 },
+  });
+  // #v6 E の演出 (攻撃と呪文が当たった位置)。届くサーバでは、名前で探して出す斬撃と魔法弾をやめる
+  const [fxs, setFxs] = useState<(Fx & { id: number })[]>([]);
+  const fxServer = useRef(false);
+  /** 直前の #v6 E で当たったキャラ。続くログの行の増減の数字を、同じ名前の別の個体でなくこの位置に出す */
+  const lastFx = useRef<{ at: { x: number; y: number }; name: string; t: number } | null>(null);
   useEffect(() => {
     let id = 0;
-    const unlisten = listen<{ pops: Pop[]; to: MapPlace }>(MAP_POP_EVENT, (e) => {
+    const unlisten = listen<{ pops: Pop[]; fx?: Fx[]; to: MapPlace }>(MAP_POP_EVENT, (e) => {
       if (e.payload.to !== place) return;
-      const { chars, me } = popCharsRef.current;
+      const { chars, me, view } = popCharsRef.current;
+      const now = performance.now();
+      const local = (p: { x: number; y: number }) => ({ x: p.x - view.x, y: p.y - view.y });
+      const fx = (e.payload.fx ?? []).map((f) => ({ ...f, from: f.from && local(f.from), at: local(f.at), id: ++id }));
+      for (const f of fx) {
+        fxServer.current = true;
+        const c = chars.find((c) => c.x === f.at.x && c.y === f.at.y);
+        lastFx.current = c ? { at: f.at, name: stripTags(c.name), t: now } : null;
+        setTimeout(() => setFxs((fs) => fs.filter((q) => q.id !== f.id)), FX_MS);
+      }
+      if (fx.length) setFxs((fs) => [...fs, ...fx]);
+      const hit = lastFx.current && now - lastFx.current.t < FX_PIN_MS ? lastFx.current : null;
       const added = e.payload.pops.flatMap((p) => {
+        if (hit && p.kind !== "talk" && p.name === hit.name) return [{ ...p, id: ++id, at: hit.at }];
         if (p.kind !== "dead") return [{ ...p, id: ++id }];
         const c = findChar(chars, p.name, me);
         return c ? [{ ...p, id: ++id, at: { x: c.x, y: c.y } }] : [];
@@ -535,7 +561,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
 
   const canvasLeft = snap((area.w - boardW * CHIP_SIZE * zoom) / 2);
   const canvasTop = snap((area.h - (boardH * CHIP_SIZE + MAP_TOP) * zoom) / 2);
-  popCharsRef.current = { chars, me };
+  popCharsRef.current = { chars, me, view: { x: board?.view.x ?? 0, y: board?.view.y ?? 0 } };
   // 同じキャラに続けて出た数字は、上へずらして重ねない
   const stack = new Map<string, number>();
   const popEls = pops.flatMap((p) => {
@@ -577,7 +603,8 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
           }}
         />,
       );
-    const by = p.by ? findChar(chars, p.by, me) : undefined;
+    // #v6 E が届くサーバでは、斬撃と魔法弾は fxEls が位置で出す
+    const by = p.by && !fxServer.current ? findChar(chars, p.by, me) : undefined;
     if (by && by !== c && n === 0) {
       const dx = (c.x - by.x) * CHIP_SIZE * zoom;
       const dy = (c.y - by.y) * CHIP_SIZE * zoom;
@@ -597,6 +624,36 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
         {p.kind[0] === "+" ? `+${p.text}` : p.text}
       </div>,
     ];
+  });
+  // #v6 E の演出。武器なら受けたキャラの上に斬撃、魔法なら攻撃したキャラから魔法弾、他人への呪文は足元から光
+  const cellAt = (p: { x: number; y: number }) => ({
+    left: canvasLeft + (p.x * CHIP_SIZE + CHIP_SIZE / 2) * zoom,
+    top: canvasTop + (MAP_TOP + p.y * CHIP_SIZE + CHIP_SIZE / 2) * zoom,
+  });
+  const fxEls = fxs.flatMap((f) => {
+    const at = cellAt(f.at);
+    const dx = f.from ? (f.at.x - f.from.x) * CHIP_SIZE * zoom : 0;
+    const dy = f.from ? (f.at.y - f.from.y) * CHIP_SIZE * zoom : 0;
+    const vars = { "--a": `${(Math.atan2(dy, dx) * 180) / Math.PI}deg`, "--dx": `${dx}px`, "--dy": `${dy}px` };
+    // 属性で色を変える (style.css の .fx-<属性>)。属性の語は DM の docs/dev/protocol-v6.md の「演出の位置」
+    const el = f.element ? ` fx-${f.element.replace(/[^a-z]/g, "")}` : "";
+    if (f.kind === "hit") return [<div key={f.id} className={`map-slash${el}`} style={{ ...at, ...vars } as React.CSSProperties} />];
+    if (f.kind === "magic")
+      return [
+        ...(f.from
+          ? [<div key={`${f.id}b`} className={`map-bolt${el}`} style={{ left: at.left - dx, top: at.top - dy, ...vars } as React.CSSProperties} />]
+          : []),
+        <div key={`${f.id}x`} className={`map-burst${el}`} style={at} />,
+      ];
+    if (f.kind === "spell")
+      return [
+        <div
+          key={f.id}
+          className={`map-aura buff${el}`}
+          style={{ left: at.left, top: at.top + (CHIP_SIZE / 2) * zoom, width: CHIP_SIZE * zoom, height: CHIP_SIZE * 1.4 * zoom }}
+        />,
+      ];
+    return [];
   });
 
   // 名前の一覧は上の行から順に並べる(CharacterNameList.cpp の SetNameList)
@@ -634,6 +691,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
             onContextMenu={(e) => e.preventDefault()}
           />
           {popEls}
+          {fxEls}
           {charMenu && state && (
             <div className="char-menu" style={{ left: charMenu.left, top: charMenu.top }} onMouseDown={(e) => e.stopPropagation()}>
               <div className="char-menu-name">{charMenu.name}</div>
