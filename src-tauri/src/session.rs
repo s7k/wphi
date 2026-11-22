@@ -118,12 +118,17 @@ fn login_lines(id: Option<&str>, view: Option<(u8, u8)>) -> Vec<String> {
         .collect()
 }
 
-/// v6 の視界の要求。窓より上下左右に1マスずつ多く求め、外周は窓の外に置く(ui/src/mapRender.ts の viewArea)。
+/// v6 の視界の要求。窓より上下左右に VIEW_MARGIN マスずつ多く求め、外周は窓の外に置く(ui/src/mapRender.ts の viewArea)。
 /// スムーズ移動で地図をずらした時に、窓に入る端を描く為。回転はサーバが正方形しか受け付けないので、小さい方に揃えて送る
+/// 窓に見せる範囲の外に、上下左右に余分に受けるマス数
+const VIEW_MARGIN: u8 = 3;
+
 fn view_line((w, h): (u8, u8), turn: bool) -> String {
     let (w, h) = if turn { (w.min(h), w.min(h)) } else { (w, h) };
-    // 行番号と座標が 10 進 2 桁なので、外周を足して 99 まで
-    let (w, h) = (w.min(97) + 2, h.min(97) + 2);
+    // 外周を VIEW_MARGIN マスずつ足す。返事を待たずに先へ進む歩み (walker.ts の MAX_UNCONFIRMED) の分だけ、
+    // 予想で地図をずらしても窓の端に ? が出ない (#180)。行番号と座標が 10 進 2 桁なので、99 まで
+    let m = 2 * VIEW_MARGIN;
+    let (w, h) = (w.min(99 - m) + m, h.min(99 - m) + m);
     // mapsets=16 はマップセットを 16 枠で受ける印(phi_dm の #v6 A と #v6 D)。view= より前に置く。知らないサーバは読み捨てる
     format!("#ex-map mapsets=16 view={w} {h}")
 }
@@ -1073,13 +1078,13 @@ mod tests {
         )
         .await;
         let got = server.await.unwrap();
-        assert!(got.contains(&"#ex-map mapsets=16 view=13 9\n".to_string()));
+        assert!(got.contains(&"#ex-map mapsets=16 view=17 13\n".to_string()));
         assert_eq!(
             got[got.len() - 3..],
             [
-                "#ex-map mapsets=16 view=9 9\n",
-                "#ex-map mapsets=16 view=11 11\n",
-                "#ex-map mapsets=16 view=15 11\n"
+                "#ex-map mapsets=16 view=13 13\n",
+                "#ex-map mapsets=16 view=15 15\n",
+                "#ex-map mapsets=16 view=19 15\n"
             ]
         );
     }
@@ -1168,7 +1173,7 @@ mod tests {
         assert_eq!(dst[2], "#version-cli 05107100\n");
         assert!(!dst.iter().any(|l| l.starts_with("#open")));
         // サーバは世界移動で v6 の大きさを消すので、移動先へも送り直す
-        assert!(dst.contains(&"#ex-map mapsets=16 view=13 9\n".to_string()));
+        assert!(dst.contains(&"#ex-map mapsets=16 view=17 13\n".to_string()));
         // 移動元の #ch-srv の後の行は捨てる
         assert!(!events.iter().any(|e| e["name"] == "after-ch-srv"));
         assert!(
@@ -1323,7 +1328,7 @@ mod tests {
             tx.send(l.to_string()).await.unwrap();
         }
         let got = timeout(Duration::from_secs(5), src).await.unwrap().unwrap();
-        assert_eq!(got, ["#no-srv\n", "#ex-map mapsets=16 view=15 11\n", "say end\n"]);
+        assert_eq!(got, ["#no-srv\n", "#ex-map mapsets=16 view=19 15\n", "say end\n"]);
         drop(tx);
         let _ = timeout(Duration::from_secs(5), run).await;
         drop(dst_listener);
