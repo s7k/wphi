@@ -708,6 +708,39 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     if (cat === "down") return [one("fx-sink")];
     return [...beam, one("fx-impact")];
   });
+  // 視界のキャラの HP の割合 (#v6 H。#184)。減っているキャラ・対象・自分か仲間を狙っているキャラだけ、頭の上に細いバーを出す。
+  // 狙っている敵 (ag) は赤い印を付ける
+  const hpBars = chars.flatMap((c) => {
+    const v = state?.charHp?.[c.id];
+    if (!v || (v.hp >= 100 && !v.ag && c.id !== state?.target)) return [];
+    const p = cellAt(c);
+    return [
+      <div
+        key={`hp${c.id}`}
+        className={v.ag ? "char-hp ag" : "char-hp"}
+        style={{ left: p.left, top: p.top - CHIP_SIZE * 0.95 * zoom, width: CHIP_SIZE * 0.9 * zoom }}
+      >
+        <i style={{ width: `${v.hp}%` }} />
+      </div>,
+    ];
+  });
+  // 詠唱バー (#v6 W cast=。#185)。唱えている人の頭の上 (HP バーの上) に、詠唱の長さで伸びるバーを出す
+  const castBars = (state?.casts ?? []).flatMap((k) => {
+    const c = k.who === undefined ? { x: me.x, y: me.y } : chars.find((ch) => ch.id === k.who);
+    if (!c) return [];
+    const p = cellAt(c);
+    const elapsed = performance.timeOrigin + performance.now() - k.at;
+    if (elapsed >= k.ms) return [];
+    return [
+      <div
+        key={`cast${k.who ?? "me"}${k.at}`}
+        className="cast-bar"
+        style={{ left: p.left, top: p.top - CHIP_SIZE * 1.25 * zoom, width: CHIP_SIZE * 1.2 * zoom }}
+      >
+        <i style={{ animationDuration: `${k.ms}ms`, animationDelay: `${-elapsed}ms` }} />
+      </div>,
+    ];
+  });
   // 対象 (#183) を枠で囲む。名前は地図がキャラの下に出しているので出さない。自動攻撃中は枠を赤くする
   const targetChar = state?.target === undefined ? undefined : chars.find((c) => c.id === state.target);
   const targetEl = targetChar ? (
@@ -777,13 +810,26 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
           {fxEls}
           {partyArrows}
           {targetEl}
-          {/* 攻撃の待ち (#attack 〜 #end-at) の間、自キャラの足元に輪を出す。この間の hit は待ちが明けた時に送る (#177) */}
+          {/* 攻撃の待ち (#attack 〜 #end-at) の間、自キャラの足元に輪を出す。この間の hit は待ちが明けた時に送る (#177)。
+              長さ (#v6 W at=) が分かれば、輪が縮んで消えるまでが待ちの長さ (#185) */}
           {state?.mode?.attack && (
             <div
-              className="fx fx-attack-wait"
-              style={{ ...cellAt(me), "--cell": `${CHIP_SIZE * zoom}px` } as React.CSSProperties}
+              key={state.attackWait?.at ?? 0}
+              className={state.attackWait ? "fx fx-attack-wait timed" : "fx fx-attack-wait"}
+              style={
+                {
+                  ...cellAt(me),
+                  "--cell": `${CHIP_SIZE * zoom}px`,
+                  ...(state.attackWait && {
+                    animationDuration: `${state.attackWait.ms}ms`,
+                    animationDelay: `${-(performance.timeOrigin + performance.now() - state.attackWait.at)}ms`,
+                  }),
+                } as React.CSSProperties
+              }
             />
           )}
+          {hpBars}
+          {castBars}
           {charMenu && state && (
             <div className="char-menu" style={{ left: charMenu.left, top: charMenu.top }} onMouseDown={(e) => e.stopPropagation()}>
               <div className="char-menu-name">{charMenu.name}</div>

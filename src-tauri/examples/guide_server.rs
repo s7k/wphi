@@ -229,6 +229,15 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
             "#ex-inv .",
         ],
         "party-end" => &["#v6 P ."],
+        // 確かめ用: HP バーと狙いの印、詠唱バー、攻撃の待ち
+        "fx-hpbar" => &[
+            "#v6 H C0005 hp=35 ag=1",
+            "#v6 H C0002 hp=80 ag=0",
+            "#v6 W cast=30 1",
+            "#v6 W C0002 cast=20",
+            "#attack",
+            "#v6 W at=15",
+        ],
         // 確かめ用: 視界の外の仲間 (地図の端の矢印)
         "fx-party-far" => &[
             "#v6 P 1\tname=Mirai\tarea=はじまりの草原\tdx=0\tdy=0\tidle=0\tlag=1\thp=1820\tmhp=2400\tmp=960\tmmp=1200\tcond=-------",

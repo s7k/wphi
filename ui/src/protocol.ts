@@ -107,6 +107,9 @@ export type UiEvent =
   /** #v6 J。go 以外で動いた */
   | { type: "jumped" }
   | { type: "castEnd" }
+  | { type: "wait"; who?: number; kind: string; ticks?: number; spell?: number }
+  | { type: "charHp"; id: number; hp: number; ag: boolean }
+  | { type: "floor"; items: { no: number; gp?: number; item?: ItemInfo }[] }
   | { type: "effect"; kind: string; from?: { x: number; y: number }; at: { x: number; y: number }; element?: string; category?: string; wait?: number }
   /** #v6 S。覚えている呪文を cast の番号の順に */
   | { type: "spells"; spells: Spell[] }
@@ -223,6 +226,12 @@ export type MapState = {
   /** 対象 (#183) のキャラの番号と、自動攻撃中か。地図が対象を枠で囲む */
   target?: number;
   autoAttack?: boolean;
+  /** 視界のキャラの HP の割合 (0-100) と、自分か仲間を狙っているか (#v6 H。#184)。キーはキャラの番号 */
+  charHp?: Record<number, { hp: number; ag: boolean }>;
+  /** 詠唱 (#v6 W cast=。#185)。who が無ければ自分。at は始まった時刻 (performance.timeOrigin + now の ms)、ms は長さ */
+  casts?: { who?: number; at: number; ms: number }[];
+  /** 攻撃の待ち (#v6 W at=) の始まった時刻と長さ (ms) */
+  attackWait?: { at: number; ms: number };
   walk?: { x: number; y: number; epoch: number; at: number; ms: number; bump?: { dx: number; dy: number; at: number } };
 };
 

@@ -66,6 +66,27 @@ pub enum Event {
     },
     /// `#v6 J`。go 以外(スイッチ・ゲート・罠など)で動いた。予想と覚えた通れる・通れないを捨てる
     Jumped,
+    /// `#ex-inv F` 〜 `#ex-inv F .`。`#ex-inv floor` への返事で、足元の物 (#189)。番号は `#ex-inv pick` と同じ数え方
+    Floor {
+        items: Vec<FloorItem>,
+    },
+    /// `#v6 W`。詠唱 (cast) と攻撃の待ち (at) の長さ (0.1 秒単位)。ticks が None なら止まった。
+    /// who は周りのキャラの番号 (#v6 O の C%04x)、自分なら None。spell は自分の詠唱の呪文の番号 (#v6 S の番号) (#185)
+    Wait {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        who: Option<u32>,
+        kind: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        ticks: Option<u32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        spell: Option<u32>,
+    },
+    /// `#v6 H C%04x hp=<0-100> ag=<0|1>`。視界のキャラの HP の割合と、自分か仲間を狙っているか (#184)
+    CharHp {
+        id: u32,
+        hp: u8,
+        ag: bool,
+    },
     /// `#end-mg`。呪文の一覧か詠唱が終わった。詠唱の終わりを UI が知る為に、mode が変わらなくても送る
     CastEnd,
     /// `#v6 E 種類 AX AY TX TY [属性 [分類]]`。攻撃と呪文の演出の位置(視界の座標。`#v6 O` と同じ)。戦闘のログの行の直前に届く。
@@ -106,6 +127,16 @@ pub enum Event {
     BagRefused {
         reason: String,
     },
+}
+
+/// 足元の物 1 つ (`#ex-inv F` の欄)。お金なら gp だけで item は無い
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct FloorItem {
+    pub no: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gp: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub item: Option<Item>,
 }
 
 /// 仲間 1 人(`#v6 P` の欄。Party eye と同じ情報に HP・MP・状態異常を足した物)
@@ -225,6 +256,37 @@ fn strip_tags(s: &str) -> String {
     }
     out.push_str(rest);
     out.trim().to_string()
+}
+
+/// `#v6 W` の欄。`[C%04x] cast=<ティック>|stop [呪文の番号]` か `at=<ティック>`
+fn parse_wait(rest: &str) -> Option<Event> {
+    let mut f = rest.split_whitespace().peekable();
+    let who = match f.peek() {
+        Some(w) if w.starts_with('C') => {
+            let w = f.next()?;
+            Some(u32::from_str_radix(&w[1..], 16).ok()?)
+        }
+        _ => None,
+    };
+    let (kind, v) = f.next()?.split_once('=')?;
+    let ticks = if v == "stop" { None } else { Some(v.parse().ok()?) };
+    let spell = f.next().and_then(|s| s.parse().ok());
+    Some(Event::Wait { who, kind: kind.to_string(), ticks, spell })
+}
+
+/// `#v6 H` の欄。`C%04x hp=<0-100> ag=<0|1>`
+fn parse_char_hp(rest: &str) -> Option<Event> {
+    let mut f = rest.split_whitespace();
+    let id = u32::from_str_radix(f.next()?.strip_prefix('C')?, 16).ok()?;
+    let (mut hp, mut ag) = (None, false);
+    for kv in f {
+        match kv.split_once('=') {
+            Some(("hp", v)) => hp = v.parse().ok(),
+            Some(("ag", v)) => ag = v == "1",
+            _ => {}
+        }
+    }
+    Some(Event::CharHp { id, hp: hp?, ag })
 }
 
 /// `#v6 E` の欄。座標は 2 桁の数か、視界の外なら `--`。受けた側が読めなければ捨てる
@@ -654,6 +716,8 @@ pub struct Parser {
     v6_blocked: Vec<(usize, usize)>,
     /// `#v6 A` で届いたマスのマップセットの枠 (行, 列, 枠)。`#v6 .` で地図のマスに写す
     v6_sets: Vec<(usize, usize, u8)>,
+    /// `#ex-inv F` で受けている途中の足元の物
+    floor: Vec<FloorItem>,
 
     eagle: EagleEyeAccum,
     mapset: Option<String>,
@@ -927,6 +991,21 @@ impl Parser {
             {
                 self.bag.push(parse_item(fields));
             }
+            if let Some(f) = rest.strip_prefix("F ") {
+                if f.trim() == "." {
+                    return vec![Event::Floor {
+                        items: std::mem::take(&mut self.floor),
+                    }];
+                }
+                if let Some((no, fields)) = f.split_once('\t')
+                    && let Ok(no) = no.trim().parse()
+                    && self.floor.len() < MAX_LIST_LINES
+                {
+                    let gp = fields.strip_prefix("gp=").and_then(|v| v.trim().parse().ok());
+                    let item = gp.is_none().then(|| parse_item(fields));
+                    self.floor.push(FloorItem { no, gp, item });
+                }
+            }
             return Vec::new();
         }
         if let Some(rest) = text.strip_prefix("#v6 G ") {
@@ -941,6 +1020,12 @@ impl Parser {
         }
         if text.trim_end() == "#v6 J" {
             return vec![Event::Jumped];
+        }
+        if let Some(rest) = text.strip_prefix("#v6 W ") {
+            return parse_wait(rest).into_iter().collect();
+        }
+        if let Some(rest) = text.strip_prefix("#v6 H ") {
+            return parse_char_hp(rest).into_iter().collect();
         }
         if let Some(rest) = text.strip_prefix("#v6 E ") {
             return parse_effect(rest).into_iter().collect();
@@ -1628,6 +1713,19 @@ mod tests {
             p.feed(b"#v6 G 1 0 push"),
             vec![Event::Moved { dx: 1, dy: 0, reason: Some("push".into()) }]
         );
+        assert_eq!(
+            p.feed(b"#v6 W cast=12 3"),
+            vec![Event::Wait { who: None, kind: "cast".into(), ticks: Some(12), spell: Some(3) }]
+        );
+        assert_eq!(
+            p.feed(b"#v6 W C0002 cast=stop"),
+            vec![Event::Wait { who: Some(2), kind: "cast".into(), ticks: None, spell: None }]
+        );
+        assert_eq!(p.feed(b"#v6 W at=7"), vec![Event::Wait { who: None, kind: "at".into(), ticks: Some(7), spell: None }]);
+        assert_eq!(p.feed(b"#v6 H C001a hp=42 ag=1"), vec![Event::CharHp { id: 0x1a, hp: 42, ag: true }]);
+        assert_eq!(p.feed(b"#ex-inv F 1\tgp=120"), vec![]);
+        let floor = p.feed(b"#ex-inv F .");
+        assert!(matches!(&floor[..], [Event::Floor { items }] if items.len() == 1 && items[0].gp == Some(120) && items[0].item.is_none()));
         assert!(!p.has_v6_map());
         p.feed(b"#v6 M N 6a3b0000 3 3");
         assert!(p.has_v6_map(), "#v6 M を受けたら v6 の地図の接続 (#194)");

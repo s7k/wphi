@@ -395,6 +395,58 @@ body {
   from { transform: scale(1); }
   to { transform: scale(1.08); }
 }
+/* 視界のキャラの HP の割合 (map.tsx の hpBars)。ag は自分か仲間を狙っている敵 */
+.char-hp {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  height: 4px;
+  transform: translateX(-50%);
+  background: rgb(0 0 0 / 60%);
+  border: 1px solid rgb(0 0 0 / 80%);
+  border-radius: 2px;
+}
+.char-hp i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(#7fe07f, #3a9a3a);
+  border-radius: 1px;
+}
+.char-hp.ag {
+  border-color: #ff4040;
+  box-shadow: 0 0 4px #ff4040;
+}
+.char-hp.ag::before {
+  content: "!";
+  position: absolute;
+  left: -9px;
+  top: -6px;
+  font: bold 11px sans-serif;
+  color: #ff5050;
+  text-shadow: var(--outline);
+}
+/* 詠唱バー (map.tsx の castBars)。長さの分だけ伸びる */
+.cast-bar {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  height: 5px;
+  transform: translateX(-50%);
+  background: rgb(0 0 0 / 60%);
+  border: 1px solid #8fd8ff;
+  border-radius: 3px;
+  box-shadow: 0 0 6px #8fd8ff;
+}
+.cast-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #8fd8ff, #fff);
+  animation: cast-fill linear forwards;
+}
+@keyframes cast-fill {
+  to { width: 100%; }
+}
 /* 攻撃の待ち。足元で脈打つ輪 */
 .fx-attack-wait {
   width: calc(var(--cell) * 1.2);
@@ -405,6 +457,14 @@ body {
   border: 2px solid rgb(255 200 120 / 85%);
   box-shadow: 0 0 6px rgb(255 160 60 / 80%);
   animation: fx-attack-wait 0.6s ease-in-out infinite alternate;
+}
+/* 長さが分かる時は、待ちの長さで縮んで消える */
+.fx-attack-wait.timed {
+  animation: fx-attack-wait-timed linear forwards;
+}
+@keyframes fx-attack-wait-timed {
+  from { transform: scaleY(0.45) scale(1.2); opacity: 1; }
+  to { transform: scaleY(0.45) scale(0.3); opacity: 0.3; }
 }
 @keyframes fx-attack-wait {
   from { transform: scaleY(0.45) scale(0.8); opacity: 0.5; }

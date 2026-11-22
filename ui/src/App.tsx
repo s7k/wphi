@@ -1110,6 +1110,11 @@ export function App() {
     switch (ev.type) {
       case "map": {
         s.map = ev;
+        // 視界から外れたキャラの HP の割合と詠唱は捨てる (#v6 O に載るキャラの分だけ届く)
+        if (s.charHp) {
+          const ids = new Set(ev.chars.map((c) => c.id));
+          s.charHp = Object.fromEntries(Object.entries(s.charHp).filter(([id]) => ids.has(Number(id))));
+        }
         // 地図より先に届いたマップセットは、この地図と一緒に地図の窓へ送る (ui/src/mapsetPending.ts)
         applyMapset(s, pendingMapsets.current.get(session));
         pendingMapsets.current.delete(session);
@@ -1117,6 +1122,25 @@ export function App() {
         if (f) f.pending = undefined;
         trace("main map");
         if (session === activeRef.current) predictor.current.onMap(ev.pos ? `${ev.pos.x},${ev.pos.y}` : null, ev);
+        break;
+      }
+      case "charHp":
+        s.charHp = { ...s.charHp, [ev.id]: { hp: ev.hp, ag: ev.ag } };
+        break;
+      case "wait": {
+        // 詠唱バーと攻撃の待ちの輪 (#185)。ticks は 0.1 秒単位、無ければ止まった
+        const at = performance.timeOrigin + performance.now();
+        const ms = (ev.ticks ?? 0) * 100;
+        if (ev.kind === "at") s.attackWait = ev.ticks ? { at, ms } : undefined;
+        if (ev.kind === "cast") {
+          const others = (s.casts ?? []).filter((c) => c.who !== ev.who && at - c.at < c.ms);
+          s.casts = ev.ticks ? [...others, { who: ev.who, at, ms }] : others;
+          // 自分の詠唱の長さが分かれば、ついて行く機能などを待たせる時間もそれに合わせる
+          if (ev.who === undefined) {
+            if (ev.ticks) castUntil.current.set(session, performance.now() + ms + 300);
+            else castUntil.current.delete(session);
+          }
+        }
         break;
       }
       case "status": {
@@ -1564,10 +1588,16 @@ export function App() {
           if (session === activeRef.current && settingsRef.current.mapEffects)
             emit(MAP_POP_EVENT, { pops: [], fx: [{ kind: ev.kind, from: ev.from, at: ev.at, element: ev.element, category: ev.category, wait: ev.wait }], to: mapPlace() }).catch(console.error);
           break;
-        case "castEnd":
-          // #end-mg で詠唱が終わる (#186)
+        case "castEnd": {
+          // #end-mg で詠唱が終わる (#186)。自分の詠唱バーも消す
           castUntil.current.delete(session);
+          const st = mapStates.current.get(session);
+          if (st?.casts?.some((c) => c.who === undefined)) {
+            st.casts = st.casts.filter((c) => c.who !== undefined);
+            if (session === activeRef.current) sendMapState(session);
+          }
           break;
+        }
         case "jumped":
           if (session === activeRef.current) {
             predictor.current.onJumped();
