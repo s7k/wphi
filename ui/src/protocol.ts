@@ -104,7 +104,7 @@ export type UiEvent =
   | { type: "moved"; dx: number; dy: number; reason?: string }
   /** #v6 J。go 以外で動いた */
   | { type: "jumped" }
-  | { type: "effect"; kind: string; from?: { x: number; y: number }; at: { x: number; y: number }; element?: string }
+  | { type: "effect"; kind: string; from?: { x: number; y: number }; at: { x: number; y: number }; element?: string; category?: string }
   /** #v6 S。覚えている呪文を cast の番号の順に */
   | { type: "spells"; spells: Spell[] }
   /** #v6 I。手持ちの 8 個(空きは null) */

@@ -12,7 +12,7 @@ export type PopKind = "talk" | "-hp" | "+hp" | "-mp" | "+mp" | "miss" | "poison"
 /** by は攻撃したキャラ。地図が斬撃を出し、magic なら魔法弾を出す */
 export type Pop = { name: string; kind: PopKind; text: string; by?: string; magic?: true };
 /** #v6 E の演出。位置は視界の座標 (#v6 O と同じ)。from は攻撃した側で、視界の外なら無い */
-export type Fx = { kind: string; from?: { x: number; y: number }; at: { x: number; y: number }; element?: string };
+export type Fx = { kind: string; from?: { x: number; y: number }; at: { x: number; y: number }; element?: string; category?: string };
 
 export const stripTags = (s: string) => s.replace(/\/\*.*?\*\//g, "").trim();
 

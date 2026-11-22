@@ -335,6 +335,218 @@ body {
   30% { transform: translate(-50%, -55%) scale(1.1); opacity: 1; }
   to { transform: translate(-50%, -110%) scale(1.3, 0.3); opacity: 0; }
 }
+/* #v6 E の演出 (map.tsx の fxEls)。left・top はマスの真ん中。--cell はマスの大きさ、--a と --len は射線の向きと長さ */
+.fx {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+}
+/* 詠唱。足元で回る二重の魔法陣 */
+.fx-chant {
+  width: calc(var(--cell) * 1.7);
+  height: calc(var(--cell) * 1.7);
+  margin: calc(var(--cell) * -0.85) 0 0 calc(var(--cell) * -0.85);
+  top: 0;
+  translate: 0 calc(var(--cell) * 0.38);
+  border-radius: 50%;
+  border: 3px dashed var(--fx, #8fd8ff);
+  background: radial-gradient(circle, transparent 55%, color-mix(in srgb, var(--fx, #8fd8ff) 45%, transparent) 70%, transparent 72%);
+  box-shadow: 0 0 14px var(--fx, #8fd8ff), 0 0 28px var(--fx, #8fd8ff), inset 0 0 16px var(--fx, #8fd8ff);
+  animation: fx-chant 1.4s linear forwards;
+}
+.fx-chant::before {
+  content: "";
+  position: absolute;
+  inset: 18%;
+  border-radius: 50%;
+  border: 2px solid var(--fx, #8fd8ff);
+  background: radial-gradient(circle, color-mix(in srgb, var(--fx, #8fd8ff) 35%, transparent), transparent 70%);
+  animation: fx-spin-back 0.7s linear infinite;
+}
+@keyframes fx-chant {
+  from { transform: scaleY(0.45) rotate(0deg) scale(0.3); opacity: 0; }
+  15% { transform: scaleY(0.45) rotate(60deg) scale(1); opacity: 1; }
+  80% { opacity: 1; }
+  to { transform: scaleY(0.45) rotate(360deg) scale(1.05); opacity: 0; }
+}
+@keyframes fx-spin-back {
+  to { transform: rotate(-360deg); }
+}
+/* 魔法の射線。唱えた人から受けた人へ伸び、細くなって消える */
+.fx-beam {
+  width: var(--len);
+  height: 8px;
+  margin-top: -4px;
+  transform-origin: 0 50%;
+  border-radius: 4px;
+  background: linear-gradient(to right, transparent, var(--fx, #6fd0ff) 30%, #fff);
+  box-shadow: 0 0 10px var(--fx, #6fd0ff), 0 0 22px var(--fx, #6fd0ff);
+  animation: fx-beam 0.5s ease-out forwards;
+}
+@keyframes fx-beam {
+  from { transform: rotate(var(--a)) scaleX(0); opacity: 1; }
+  35% { transform: rotate(var(--a)) scaleX(1) scaleY(1); opacity: 1; }
+  to { transform: rotate(var(--a)) scaleX(1) scaleY(0.15); opacity: 0; }
+}
+/* 着弾。白い芯から属性の色へ広がる光 */
+.fx-impact,
+.fx-explode {
+  width: calc(var(--cell) * 1.5);
+  height: calc(var(--cell) * 1.5);
+  margin: calc(var(--cell) * -0.75) 0 0 calc(var(--cell) * -0.75);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 15%, var(--fx, #6fd0ff) 35%, transparent 70%);
+  opacity: 0;
+  animation: fx-pop 0.45s ease-out 0.15s forwards;
+}
+.fx-explode {
+  width: calc(var(--cell) * 3);
+  height: calc(var(--cell) * 3);
+  margin: calc(var(--cell) * -1.5) 0 0 calc(var(--cell) * -1.5);
+  background: radial-gradient(circle, #fff 0 10%, #ffe27a 22%, var(--fx, #ff7a30) 45%, transparent 70%);
+  animation: fx-pop 0.75s ease-out 0.15s forwards;
+}
+.fx-shock {
+  width: calc(var(--cell) * 3);
+  height: calc(var(--cell) * 3);
+  margin: calc(var(--cell) * -1.5) 0 0 calc(var(--cell) * -1.5);
+  border-radius: 50%;
+  border: 3px solid var(--fx, #ff7a30);
+  box-shadow: 0 0 12px var(--fx, #ff7a30);
+  opacity: 0;
+  animation: fx-ring 0.6s ease-out 0.2s forwards;
+}
+@keyframes fx-pop {
+  from { transform: scale(0.2); opacity: 1; }
+  40% { transform: scale(1); opacity: 1; }
+  to { transform: scale(1.25); opacity: 0; }
+}
+@keyframes fx-ring {
+  from { transform: scale(0.2); opacity: 1; }
+  to { transform: scale(1.4); opacity: 0; }
+}
+/* 武器。X の 2 本の斬撃と火花 */
+.fx-cut {
+  width: calc(var(--cell) * 2);
+  height: 8px;
+  margin: -4px 0 0 calc(var(--cell) * -1);
+  border-radius: 50%;
+  background: linear-gradient(to right, transparent, #fff 35%, #fff 65%, transparent);
+  box-shadow: 0 0 8px var(--fx, #ffb040), 0 0 18px var(--fx, #ffb040), 0 0 30px var(--fx, #ffb040);
+  animation: fx-cut 0.32s ease-out forwards;
+}
+.fx-cut1 { --r: 40deg; }
+.fx-cut2 { --r: -40deg; animation-delay: 0.08s; opacity: 0; }
+@keyframes fx-cut {
+  from { transform: rotate(var(--r)) scaleX(0); opacity: 1; }
+  45% { transform: rotate(var(--r)) scaleX(1); opacity: 1; }
+  to { transform: rotate(var(--r)) scaleX(1.1) scaleY(0.3); opacity: 0; }
+}
+.fx-spark {
+  width: calc(var(--cell) * 1.2);
+  height: calc(var(--cell) * 1.2);
+  margin: calc(var(--cell) * -0.6) 0 0 calc(var(--cell) * -0.6);
+  background:
+    radial-gradient(circle, #fff 0 8%, transparent 9%) 50% 0 / 30% 30% no-repeat,
+    radial-gradient(circle, #fff 0 8%, transparent 9%) 100% 50% / 30% 30% no-repeat,
+    radial-gradient(circle, #fff 0 8%, transparent 9%) 20% 90% / 30% 30% no-repeat,
+    radial-gradient(circle, #fff 0 8%, transparent 9%) 0 30% / 30% 30% no-repeat,
+    radial-gradient(circle, #fff 0 10%, color-mix(in srgb, var(--fx, #ffb040) 85%, transparent) 25%, transparent 60%);
+  opacity: 0;
+  animation: fx-pop 0.35s ease-out 0.1s forwards;
+}
+/* 空振り。灰色の弧 */
+.fx-whiff {
+  width: calc(var(--cell) * 1.2);
+  height: calc(var(--cell) * 1.2);
+  margin: calc(var(--cell) * -0.6) 0 0 calc(var(--cell) * -0.6);
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color: rgb(220 220 220 / 80%);
+  animation: fx-whiff 0.35s ease-out forwards;
+}
+@keyframes fx-whiff {
+  from { transform: rotate(-60deg); opacity: 1; }
+  to { transform: rotate(80deg); opacity: 0; }
+}
+/* 回復。足元から立ち上る光の柱と、昇る光の粒 */
+.fx-pillar,
+.fx-rise {
+  width: calc(var(--cell) * 1.1);
+  height: calc(var(--cell) * 2.2);
+  margin: calc(var(--cell) * -1.7) 0 0 calc(var(--cell) * -0.55);
+}
+.fx-pillar {
+  background: linear-gradient(to top, color-mix(in srgb, var(--fx, #70f090) 90%, transparent), transparent);
+  border-radius: 40% 40% 0 0;
+  transform-origin: bottom;
+  animation: fx-pillar 0.9s ease-out forwards;
+}
+.fx-rise {
+  background:
+    radial-gradient(circle, #fff 0 2px, transparent 3px) 20% 80% / 40% 25% no-repeat,
+    radial-gradient(circle, #fff 0 2px, transparent 3px) 70% 60% / 40% 25% no-repeat,
+    radial-gradient(circle, #fff 0 2px, transparent 3px) 40% 40% / 40% 25% no-repeat,
+    radial-gradient(circle, #fff 0 2px, transparent 3px) 80% 20% / 40% 25% no-repeat;
+  filter: drop-shadow(0 0 3px var(--fx, #70f090));
+  animation: fx-rise 0.9s ease-out forwards;
+}
+@keyframes fx-pillar {
+  from { transform: scaleY(0); opacity: 1; }
+  40% { transform: scaleY(1); opacity: 1; }
+  to { transform: scaleY(1.1); opacity: 0; }
+}
+@keyframes fx-rise {
+  from { transform: translateY(20%); opacity: 1; }
+  to { transform: translateY(-30%); opacity: 0; }
+}
+/* 強化 (coat・protect)。キャラを囲んで脈打つ輪。protect は二重 */
+.fx-shield {
+  width: calc(var(--cell) * 1.6);
+  height: calc(var(--cell) * 1.9);
+  margin: calc(var(--cell) * -1.15) 0 0 calc(var(--cell) * -0.8);
+  border-radius: 50%;
+  border: 3px solid var(--fx, #ffd060);
+  box-shadow: 0 0 12px var(--fx, #ffd060), inset 0 0 14px var(--fx, #ffd060);
+  animation: fx-shield 0.9s ease-out forwards;
+}
+.fx-protect { outline: 2px solid color-mix(in srgb, var(--fx, #ffd060) 60%, transparent); outline-offset: 5px; }
+@keyframes fx-shield {
+  from { transform: scale(0.4); opacity: 0; }
+  30% { transform: scale(1.05); opacity: 1; }
+  60% { transform: scale(0.95); opacity: 1; }
+  to { transform: scale(1.15); opacity: 0; }
+}
+/* 幻惑。回る渦 */
+.fx-swirl {
+  width: calc(var(--cell) * 1.8);
+  height: calc(var(--cell) * 1.8);
+  margin: calc(var(--cell) * -0.9) 0 0 calc(var(--cell) * -0.9);
+  border-radius: 50%;
+  background: conic-gradient(var(--fx, #c070ff), transparent 30%, var(--fx, #c070ff) 50%, transparent 80%, var(--fx, #c070ff));
+  mask: radial-gradient(circle, transparent 25%, #000 30% 65%, transparent 70%);
+  animation: fx-swirl 0.9s linear forwards;
+}
+@keyframes fx-swirl {
+  from { transform: rotate(0) scale(0.3); opacity: 1; }
+  to { transform: rotate(540deg) scale(1.2); opacity: 0; }
+}
+/* 弱体。上から沈む暗い影 */
+.fx-sink {
+  width: calc(var(--cell) * 1.2);
+  height: calc(var(--cell) * 2);
+  margin: calc(var(--cell) * -1.5) 0 0 calc(var(--cell) * -0.6);
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--fx, #7040a0) 85%, #000), transparent);
+  border-radius: 0 0 40% 40%;
+  transform-origin: top;
+  animation: fx-sink 0.9s ease-in forwards;
+}
+@keyframes fx-sink {
+  from { transform: translateY(-30%); opacity: 0; }
+  30% { opacity: 1; }
+  to { transform: translateY(25%); opacity: 0; }
+}
+
 /* #v6 E の属性ごとの色 (map.tsx の fxEls)。--fx が光の色、--fx-core が魔法弾の芯 */
 .fx-fire { --fx: #ff7a30; --fx-core: #fff0c0; }
 .fx-water { --fx: #4aa8ff; --fx-core: #e0f0ff; }

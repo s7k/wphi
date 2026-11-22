@@ -51,7 +51,7 @@ const stripTags = (s: string) => s.replace(/\/\*.*?\*\//g, "").trim();
 const TALK_MS = 4000;
 const AMOUNT_MS = 1200;
 /** #v6 E の演出を出しておく時間 (ms)。斬撃と魔法弾のアニメーションより長く */
-const FX_MS = 900;
+const FX_MS = 1500;
 /** #v6 E の後、この間に届いた同じ名前の増減の数字は、当たった位置に出す (ms) */
 const FX_PIN_MS = 1500;
 
@@ -625,35 +625,37 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
       </div>,
     ];
   });
-  // #v6 E の演出。武器なら受けたキャラの上に斬撃、魔法なら攻撃したキャラから魔法弾、他人への呪文は足元から光
+  // #v6 E の演出 (style.css の .fx-*)。詠唱は足元の魔法陣、武器は X の斬撃、魔法は分類 (DM の魔法の表示オブジェと同じ分け方) で、
+  // line は射線、explode は爆発、heal は光の柱、coat と protect は盾の輪、illusion は渦、down は沈む影。色は属性 (.fx-<属性>)
   const cellAt = (p: { x: number; y: number }) => ({
     left: canvasLeft + (p.x * CHIP_SIZE + CHIP_SIZE / 2) * zoom,
     top: canvasTop + (MAP_TOP + p.y * CHIP_SIZE + CHIP_SIZE / 2) * zoom,
   });
   const fxEls = fxs.flatMap((f) => {
     const at = cellAt(f.at);
-    const dx = f.from ? (f.at.x - f.from.x) * CHIP_SIZE * zoom : 0;
-    const dy = f.from ? (f.at.y - f.from.y) * CHIP_SIZE * zoom : 0;
-    const vars = { "--a": `${(Math.atan2(dy, dx) * 180) / Math.PI}deg`, "--dx": `${dx}px`, "--dy": `${dy}px` };
-    // 属性で色を変える (style.css の .fx-<属性>)。属性の語は DM の docs/dev/protocol-v6.md の「演出の位置」
+    const from = f.from && (f.from.x !== f.at.x || f.from.y !== f.at.y) ? cellAt(f.from) : null;
+    const dx = from ? at.left - from.left : 0;
+    const dy = from ? at.top - from.top : 0;
     const el = f.element ? ` fx-${f.element.replace(/[^a-z]/g, "")}` : "";
-    if (f.kind === "hit") return [<div key={f.id} className={`map-slash${el}`} style={{ ...at, ...vars } as React.CSSProperties} />];
-    if (f.kind === "magic")
-      return [
-        ...(f.from
-          ? [<div key={`${f.id}b`} className={`map-bolt${el}`} style={{ left: at.left - dx, top: at.top - dy, ...vars } as React.CSSProperties} />]
-          : []),
-        <div key={`${f.id}x`} className={`map-burst${el}`} style={at} />,
-      ];
-    if (f.kind === "spell")
-      return [
-        <div
-          key={f.id}
-          className={`map-aura buff${el}`}
-          style={{ left: at.left, top: at.top + (CHIP_SIZE / 2) * zoom, width: CHIP_SIZE * zoom, height: CHIP_SIZE * 1.4 * zoom }}
-        />,
-      ];
-    return [];
+    const vars = {
+      "--a": `${(Math.atan2(dy, dx) * 180) / Math.PI}deg`,
+      "--len": `${Math.hypot(dx, dy)}px`,
+      "--cell": `${CHIP_SIZE * zoom}px`,
+    } as React.CSSProperties;
+    const one = (cls: string, p = at, key = cls) => (
+      <div key={`${f.id}${key}`} className={`fx ${cls}${el}`} style={{ left: p.left, top: p.top, ...vars }} />
+    );
+    if (f.kind === "chant") return [one("fx-chant")];
+    if (f.kind === "hit") return [one("fx-cut fx-cut1"), one("fx-cut fx-cut2"), one("fx-spark")];
+    if (f.kind === "miss") return [one("fx-whiff")];
+    const cat = f.category ?? (f.kind === "magic" ? "line" : "heal");
+    const beam = from && (cat === "line" || cat === "explode" || cat === "hit") ? [one("fx-beam", from)] : [];
+    if (cat === "explode") return [...beam, one("fx-explode"), one("fx-shock")];
+    if (cat === "heal") return [one("fx-pillar"), one("fx-rise")];
+    if (cat === "coat" || cat === "protect") return [one(`fx-shield fx-${cat}`)];
+    if (cat === "illusion") return [one("fx-swirl")];
+    if (cat === "down") return [one("fx-sink")];
+    return [...beam, one("fx-impact")];
   });
 
   // 名前の一覧は上の行から順に並べる(CharacterNameList.cpp の SetNameList)
