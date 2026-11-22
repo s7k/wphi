@@ -103,7 +103,7 @@ Linux の AppImage は FUSE(Ubuntu では `libfuse2`)が要る。無い時は `A
 |---|---|
 | [docs/04-client-spec.md](docs/04-client-spec.md) | クライアントの要件と挙動。サーバとのやり取り、キー、リスト、魔法、超魔法。他の言語でクライアントを作る人の為の資料 |
 | [docs/01-design.md](docs/01-design.md) | WPHI の設計 |
-| [docs/05-protocol-v6.md](docs/05-protocol-v6.md) | 可変サイズの視界 (v6 プロトコル) への対応の設計。拡張マップは取りやめた |
+| [docs/05-protocol-v6.md](docs/05-protocol-v6.md) | v6 プロトコルへの WPHI の対応。送る行、受けた行の扱い、地図・呪文の列・カバン・スムーズ移動・仲間の一覧の作り。行の書式はサーバの docs/dev/protocol-v6.md |
 | [docs/02-tasks.md](docs/02-tasks.md) | 作業の記録 |
 | [docs/03-gpui.md](docs/03-gpui.md) | GPUI へ移す検討と、移動の詰まりの調査 |
 
