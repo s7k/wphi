@@ -71,7 +71,7 @@ body {
   font-weight: bold;
 }
 
-/* 背景・文字色・文字の大きさはスキンの Log.css が決める。書体だけはこちらの近代的なフォントで上書きする */
+/* 背景・文字色・文字の大きさはログの CSS (resources/phi/wphi/log.css) が決める。書体だけはこちらの近代的なフォントで上書きする */
 .phi-log {
   flex: 1;
   overflow-y: auto;
@@ -91,8 +91,8 @@ body {
   font-family: var(--log-font, var(--ui-font));
 }
 
-/* 設定でログの文字の大きさを決めた時だけ、スキンの Log.css より優先する。
-   決めていない時に var() だけを書くと、値が無いので inherit になり、Log.css の大きさを消す */
+/* 設定でログの文字の大きさを決めた時だけ、ログの CSS より優先する。
+   決めていない時に var() だけを書くと、値が無いので inherit になり、ログの CSS の大きさを消す */
 .main.log-sized .phi-log {
   font-size: var(--log-size);
 }

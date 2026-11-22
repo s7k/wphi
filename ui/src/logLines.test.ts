@@ -25,7 +25,7 @@ test("pushLines はまとめて足し、上限を超えた古い行を捨てる"
   );
 });
 
-test("Log.css の body をログ欄に読み替え、名前の一部の body は変えない", () => {
+test("ログの CSS の body をログ欄に読み替え、名前の一部の body は変えない", () => {
   assert.equal(scopeLogCss("body { color: red }"), ".phi-log { color: red }");
   assert.equal(scopeLogCss("a,body,p{}\n}body {}"), "a,.phi-log,p{}\n}.phi-log {}");
   assert.equal(scopeLogCss(".tbody { } bodyx {}"), ".tbody { } bodyx {}");

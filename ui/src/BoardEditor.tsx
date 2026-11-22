@@ -122,7 +122,7 @@ export function BoardEditor(props: {
   const ref = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => ref.current?.focus(), []);
-  // プレビューはログと同じ HTML とスキンの Log.css で出す
+  // プレビューはログと同じ HTML とログの CSS で出す
   useEffect(() => {
     invoke<string>("log_html", { text: previewHeader(props.name) + text })
       .then(setPreview)

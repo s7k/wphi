@@ -3,7 +3,6 @@
 //! 項目を選ぶと、項目の id を MENU_EVENT で main 窓へ送り、UI が操作にする。
 //! キーの操作は UI が持っているので、メニューにはショートカットキーを登録しない(二重に送らない為)。
 //! 代わりに Philly と同じく、項目名にキーを書き添える。
-//! スキンの `Style/Menu.txt` で `off` にしたメニューは出さない(Philly と同じく起動時にだけ読む)。
 
 use tauri::{
     AppHandle, Runtime,
@@ -230,15 +229,6 @@ pub fn set_view_checks<R: Runtime>(menu: &Menu<R>, turn: bool) {
     }
 }
 
-/// `Menu.txt` の `off,<メニュー名>` の行。
-fn hidden_menus(menu_txt: &str) -> Vec<String> {
-    menu_txt
-        .lines()
-        .filter_map(|l| l.trim().strip_prefix("off,"))
-        .map(|name| name.split('(').next().unwrap_or(name).trim().to_string())
-        .collect()
-}
-
 /// 超魔法メニューのサブメニュー。items の "-" は区切り線
 #[derive(serde::Deserialize)]
 pub struct MasterMenu {
@@ -350,11 +340,9 @@ pub struct MenuItemModel {
     pub check: bool,
 }
 
-pub fn model(menu_txt: &str) -> Vec<MenuModel> {
-    let hidden = hidden_menus(menu_txt);
+pub fn model() -> Vec<MenuModel> {
     MENUS
         .iter()
-        .filter(|(name, _)| !hidden.iter().any(|h| h == name))
         .map(|(name, items)| MenuModel {
             name,
             items: items
@@ -373,11 +361,9 @@ pub fn model(menu_txt: &str) -> Vec<MenuModel> {
 
 pub fn build<R: Runtime>(
     app: &AppHandle<R>,
-    menu_txt: &str,
     settings: &crate::settings::Settings,
 ) -> tauri::Result<Menu<R>> {
     let mut settings = settings.clone();
-    let hidden = hidden_menus(menu_txt);
     let menu = Menu::new(app)?;
     // macOS は窓ごとのメニューを出さず、画面の上のアプリのメニューを使う。先頭の項目はアプリ名の項目になるので、
     // アプリ名の項目を先に置く。編集の項目が無いと、入力欄で Cmd+C・Cmd+V が効かない
@@ -427,9 +413,6 @@ pub fn build<R: Runtime>(
         )?)?;
     }
     for (name, items) in MENUS {
-        if hidden.iter().any(|h| h == name) {
-            continue;
-        }
         let sub = Submenu::with_id(app, format!("menu:{name}"), *name, true)?;
         for (id, text) in *items {
             if *id == "-" {
@@ -454,18 +437,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn model_hides_menus_and_marks_checks() {
-        let m = model("off,魔法\r\n");
-        assert!(!m.iter().any(|s| s.name == "魔法"));
+    fn model_marks_checks() {
+        let m = model();
         let view = m.iter().find(|s| s.name == "表示").unwrap();
         let check = |id: &str| view.items.iter().find(|i| i.id == id).unwrap().check;
         assert!(check("map-turn") && check(MAP_EFFECTS) && check(MAP_VARIETY));
         assert!(!check("map"));
-    }
-
-    #[test]
-    fn reads_menu_txt() {
-        let txt = "メニュー項目\r\non,ファイル\r\noff,魔法\r\noff,ツール(&Y)\r\non,\r\n";
-        assert_eq!(hidden_menus(txt), ["魔法", "ツール"]);
     }
 }

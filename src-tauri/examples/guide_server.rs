@@ -358,7 +358,7 @@ fn main() {
             }
             "/log_css" => (
                 "text/css",
-                assets::bundled("Skins/Mine/Style/Log.css").map(<[u8]>::to_vec),
+                assets::bundled("wphi/log.css").map(<[u8]>::to_vec),
             ),
             "/log_html" => {
                 let text = query(q).remove("text").unwrap_or_default();

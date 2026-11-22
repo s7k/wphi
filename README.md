@@ -62,7 +62,7 @@ Linux の AppImage は FUSE(Ubuntu では `libfuse2`)が要る。無い時は `A
 | Ctrl+F(macOS は Cmd+F) | ログを検索 |
 
 メニューは Philly と同じ並びで、macOS では窓の中にも出す。
-マスターのキャラには超魔法のメニューも出る。
+マスターのキャラには超魔法のメニューも出る。メニューの定義 (`MasterMagicMenu.xml`) は Philly のパーツなので同梱せず、設定フォルダか取り込んだ Philly フォルダの `Config` に置いた物を読む。
 
 ## Philly に無い機能
 
@@ -168,7 +168,7 @@ cp /tmp/icons/{32x32.png,128x128.png,128x128@2x.png,icon.icns,icon.ico,icon.png}
 | `ui` | 窓の画面(React と TypeScript) |
 | `tools/golden` | phi-client-web の Python のパーサの出力を、`phi-proto` の比較テスト用に書き出す |
 | `tools/png2phibmp` | phi-client-web の透過 PNG のキャラグラを Philly の BMP に戻す |
-| `resources/phi` | 同梱のグラフィックス・スキン・超魔法の定義。ライセンスは同じフォルダの README |
+| `resources/phi` | 同梱のグラフィックスとログの CSS。ライセンスは同じフォルダの README |
 
 ## ライセンス
 

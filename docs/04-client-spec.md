@@ -539,7 +539,8 @@ WPHI は Exp で判定する。
 ### 9.2 メニューの定義(MasterMagicMenu.xml)
 
 項目は Philly の `Config/MasterMagicMenu.xml`(Shift_JIS)で決める。
-WPHI はこのファイルを同梱している(`resources/phi/Config/MasterMagicMenu.xml`)。
+WPHI はこのファイルを同梱しない (Philly のパーツの為)。設定フォルダか、取り込んだ Philly フォルダの `Config` にある物を読む。
+どちらにも無ければ、マスターでも超魔法メニューを出さない。
 
 | 要素 | 意味 |
 |---|---|

@@ -17,7 +17,7 @@ export type Settings = {
   taskBarFlash: boolean;
   /** ログ欄のフォント。空なら既定のフォント */
   logFontName: string;
-  /** ログ欄の文字の大きさ(px)。0 ならスキンの Log.css に任せる(LogFontSize) */
+  /** ログ欄の文字の大きさ(px)。0 ならログの CSS に任せる(LogFontSize) */
   logFontSize: number;
   /** ログ欄からのコピーの仕方(Philly の [LogEdit]。#81) */
   logTagDeleteCopy: boolean;

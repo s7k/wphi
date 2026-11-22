@@ -17,7 +17,7 @@ export function pushLines(lines: LogLine[], htmls: (string | { html: string; raw
   return [...lines.slice(Math.max(0, lines.length + added.length - max)), ...added];
 }
 
-/** Log.css は Philly では IE の別文書に当てていた。body をログ欄に読み替えて使う */
+/** ログの CSS は Philly の Log.css と同じく body に当てる書き方なので、body をログ欄に読み替えて使う */
 export function scopeLogCss(css: string): string {
   return css.replace(/(^|[\s,}])body(?=[\s,{])/g, "$1.phi-log");
 }

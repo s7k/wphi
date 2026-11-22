@@ -1,0 +1,74 @@
+/* ログのスタイルシート。Philly のスキンの Log.css の代わりに WPHI で書いた物。
+   クラス名は phi-proto の tag_to_html が付ける物 (Philly のタグと同じ名前) */
+body {
+  background: white;
+  color: black;
+  font-family: "BIZ UDGothic", "MS Gothic", monospace;
+  font-size: 14px;
+  line-height: 18px;
+  margin: 3px;
+  word-break: break-all;
+}
+.class_name { font-family: sans-serif; }
+.class_time { color: teal; font-size: 90%; font-family: sans-serif; }
+.class_system_ok, .class_system_ng { font-size: 12px; line-height: 16px; font-family: sans-serif; }
+.class_system_ok { color: teal; }
+.class_system_ng { color: red; }
+
+/* 大きさ (size=N のタグ)。0 が標準で、1 段ごとにおよそ 1.25 倍 */
+.size_large { font-size: 32px; line-height: 1.15; }
+.size_small { font-size: 10px; line-height: 1.4; }
+.size_9, .size__9 { font-size: 100px; line-height: 1.05; }
+.size_8, .size__8 { font-size: 88px; line-height: 1.05; }
+.size_7, .size__7 { font-size: 70px; line-height: 1.05; }
+.size_6, .size__6 { font-size: 56px; line-height: 1.1; }
+.size_5, .size__5 { font-size: 44px; line-height: 1.1; }
+.size_4, .size__4 { font-size: 34px; line-height: 1.15; }
+.size_3, .size__3 { font-size: 26px; line-height: 1.15; }
+.size_2, .size__2 { font-size: 20px; line-height: 1.2; }
+.size_1, .size__1 { font-size: 16px; line-height: 1.25; }
+.size_0, .size__0 { font-size: 14px; line-height: 18px; }
+.size_-1 { font-size: 13px; }
+.size_-2 { font-size: 12px; }
+.size_-3 { font-size: 11px; }
+.size_-4 { font-size: 10px; }
+.size_-5 { font-size: 9px; }
+.size_-6 { font-size: 8px; }
+.size_-7 { font-size: 7px; }
+.size_-8 { font-size: 6px; }
+.size_-9 { font-size: 5px; }
+
+/* 飾り */
+.style_bold { font-weight: bold; }
+.style_italic { font-style: italic; }
+.style_strike { text-decoration: line-through; }
+.style_under { text-decoration: underline; }
+.style_over { text-decoration: overline; }
+.style_sup { vertical-align: super; }
+.style_sub { vertical-align: sub; }
+
+/* 1 文字の色 (color=r などのタグ)。HTML の色の名前の頭文字 */
+.color_a_ { color: aqua; }
+.color_b_ { color: blue; }
+.color_c_ { color: #00e0e0; }
+.color_f_ { color: fuchsia; }
+.color_g_ { color: green; }
+.color_h_ { color: gray; }
+.color_k_ { color: black; }
+.color_l_ { color: lime; }
+.color_m_ { color: maroon; }
+.color_n_ { color: navy; }
+.color_o_ { color: olive; }
+.color_p_ { color: purple; }
+.color_r_ { color: red; }
+.color_s_ { color: silver; }
+.color_t_ { color: teal; }
+.color_w_, .color_white, .cl_white, .c_white { color: #d0d0ff; }
+.color_y_, .color_yellow, .cl_yellow, .c_yellow { color: #ffd200; }
+.color_cyan, .cl_cyan, .c_cyan { color: #00e0e0; }
+
+/* HP と MP の増減 */
+.color__hp, .cl__hp, .c__hp { color: green; }
+.color__mp, .cl__mp, .c__mp { color: blue; }
+.color_-hp, .cl_-hp, .c_-hp, .color_-mp, .cl_-mp, .c_-mp { color: red; }
+.color_777, .cl_777, .c_777 { color: #777; }

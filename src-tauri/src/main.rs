@@ -716,7 +716,7 @@ fn dir_name(label: &str) -> String {
 }
 
 /// ログを日ごとの HTML に足す(Philly の LogAutoSave と LogSaveHtml=on)。`date` は UI が決めた利用者の地域の日付(yyyymmdd)。
-/// 新しいファイルにはスキンの Log.css を埋め込み、ブラウザで開いた時もログ欄と同じ見た目にする。
+/// 新しいファイルにはログの CSS を埋め込み、ブラウザで開いた時もログ欄と同じ見た目にする。
 // async にして、メインスレッドの外でファイルを開く(1行ごとに呼ぶので、同期だと UI を止める)
 #[tauri::command]
 async fn append_log(
@@ -870,7 +870,8 @@ fn select_menu(app: &tauri::AppHandle, id: &str) {
     let _ = app.emit_to("main", menu::MENU_EVENT, id.to_string());
 }
 
-/// 超魔法メニューの MasterMagicMenu.xml(#83)。設定フォルダ → 取り込んだ Philly フォルダの Config → 同梱の分の順に探す
+/// 超魔法メニューの MasterMagicMenu.xml(#83)。設定フォルダ → 取り込んだ Philly フォルダの Config の順に探す。
+/// Philly のパーツなので同梱はしない
 #[tauri::command]
 fn master_magic_xml(app: tauri::AppHandle) -> Option<String> {
     let philly = Store::load(&store_path(&app).ok()?).philly_folder;
@@ -881,7 +882,6 @@ fn master_magic_xml(app: tauri::AppHandle) -> Option<String> {
     .into_iter()
     .flatten()
     .find_map(|p| std::fs::read(p).ok())
-    .or_else(|| assets::bundled("Config/MasterMagicMenu.xml").map(<[u8]>::to_vec))
     .map(|b| phi_proto::codec::decode(&b))
 }
 
@@ -902,10 +902,7 @@ fn menu_select(app: tauri::AppHandle, id: String) {
 /// macOS の窓の中に出すメニューの項目(OS のメニューと同じ物)
 #[tauri::command]
 fn menu_model(app: tauri::AppHandle) -> Vec<menu::MenuModel> {
-    let menu_txt = assets::bundled("Skins/Mine/Style/Menu.txt")
-        .map(phi_proto::codec::decode)
-        .unwrap_or_default();
-    let mut model = menu::model(&menu_txt);
+    let mut model = menu::model();
     menu::add_characters(&mut model, &character_labels(&app));
     model
 }
@@ -1044,17 +1041,17 @@ fn save_log_buffer(app: tauri::AppHandle, label: String, lines: Vec<String>) -> 
     Ok(path.display().to_string())
 }
 
-/// ログの HTML の頭。スキンの Log.css を埋め込み、ブラウザで開いた時もログ欄と同じ見た目にする
+/// ログの HTML の頭。ログの CSS を埋め込み、ブラウザで開いた時もログ欄と同じ見た目にする
 fn log_html_head(title: &str) -> String {
     let css = log_css().unwrap_or_default();
     let title = phi_proto::tag_to_html::escape_html(title);
     format!("<!doctype html>\n<meta charset=\"utf-8\">\n<title>{title}</title>\n<style>\n{css}\n</style>\n")
 }
 
-/// スキンのログ用スタイルシート(Philly の `Skins/<スキン>/Style/Log.css`)。
+/// ログのスタイルシート。Philly のスキンの `Style/Log.css` の代わりに WPHI で書いた物(resources/phi/wphi/log.css)
 #[tauri::command]
 fn log_css() -> Result<String, String> {
-    let css = assets::bundled("Skins/Mine/Style/Log.css").ok_or("同梱の Log.css がありません")?;
+    let css = assets::bundled("wphi/log.css").ok_or("同梱の log.css がありません")?;
     Ok(String::from_utf8_lossy(css).into_owned())
 }
 
@@ -1098,13 +1095,10 @@ fn main() {
             app.manage(Mutex::new(Arc::new(load_assets(app.handle())?)));
             app.manage(Mutex::new(Arc::new(load_sounds(app.handle()))));
             // メニューバーは main 窓だけに付ける
-            let menu_txt = assets::bundled("Skins/Mine/Style/Menu.txt")
-                .map(phi_proto::codec::decode)
-                .unwrap_or_default();
             let settings = settings_path(app.handle())
                 .map(|p| settings::Settings::load(&p))
                 .unwrap_or_default();
-            let bar = menu::build(app.handle(), &menu_txt, &settings)?;
+            let bar = menu::build(app.handle(), &settings)?;
             // macOS は窓ごとのメニューを出さないので、アプリのメニューにする(どの窓が前でも出る)
             #[cfg(target_os = "macos")]
             app.set_menu(bar)?;

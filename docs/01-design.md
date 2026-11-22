@@ -30,7 +30,7 @@ Apple Silicon は署名の無いバイナリを起動しないので、その時
 
 - 新規キャラ作成(Philly では別プログラムの `PhillyNewCharacter.exe`)。phi-client-web の `register.py` を移植して後の段階で足す
 - 自動更新(`PhillyUpdate.exe`)。配布方法を決めてから `tauri-plugin-updater` で作る
-- 隠しコマンド(`HiddenCommand.ini`)。超魔法メニュー(`MasterMagicMenu.xml`。Philly の物を同梱)は #83 で入れた。マスター(経験値 99999999)の時か、設定で出す
+- 隠しコマンド(`HiddenCommand.ini`)。超魔法メニュー(`MasterMagicMenu.xml`。Philly のパーツなので同梱せず、設定フォルダか Philly フォルダの物を読む)は #83 で入れた。マスター(経験値 99999999)の時か、設定で出す
 - v6 プロトコル(`#hello phi/6`)。本番の v5y サーバが v6 に移るまで対応しない
 
 ## 2. 全体構成
@@ -197,9 +197,9 @@ BMP を一次情報にし、実行時に読み込む。
 
 | 種類 | 読む場所 | 見つからない時 | 透過方式 |
 |---|---|---|---|
-| キャラグラ | `chara/<グラ名>.bmp` | `Skins/<スキン>/Chara/` から `Index.txt` で引く(`GraCache.cpp:472-490`) | teal(0,128,128) を透明にする |
-| マップチップ | `chip/<名前>.bmp` | `Skins/<スキン>/chip/Default.bmp`(`GraCache.cpp:290`) | 左半分が画像、右半分がマスク |
-| アイテム | `Skins/<スキン>/Images/Items.bmp` | なし | 上半分が画像、下半分がマスク |
+| キャラグラ | `chara/<グラ名>.bmp` | 種別ごとの既定グラ。Philly はスキンの `Index.txt` で引く(`GraCache.cpp:472-490`)が、WPHI はスキンを同梱しないので `assets.rs` の DEFAULT_GRA で引く | teal(0,128,128) を透明にする |
+| マップチップ | `chip/<名前>.bmp` | PCGL の汎用のチップ `DefaultChip.bmp`(Philly はスキンの `chip/Default.bmp`。`GraCache.cpp:290`) | 左半分が画像、右半分がマスク |
+| アイテム | UI の `floorItems.png`(WPHI で作った物。Philly はスキンの `Images/Items.bmp`) | なし | PNG の透過 |
 | 方角 | `Skins/<スキン>/Images/Direction.bmp` | なし | 白を透明にする |
 | HP/MP パネル・ステータス | `Skins/<スキン>/Images/` | なし | teal を透明にする |
 

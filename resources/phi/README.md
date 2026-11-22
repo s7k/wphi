@@ -8,14 +8,19 @@ Philly フォルダを持たない利用者の為に、アプリへ同梱する�
 
 | パス | 出所 | ライセンス |
 |---|---|---|
-| `chara/*.bmp`(`sushi_*.bmp` を除く) | phi-client-web の `assets/chara/*.png` を `tools/png2phibmp` で teal カラーキーの BMP に戻したもの | PCGL(Phi Charactor Graphics License)。全文は `PCGL.txt`(原本、cp932)と `PCGL.utf8.txt`(UTF-8 に変換した閲覧用) |
+| `chara/*.bmp`(`sushi_*`・`alnes_*`・`wphi_*` を除く) | phi-client-web の `assets/chara/*.png` を `tools/png2phibmp` で teal カラーキーの BMP に戻したもの | PCGL(Phi Charactor Graphics License)。全文は `PCGL.txt`(原本、cp932)と `PCGL.utf8.txt`(UTF-8 に変換した閲覧用) |
 | `chara/sushi_*.bmp` | phi-client-web の `tools/sushi_gra/gen.py` で描き起こした絵 | MIT。PCGL の対象外 |
 | `chara/alnes_*.bmp` | このリポジトリで描き起こした絵 (Alnes の世界の採取の場、羊、依頼の掲示板、台座の聖剣、駱駝、蠍) | MIT。PCGL の対象外 |
-| `Config/MasterMagicMenu.xml` | Philly(PhillySrc)の `Config/MasterMagicMenu.xml` をそのまま複写(超魔法メニュー。#83) | Philly のパーツ。同梱してよい事をリポジトリ管理者が確認済み(2026-11-09) |
-| `Skins/Mine/` | Philly(PhillySrc)の既定スキンを複写。LANU 系のキャラグラ5つと使わなくなった w_j_rakshasa.bmp は消し、`chara/Index.txt` の既定グラを PCGL のキャラグラ(`chara/`)に付け替えた | Philly のパーツ。再利用してよい事をリポジトリ管理者が確認済み(2026-11-07) |
+| `chara/wphi_sparkle.bmp` | WPHI で描いた絵 (魔法の演出の既定グラ。`tools/defaultAssets.py`) | MIT。PCGL の対象外 |
+| `DefaultChip.bmp` | phi-client-web の `assets/chip/default.png` (汎用のマップチップ) を、左半分が絵・右半分がマスクの BMP に戻したもの。世界のマップチップが無い時に使う | PCGL |
+| `wphi/log.css` | WPHI で書いたログのスタイルシート | MIT |
+| `Config/unew.ini`、`Config/worlds.ini` | キャラグラとマップチップの取得元の一覧と、世界の一覧 (#149) | 出所を確かめ中 |
 
-`chara/` の画像は PCGL のグラフィックスパーツで、PCGL c項に従い、同梱するグラフィックスが PCGL 下にある事をここに明記する。
-`sushi_*.bmp` と `alnes_*.bmp` は同じフォルダにあるが、PCGL b項の「適用範囲の明示」により PCGL の対象から外す。
+Philly (PhillySrc) のパーツ (既定のスキン `Skins/Mine/` と超魔法メニューの `Config/MasterMagicMenu.xml`) は同梱しない。
+利用者の Philly フォルダにあれば、超魔法メニューとスキンのマウスカーソルはそちらを読む。
+
+`chara/` と `DefaultChip.bmp` の画像は PCGL のグラフィックスパーツで、PCGL c項に従い、同梱するグラフィックスが PCGL 下にある事をここに明記する。
+`sushi_*.bmp`、`alnes_*.bmp`、`wphi_*.bmp` は同じフォルダにあるが、PCGL b項の「適用範囲の明示」により PCGL の対象から外す。
 
 ## 作り直し方
 

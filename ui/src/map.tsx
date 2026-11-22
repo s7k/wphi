@@ -14,7 +14,7 @@ import { trace } from "./trace.ts";
 import { isNorthFix, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, sendLine, sendLines, type ForwardedKey, type ForwardedMouse } from "./keyInput";
 import { predictedMap } from "./predict.ts";
 import { mouseDir, northFixTurn } from "./mouseDir.ts";
-import { addWalk, CHIP_SIZE, MAP_TOP, selfPos, SLIDE_DELAY_MS, slideStep, timedWalk, viewArea, viewCover, viewFor, walkAt, walkDelay, type WalkSample } from "./mapRender";
+import { addWalk, CHIP_SIZE, FLOOR_ITEMS_URL, MAP_TOP, selfPos, SLIDE_DELAY_MS, slideStep, timedWalk, viewArea, viewCover, viewFor, walkAt, walkDelay, type WalkSample } from "./mapRender";
 import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
 import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, PARTY_OPEN_EVENT, type CondEvent, type MapChar, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
@@ -477,9 +477,9 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     ctx.translate(0, MAP_TOP);
     const imgs: ImageRefs = {
       chip: image(assetUrl("chip", { mapset: state.mapset })),
-      // 1〜3 は #mapset-define のマップセット。決まっていなければスキンの既定のチップ(Philly の DefineChipClear)
+      // 1〜3 は #mapset-define のマップセット。決まっていなければ既定のチップ(Philly の DefineChipClear)
       chipOf: (d) => image(assetUrl("chip", { mapset: d === 0 ? state.mapset : (state.defines?.[d] ?? "") })),
-      items: image(assetUrl("items")),
+      items: image(FLOOR_ITEMS_URL),
       chara: image,
     };
     // 揺らぎは北固定の時だけ。自キャラの世界の座標は #ex-pos、無ければ #v6 G で数えた位置

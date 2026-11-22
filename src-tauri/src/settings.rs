@@ -27,7 +27,7 @@ pub struct Settings {
     pub task_bar_flash: bool,
     /// ログ欄のフォント。空なら WPHI の既定のフォント(Philly に無い)
     pub log_font_name: String,
-    /// ログ欄の文字の大きさ(px)。0 ならスキンの Log.css に任せる([Font] LogFontSize)
+    /// ログ欄の文字の大きさ(px)。0 ならログの CSS に任せる([Font] LogFontSize)
     pub log_font_size: u32,
     /// ログ欄からのコピーの仕方([LogEdit]。#81)。コピーでタグを除く(LogTagDeleteCutCopy)
     pub log_tag_delete_copy: bool,

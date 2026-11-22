@@ -5,7 +5,7 @@ import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { assetUrl } from "./asset";
 import { drawMap } from "./drawMap";
-import { CHIP_SIZE } from "./mapRender";
+import { CHIP_SIZE, FLOOR_ITEMS_URL } from "./mapRender";
 import { eagleBoard } from "./eagleBoard.ts";
 import { EAGLE_EYE_EVENT, type EagleEyeEvent } from "./protocol";
 import { hideOnClose, useImages, preventBrowserDefaults, useScreenshot } from "./windowUtil";
@@ -34,7 +34,7 @@ function EagleEyeWindow() {
     drawMap(
       ctx,
       { width: ev.width, height: ev.height, mapset, cells: board.cells, chars: board.chars, eagleEye: true },
-      { chip: image(assetUrl("chip", { mapset })), items: image(assetUrl("items")), chara: image },
+      { chip: image(assetUrl("chip", { mapset })), items: image(FLOOR_ITEMS_URL), chara: image },
       0,
     );
   });

@@ -39,22 +39,23 @@ const SKIN: &str = "Mine";
 const MASK_WHITE: u8 = 200;
 const TEAL: [u8; 3] = [0, 128, 128];
 
-/// `#m57 O` の種別 → スキンの `Chara/Index.txt` のキー(Philly `Const.cpp` の SKIN_CHARA_GRA)。
+/// `#m57 O` の種別 → 既定のキャラグラ(`chara/` の中。種別は Philly `Const.cpp` の SKIN_CHARA_GRA)。
+/// Philly のスキンの `Chara/Index.txt` は同梱しないので、同梱の PCGL と WPHI の絵から選んだ。表に無い種別は知的生物
 const DEFAULT_GRA: &[(u32, &str)] = &[
-    (0x00, "人・銅像"),
-    (0x01, "知的生物"),
-    (0x02, "獣"),
-    (0x03, "狂戦士"),
-    (0x04, "魔法生物"),
-    (0x05, "アンデッド"),
-    (0x06, "精神体"),
-    (0x07, "イレイザー"),
-    (0x40, "setcg使用キャラ"),
-    (0x80, "生物"),
-    (0x81, "看板"),
-    (0x82, "魔法エフェクト"),
-    (0x70, "アニメオブジェ"),
-    (0x75, "アニメなしオブジェ"),
+    (0x00, "t_man.bmp"),       // 人・銅像
+    (0x01, "t_elf.bmp"),       // 知的生物
+    (0x02, "t_dog.bmp"),       // 獣
+    (0x03, "t_fightery.bmp"),  // 狂戦士
+    (0x04, "t_golem1.bmp"),    // 魔法生物
+    (0x05, "t_skeltonr.bmp"),  // アンデッド
+    (0x06, "t_ghost2.bmp"),    // 精神体
+    (0x07, "tak_bslime.bmp"),  // イレイザー
+    (0x40, "t_man.bmp"),       // setcg を使うキャラ
+    (0x80, "t_elf.bmp"),       // 生物
+    (0x81, "alnes_board.bmp"), // 看板
+    (0x82, "wphi_sparkle.bmp"), // 魔法の演出
+    (0x70, "t_elf.bmp"),       // 動くオブジェ
+    (0x75, "alnes_board.bmp"), // 動かないオブジェ
 ];
 
 pub struct Assets {
@@ -99,7 +100,6 @@ impl Assets {
                 |i| colorkey(i, TEAL),
             ),
             "chip" => (self.chip(q("mapset"))?, mask_h),
-            "items" => (format!("Skins/{SKIN}/Images/Items.bmp"), mask_v),
             _ => return None,
         };
         // ロックは変換の間は持たない(match の中で持ったまま insert すると止まる)
@@ -145,43 +145,19 @@ impl Assets {
             .or_else(|| self.default_chara(code))
     }
 
-    /// 種別の既定グラのファイル。スキンの `Chara/Index.txt` を探す場所の順に見る。
-    /// Index.txt のファイルはスキンの `Chara` から探し、無ければ `chara` から探す
-    /// (同梱の Index.txt は PCGL のキャラグラを指している)。
+    /// 種別の既定グラのファイル(DEFAULT_GRA)
     fn default_chara(&self, code: u32) -> Option<String> {
-        let key = DEFAULT_GRA
-            .iter()
-            .find(|(c, _)| *c == code)
-            .map_or("知的生物", |(_, k)| k);
-        let index_rel = format!("Skins/{SKIN}/Chara/Index.txt");
-        let indexes = self
-            .roots
-            .iter()
-            .filter_map(|root| std::fs::read(self.find(root, &index_rel)?).ok())
-            .chain(bundled(&index_rel).map(<[u8]>::to_vec));
-        indexes.into_iter().find_map(|index| {
-            let index = codec::decode(&index);
-            let file = index
-                .lines()
-                .filter(|l| !l.trim_start().starts_with("//"))
-                .find_map(|l| {
-                    l.split_once('=')
-                        .filter(|(k, _)| k.trim() == key)
-                        .map(|(_, v)| v.trim().to_string())
-                })?;
-            [format!("Skins/{SKIN}/Chara/{file}"), format!("chara/{file}")]
-                .into_iter()
-                .find(|rel| self.exists(rel))
-        })
+        let file = DEFAULT_GRA.iter().find(|(c, _)| *c == code).map_or("t_elf.bmp", |(_, f)| f);
+        Some(format!("chara/{file}")).filter(|rel| self.exists(rel))
     }
 
-    /// マップチップのファイル。`chip/<mapset>.bmp` が無ければスキンの `chip/Default.bmp`。
+    /// マップチップのファイル。`chip/<mapset>.bmp` が無ければ PCGL の汎用のチップ(`DefaultChip.bmp`)。
     fn chip(&self, mapset: &str) -> Option<String> {
         Some(mapset)
             .filter(|m| !m.is_empty())
             .map(|m| format!("chip/{m}.bmp"))
             .filter(|rel| self.exists(rel))
-            .or_else(|| Some(format!("Skins/{SKIN}/chip/Default.bmp")))
+            .or_else(|| Some("DefaultChip.bmp".to_string()))
     }
 
     fn exists(&self, rel: &str) -> bool {
@@ -192,7 +168,8 @@ impl Assets {
         image::load_from_memory_with_format(&self.read(rel)?, ImageFormat::Bmp).ok()
     }
 
-    /// スキンのマウスカーソル(`Cursor/<名前>.cur`。Philly の MapForm.cpp)。名前は Philly が使う物だけ
+    /// 利用者の Philly フォルダのスキンのマウスカーソル(`Cursor/<名前>.cur`。Philly の MapForm.cpp)。
+    /// 同梱はしないので、Philly フォルダが無ければ UI は CSS のカーソルを使う。名前は Philly が使う物だけ
     pub fn cursor(&self, name: &str) -> Option<Vec<u8>> {
         const NAMES: [&str; 10] = [
             "MouseUp",
@@ -316,13 +293,6 @@ fn mask_h(img: &image::DynamicImage) -> RgbaImage {
     RgbaImage::from_fn(w, h, |x, y| masked(rgb.get_pixel(x, y).0, rgb.get_pixel(x + w, y).0))
 }
 
-/// 上半分が画像、下半分がマスク(Items.bmp)。
-fn mask_v(img: &image::DynamicImage) -> RgbaImage {
-    let rgb = img.to_rgb8();
-    let (w, h) = (rgb.width(), rgb.height() / 2);
-    RgbaImage::from_fn(w, h, |x, y| masked(rgb.get_pixel(x, y).0, rgb.get_pixel(x, y + h).0))
-}
-
 fn masked([r, g, b]: [u8; 3], mask: [u8; 3]) -> Rgba<u8> {
     if mask.iter().all(|&m| m > MASK_WHITE) {
         Rgba([r, g, b, 255])
@@ -335,11 +305,11 @@ fn masked([r, g, b]: [u8; 3], mask: [u8; 3]) -> Rgba<u8> {
 mod tests {
     use super::*;
 
-    /// 超魔法メニューの定義を同梱している(#83)
+    /// Philly のパーツ (スキンと超魔法メニュー) は同梱しない
     #[test]
-    fn bundles_master_magic_menu() {
-        let xml = codec::decode(bundled("Config/MasterMagicMenu.xml").unwrap());
-        assert!(xml.contains("<mastermagic caption=\"超魔法"));
+    fn bundles_no_philly_parts() {
+        assert!(bundled("Config/MasterMagicMenu.xml").is_none());
+        assert!(BUNDLED.get_dir("Skins").is_none());
     }
 
     fn bundled_only() -> Assets {
@@ -355,12 +325,10 @@ mod tests {
     }
 
     #[test]
-    fn chip_and_items_from_bundled_skin() {
+    fn default_chip_when_mapset_missing() {
         let a = bundled_only();
         let chip = decode(&a.get("chip", &query(&[("mapset", "no-such-mapset")])).unwrap());
         assert_eq!(chip.dimensions(), (512, 96));
-        let items = decode(&a.get("items", &HashMap::new()).unwrap());
-        assert_eq!(items.dimensions(), (960, 32));
         // 透明と不透明の両方がある
         assert!(chip.pixels().any(|p| p.0[3] == 0) && chip.pixels().any(|p| p.0[3] == 255));
     }
@@ -374,15 +342,15 @@ mod tests {
                 .unwrap(),
         );
         assert_eq!(npc.dimensions(), (96, 160));
-        // 無いグラ名は種別の既定グラ(看板 0x81 → Defboardobj.bmp)
+        // 無いグラ名は種別の既定グラ(看板 0x81 → alnes_board.bmp)
         let board = a
             .get("chara", &query(&[("name", "x"), ("gra", "none"), ("code", "129")]))
             .unwrap();
-        let direct = colorkey(&a.open("Skins/Mine/Chara/Defboardobj.bmp").unwrap(), TEAL);
+        let direct = colorkey(&a.open("chara/alnes_board.bmp").unwrap(), TEAL);
         assert_eq!(decode(&board), direct);
         // 表に無い種別は知的生物
         assert!(a.get("chara", &query(&[("gra", "none"), ("code", "99")])).is_some());
-        // イレイザー(0x07)は同梱の Index.txt で tak_bslime
+        // イレイザー(0x07)は tak_bslime
         let eraser = a.get("chara", &query(&[("gra", "none"), ("code", "7")])).unwrap();
         let slime = colorkey(&a.open("chara/tak_bslime.bmp").unwrap(), TEAL);
         assert_eq!(decode(&eraser), slime);
@@ -443,11 +411,17 @@ mod tests {
     }
 
     #[test]
-    fn cursors_from_bundled_skin() {
-        let a = bundled_only();
+    fn cursors_only_from_user_skin() {
+        let root = std::env::temp_dir().join(format!("wphi-cur-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("Skins/Mine/Cursor")).unwrap();
+        std::fs::write(root.join("Skins/Mine/Cursor/MouseUp.cur"), b"x").unwrap();
+        assert!(bundled_only().cursor("MouseUp").is_none());
+        let a = Assets::new(vec![root.clone()]);
         assert!(a.cursor("MouseUp").is_some());
         assert!(a.cursor("../MouseUp").is_none());
         assert!(a.cursor("Title").is_none());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// 利用者の Philly フォルダの LANU 系は読む(同梱はしない)。椅子や机が LANU 系の絵を使う為
