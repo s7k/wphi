@@ -21,6 +21,7 @@ mkdir -p "$stage/chara" "$stage/chip" "$stage/licenses"
 cp "$root/resources/phi/PCGL.txt" "$root/resources/phi/PCGL.utf8.txt" "$stage/licenses/"
 cp "$root/resources/phi/README.md" "$stage/licenses/GRAPHICS.md"
 cp "$root/src-tauri/THIRD-PARTY-NOTICES.txt" "$stage/licenses/"
+cp "$root/LICENSE" "$stage/licenses/LICENSE.txt"
 
 case "$os" in
   windows)

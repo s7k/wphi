@@ -174,7 +174,7 @@ cp /tmp/icons/{32x32.png,128x128.png,128x128@2x.png,icon.icns,icon.ico,icon.png}
 
 ## ライセンス
 
-コードは MIT。
+コードは MIT ([LICENSE](LICENSE))。配布物の `licenses/LICENSE.txt` にも同じ物を入れる。
 同梱のグラフィックスのライセンスは [resources/phi/README.md](resources/phi/README.md) に従う。
 依存ライブラリ (Rust のクレートと、画面に同梱する npm のパッケージ) の著作権表示とライセンス文は `src-tauri/THIRD-PARTY-NOTICES.txt` にまとめ、配布物の `licenses` に入れる。
 依存を足したり版を上げたりしたら、`node tools/third-party-notices.mjs` で作り直してコミットする (check の CI が古いままだと落ちる)。

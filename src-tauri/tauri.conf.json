@@ -54,7 +54,8 @@
       "../resources/phi/PCGL.txt": "licenses/PCGL.txt",
       "../resources/phi/PCGL.utf8.txt": "licenses/PCGL.utf8.txt",
       "../resources/phi/README.md": "licenses/GRAPHICS.md",
-      "THIRD-PARTY-NOTICES.txt": "licenses/THIRD-PARTY-NOTICES.txt"
+      "THIRD-PARTY-NOTICES.txt": "licenses/THIRD-PARTY-NOTICES.txt",
+      "../LICENSE": "licenses/LICENSE.txt"
     },
     "category": "Game",
     "shortDescription": "PHI のクライアント",
