@@ -46,7 +46,7 @@ import { signAuthor } from "./signHead.ts";
 import { castLines, loadSpellOrder, moveSpell, orderSpells, saveSpellOrder, SPELL_WAIT_MS, waitsForOrder } from "./spells.ts";
 import { SpellBar } from "./SpellBar";
 import { followGoal, followStep, targetPos, type FollowMemory } from "./follow.ts";
-import { ArrowDownToLine, Check, FolderOpen, Import, Megaphone, MessageSquare, Layers, Plug, Plus, Save, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
+import { ArrowDownToLine, Check, Download, FolderOpen, Import, Megaphone, MessageSquare, Layers, Plug, Plus, Save, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
 
 // src-tauri/src/characters.rs の Store
 type Character = { label: string; host: string; port: number };
@@ -1842,6 +1842,7 @@ export function App() {
         <CharacterList
           store={store}
           error={error}
+          onDownload={() => setDownloadOpen(true)}
           onConnect={(label) => {
             setError("");
             openCharacter(label);
@@ -2199,6 +2200,7 @@ function CharacterList(props: {
   onConnect: (label: string) => void;
   onChanged: () => void;
   onError: (message: string) => void;
+  onDownload: () => void;
 }) {
   const [label, setLabel] = useState("");
   const [host, setHost] = useState("");
@@ -2244,6 +2246,43 @@ function CharacterList(props: {
         </tbody>
       </table>
 
+      {props.store.characters.length === 0 && (
+        // 初めて開いた時の案内。新規作成が一番下にあり、キャラグラの取得も案内していなかった (#171)
+        <div className="first-run">
+          <p>はじめての方は「新規キャラ作成」で、Philly を使っていた方は「Philly から取り込む」でキャラを登録してください。</p>
+          <p>
+            キャラグラとマップチップは、世界ごとに取得します。
+            <button type="button" onClick={props.onDownload}>
+              <Download />
+              キャラグラとマップチップを取得する
+            </button>
+          </p>
+        </div>
+      )}
+      <NewCharacter onCreated={props.onChanged} onError={props.onError} />
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          invoke<string[]>("import_philly", { folder })
+            .then((labels) => {
+              setImported(labels.length ? `${labels.join("、")} を取り込みました` : "キャラが見つかりませんでした");
+              props.onChanged();
+            })
+            .catch((err) => props.onError(String(err)));
+        }}
+      >
+        <h3>Philly から取り込む</h3>
+        <label>
+          Philly フォルダ(<code>*.chara</code> のあるフォルダ)
+          <input value={folder} onChange={(e) => setFolder(e.target.value)} required />
+        </label>
+        <button type="submit">
+          <Import />
+          取り込む
+        </button>
+        {imported && <p>{imported}</p>}
+      </form>
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -2271,7 +2310,13 @@ function CharacterList(props: {
         </label>
         <label>
           キャラ ID(登録済みのキャラの接続先だけを変える時は空欄)
-          <input type="password" value={id} onChange={(e) => setId(e.target.value)} />
+          {/* 一覧に無い表示名は新しいキャラなので、ID を要る (#152) */}
+          <input
+            type="password"
+            value={id}
+            onChange={(e) => setId(e.target.value)}
+            required={!props.store.characters.some((c) => c.label === label)}
+          />
         </label>
         <button type="submit">
           <UserPlus />
@@ -2279,30 +2324,6 @@ function CharacterList(props: {
         </button>
       </form>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          invoke<string[]>("import_philly", { folder })
-            .then((labels) => {
-              setImported(labels.length ? `${labels.join("、")} を取り込みました` : "キャラが見つかりませんでした");
-              props.onChanged();
-            })
-            .catch((err) => props.onError(String(err)));
-        }}
-      >
-        <h3>Philly から取り込む</h3>
-        <label>
-          Philly フォルダ(<code>*.chara</code> のあるフォルダ)
-          <input value={folder} onChange={(e) => setFolder(e.target.value)} required />
-        </label>
-        <button type="submit">
-          <Import />
-          取り込む
-        </button>
-        {imported && <p>{imported}</p>}
-      </form>
-
-      <NewCharacter onCreated={props.onChanged} onError={props.onError} />
     </div>
   );
 }

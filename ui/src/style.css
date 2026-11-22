@@ -188,6 +188,17 @@ body {
   padding: 2px 8px;
 }
 
+/* 初めて開いた時の案内 (#171) */
+.first-run {
+  max-width: 560px;
+  padding: 4px 12px;
+  border-left: 3px solid #4a8;
+}
+
+.first-run button {
+  margin-left: 8px;
+}
+
 .error {
   color: #c00;
 }
