@@ -260,15 +260,15 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
             ]
         }
         "bolt" => &[
-            "#v6 E chant 19 12 19 12 fire line",
+            "#v6 E chant 19 12 19 12 none - 14",
             "Kotone > Fire ball",
             "#v6 E magic 19 12 16 13 fire line",
             "DM Kotone は 市場の猫 を /*.*/Fire ball /*color=gray*/で攻撃した. [/*color=-hp*/30/*color=gray*/ hp] ",
         ],
         // 演出の確かめ用 (ガイドの画像には使わない)
         "fx-explode" => &["#v6 E magic 19 12 16 13 fire explode"],
-        "fx-chant" => &["#v6 E chant 19 12 19 12 water line"],
-        "fx-swirl" => &["#v6 E spell 16 12 16 13 dark illusion", "#v6 E spell 16 12 11 13 dark down"],
+        "fx-chant" => &["#v6 E chant 19 12 19 12 none - 14"],
+        "fx-swirl" => &["#v6 E spell 16 12 16 13 spirit illusion", "#v6 E spell 16 12 11 13 spirit down"],
         "fx-hit" => &["#v6 E hit 16 12 16 13 - -", "#v6 E miss 19 12 19 13 - -"],
         "heal" => &[
             "#v6 E spell 19 12 16 12 water heal",

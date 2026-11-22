@@ -547,14 +547,17 @@ body {
   to { transform: translateY(25%); opacity: 0; }
 }
 
-/* #v6 E の属性ごとの色 (map.tsx の fxEls)。--fx が光の色、--fx-core が魔法弾の芯 */
+/* #v6 E の属性ごとの色 (map.tsx の fxEls)。語は DM の FN_* (docs/dev/protocol-v6.md の「戦闘の演出の位置」)。
+   --fx が光の色、--fx-core が魔法弾の芯。none は既定の色のまま */
 .fx-fire { --fx: #ff7a30; --fx-core: #fff0c0; }
 .fx-water { --fx: #4aa8ff; --fx-core: #e0f0ff; }
 .fx-earth { --fx: #d0a050; --fx-core: #fff0d0; }
-.fx-wind { --fx: #70e090; --fx-core: #e8fff0; }
+.fx-air { --fx: #70e090; --fx-core: #e8fff0; }
 .fx-light { --fx: #ffe060; --fx-core: #fffff0; }
-.fx-dark { --fx: #a070ff; --fx-core: #f0e0ff; }
-.fx-mental { --fx: #ff70c8; --fx-core: #ffe8f6; }
+.fx-spirit { --fx: #b070ff; --fx-core: #f0e0ff; }
+.fx-mirror { --fx: #d8e0ec; --fx-core: #ffffff; }
+.fx-prism { --fx: #80f0ff; --fx-core: #ffffff; }
+.fx-rainbow { --fx: #ff70c8; --fx-core: #fff8a0; }
 /* 斬撃と魔法弾。--a は攻撃したキャラから受けたキャラへの向き、--dx・--dy はその距離(map.tsx) */
 .map-slash,
 .map-bolt,

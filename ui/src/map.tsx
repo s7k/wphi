@@ -190,7 +190,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
         fxServer.current = true;
         const c = chars.find((c) => c.x === f.at.x && c.y === f.at.y);
         lastFx.current = c ? { at: f.at, name: stripTags(c.name), t: now } : null;
-        setTimeout(() => setFxs((fs) => fs.filter((q) => q.id !== f.id)), FX_MS);
+        setTimeout(() => setFxs((fs) => fs.filter((q) => q.id !== f.id)), f.kind === "chant" ? Math.min(6000, (f.wait ?? 14) * 100) + 200 : FX_MS);
       }
       if (fx.length) setFxs((fs) => [...fs, ...fx]);
       const hit = lastFx.current && now - lastFx.current.t < FX_PIN_MS ? lastFx.current : null;
@@ -645,7 +645,15 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     const one = (cls: string, p = at, key = cls) => (
       <div key={`${f.id}${key}`} className={`fx ${cls}${el}`} style={{ left: p.left, top: p.top, ...vars }} />
     );
-    if (f.kind === "chant") return [one("fx-chant")];
+    // 詠唱の長さが分かれば、その間だけ魔法陣を回す
+    if (f.kind === "chant")
+      return [
+        <div
+          key={`${f.id}c`}
+          className={`fx fx-chant${el}`}
+          style={{ left: at.left, top: at.top, ...vars, animationDuration: `${Math.min(6000, Math.max(600, (f.wait ?? 14) * 100))}ms` }}
+        />,
+      ];
     if (f.kind === "hit") return [one("fx-cut fx-cut1"), one("fx-cut fx-cut2"), one("fx-spark")];
     if (f.kind === "miss") return [one("fx-whiff")];
     const cat = f.category ?? (f.kind === "magic" ? "line" : "heal");

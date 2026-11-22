@@ -1446,7 +1446,7 @@ export function App() {
         case "effect":
           // #v6 E。演出を当たった個体の位置に出す。名前で探すと、同じ名前の敵が並んだ時に別の個体に出た
           if (session === activeRef.current && settingsRef.current.mapEffects)
-            emit(MAP_POP_EVENT, { pops: [], fx: [{ kind: ev.kind, from: ev.from, at: ev.at, element: ev.element, category: ev.category }], to: mapPlace() }).catch(console.error);
+            emit(MAP_POP_EVENT, { pops: [], fx: [{ kind: ev.kind, from: ev.from, at: ev.at, element: ev.element, category: ev.category, wait: ev.wait }], to: mapPlace() }).catch(console.error);
           break;
         case "jumped":
           if (session === activeRef.current) {

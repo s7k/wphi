@@ -79,6 +79,9 @@ pub enum Event {
         element: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         category: Option<String>,
+        /// chant の詠唱の長さ (0.1 秒単位)。送らないサーバでは None
+        #[serde(skip_serializing_if = "Option::is_none")]
+        wait: Option<u32>,
     },
     /// `#v6 S` 〜 `#v6 S .`。覚えている呪文を cast の番号の順に(phi_dm の docs/dev/protocol-v6.md の「呪文・持ち物・カバン」)
     Spells {
@@ -233,6 +236,7 @@ fn parse_effect(rest: &str) -> Option<Event> {
         at: pos(tx, ty)?,
         element: more.first().filter(|e| **e != "-").map(|e| e.to_string()),
         category: more.get(1).filter(|e| **e != "-").map(|e| e.to_string()),
+        wait: more.get(2).and_then(|w| w.parse().ok()),
     })
 }
 
@@ -1610,7 +1614,7 @@ mod tests {
         assert_eq!(p.feed(b"#v6 J"), vec![Event::Jumped]);
         assert_eq!(
             p.feed(b"#v6 E hit 10 12 11 12"),
-            vec![Event::Effect { kind: "hit".into(), from: Some(Pos { x: 10, y: 12 }), at: Pos { x: 11, y: 12 }, element: None, category: None }]
+            vec![Event::Effect { kind: "hit".into(), from: Some(Pos { x: 10, y: 12 }), at: Pos { x: 11, y: 12 }, element: None, category: None, wait: None }]
         );
         // 攻撃した側が視界の外
         assert_eq!(
@@ -1620,7 +1624,19 @@ mod tests {
                 from: None,
                 at: Pos { x: 3, y: 4 },
                 element: Some("fire".into()),
-                category: Some("explode".into())
+                category: Some("explode".into()),
+                wait: None
+            }]
+        );
+        assert_eq!(
+            p.feed(b"#v6 E chant 03 05 03 05 none - 8"),
+            vec![Event::Effect {
+                kind: "chant".into(),
+                from: Some(Pos { x: 3, y: 5 }),
+                at: Pos { x: 3, y: 5 },
+                element: Some("none".into()),
+                category: None,
+                wait: Some(8)
             }]
         );
         // 受けた側が読めなければ捨てる
