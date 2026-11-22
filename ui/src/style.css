@@ -1604,6 +1604,12 @@ button > svg:only-child,
 }
 
 /* 選択モードのチェックの印。タイルの左上に置く */
+/* 選択モードで選んだ物の名前の一覧 */
+.bag-picked {
+  color: rgb(255 255 255 / 80%);
+  overflow-wrap: anywhere;
+}
+
 .bag-check {
   position: absolute;
   left: 3px;

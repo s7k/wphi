@@ -137,6 +137,16 @@ function handActions(hand: (ItemInfo | null)[], i: number): { label: string; sen
   ];
 }
 
+/** 選んだ物の名前を、同じ名前は「×数」にまとめて並べる */
+function pickedNames(bag: ItemInfo[], nos: Set<number>): string {
+  const count = new Map<string, number>();
+  for (const no of [...nos].sort((a, b) => a - b)) {
+    const name = bag[no - 1]?.name;
+    if (name) count.set(name, (count.get(name) ?? 0) + 1);
+  }
+  return [...count].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join("、");
+}
+
 /** 番号の大きい順。1 つ送るたびに、それより後ろの番号が 1 つずつ詰まる為 */
 const descending = (nos: Set<number>) => [...nos].sort((a, b) => b - a);
 
@@ -304,6 +314,8 @@ export function BagPanel(props: {
                     const next = new Set(checked);
                     if (!next.delete(no)) next.add(no);
                     setChecked(next);
+                    // 最後に押した物の名前と詳しい情報を、下の欄に出す
+                    setSel({ where: "bag", i: no });
                   }}
                 />
               ) : (
@@ -326,11 +338,20 @@ export function BagPanel(props: {
           </div>
         )}
         {checked && (
-          <div className="bag-detail">
+          <div className="bag-detail" ref={detail}>
+            {picked && (
+              <>
+                <div className="bag-name" data-line="name" key={picked.html} dangerouslySetInnerHTML={{ __html: picked.html }} />
+                {details(picked).map((l) => (
+                  <div key={l}>{l}</div>
+                ))}
+              </>
+            )}
             <div>
               {checked.size} 個を選んでいます
               {checked.size > free ? ` (手持ちの空きは ${free} 個)` : ""}
             </div>
+            {checked.size > 0 && <div className="bag-picked">{pickedNames(props.bag ?? [], checked)}</div>}
             <div className="bag-actions">
               <button type="button" onClick={() => setChecked(new Set(shown.map(({ no }) => no)))}>
                 表示中を全部選ぶ ({shown.length})
@@ -362,7 +383,7 @@ export function BagPanel(props: {
             </div>
           </div>
         )}
-        {picked && sel && (
+        {picked && sel && !checked && (
           <div className="bag-detail" ref={detail}>
             {/* html は phi-proto の tag_to_html がエスケープ済みで作ったもの。札と同じく色を白へ寄せる */}
             <div className="bag-name" data-line="name" key={picked.html} dangerouslySetInnerHTML={{ __html: picked.html }} />
