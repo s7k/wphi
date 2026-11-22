@@ -1626,7 +1626,15 @@ export function App() {
       )}
       <TabBar tabs={tabs} active={active} onSelect={setActive} onClose={askClose} onSettings={() => setSettingsOpen(true)} />
       {tab ? (
-        <div className={settings.modern ? "main-body modern" : settings.singleWindow ? "main-body single" : "main-body"}>
+        <div
+          className={settings.modern ? "main-body modern" : settings.singleWindow ? "main-body single" : "main-body"}
+          // ログの高さと幅は main-body に置き、魔法の列もログの幅を見て避ける (#169)
+          style={
+            settings.modern
+              ? ({ "--log-h": `${logHeight}vh`, "--log-w": logWidth ? `${logWidth}px` : undefined } as React.CSSProperties)
+              : undefined
+          }
+        >
         {settings.singleWindow && !settings.modern && mapPane && <MapPane />}
         {settings.modern && mapPane && (
           <div className="modern-map">
@@ -1707,14 +1715,7 @@ export function App() {
             onClose={() => update(tab.session, (t) => ({ ...t, bagOpen: false }))}
           />
         )}
-        <div
-          className={logMax && settings.modern ? "log-area log-max" : "log-area"}
-          style={
-            settings.modern
-              ? ({ "--log-h": `${logHeight}vh`, "--log-w": logWidth ? `${logWidth}px` : undefined } as React.CSSProperties)
-              : undefined
-          }
-        >
+        <div className={logMax && settings.modern ? "log-area log-max" : "log-area"}>
           {settings.modern && (
             <LogHeight value={logHeight} onChange={setLogHeight} max={!!logMax} onMax={() => setLogMax(logMax ? 0 : 1)} />
           )}

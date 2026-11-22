@@ -1381,8 +1381,9 @@ button > svg:only-child,
   width: var(--log-w, min(560px, max(45%, 320px)));
   max-width: calc(100% - 32px);
   flex: none;
-  max-height: var(--log-h, 42vh);
   height: var(--log-h, 42vh);
+  /* 左上の HUD の下で止める。窓の高さで決めると、低い窓でログの上端が HUD にかぶった (#169) */
+  max-height: calc(100% - var(--hud-bottom, 88px) - 20px);
   box-sizing: border-box;
   border: 1.5px solid rgb(255 255 255 / 55%);
   border-radius: 12px;
@@ -2234,6 +2235,11 @@ button > svg:only-child,
   bottom: 12px;
   z-index: 5;
   display: flex;
+  /* ログの右に収め、入り切らない分は上へ折り返す。左へ伸びてログの最新の行を覆っていた (#169) */
+  flex-wrap: wrap-reverse;
+  justify-content: flex-end;
+  max-width: max(64px, calc(100% - 48px - var(--log-w, min(560px, max(45%, 320px)))));
+  box-sizing: border-box;
   gap: 6px;
   padding: 6px;
   background: rgb(16 20 24 / 70%);
