@@ -1329,6 +1329,10 @@ button > svg:only-child,
   text-shadow: none;
 }
 
+/* 項目名の色。経験値は薄紫、所持金は金 */
+.stat-exp > b { color: #c9a8ff; }
+.stat-gp > b { color: #ffd54a; }
+
 .lv-f > b { background: #c4482f; }
 .lv-w > b { background: #3577c4; }
 .lv-m > b { background: #b8901c; }

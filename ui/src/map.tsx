@@ -740,13 +740,13 @@ function ModernHud(props: { title: string; now?: StatusEvent; cond?: CondEvent; 
         {(props.show.includes("exp") || props.show.includes("gp")) && (
           <div className="modern-stats">
             {props.show.includes("exp") && (
-              <span className="modern-stat">
+              <span className="modern-stat stat-exp">
                 <b>EXP</b>
                 {s?.exp ?? "-"}
               </span>
             )}
             {props.show.includes("gp") && (
-              <span className="modern-stat">
+              <span className="modern-stat stat-gp">
                 <b>GP</b>
                 {s?.gp ?? "-"}
               </span>
