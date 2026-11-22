@@ -210,6 +210,10 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
             "#ex-inv I 3\teq=-\tit=5\twt=0\tmt=4\tfn=9\twp=1\top=1,50,0,0\tready=0\ttype=Jewel\twtype=claw\tmat=Silver\telem=Rainbow\tname=Rainbow gem",
             "#ex-inv I 4\teq=-\tit=2\twt=6\tmt=5\tfn=4\twp=14\top=18,10,0,0\tready=0\ttype=Weapon\twtype=Striker\tmat=Mythril\telem=Spirit\tname=Spirit hammer",
             "#ex-inv I 5\teq=-\tit=13\twt=0\tmt=0\tfn=0\twp=1\top=0,0,0,0\tready=0\ttype=Scroll\twtype=claw\tmat=Leather\telem=None\tname=Old map",
+            // 同じ名前の素材が 3 つ。「同じ物を全部置く」を出す
+            "#ex-inv I 6\teq=-\tit=4\twt=0\tmt=1\tfn=1\twp=1\top=1,0,0,0\tready=0\ttype=Resource\twtype=claw\tmat=Leather\telem=Earth\tname=Wolf pelt",
+            "#ex-inv I 7\teq=-\tit=4\twt=0\tmt=1\tfn=1\twp=1\top=1,0,0,0\tready=0\ttype=Resource\twtype=claw\tmat=Leather\telem=Earth\tname=Wolf pelt",
+            "#ex-inv I 8\teq=-\tit=4\twt=0\tmt=1\tfn=1\twp=1\top=1,0,0,0\tready=0\ttype=Resource\twtype=claw\tmat=Leather\telem=Earth\tname=Wolf pelt",
             "#ex-inv .",
         ],
         "party-end" => &["#v6 P ."],

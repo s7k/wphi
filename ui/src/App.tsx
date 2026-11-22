@@ -1597,6 +1597,8 @@ export function App() {
             message={tab.bagMessage ?? ""}
             onPut={(slot) => sendLine(tab.session, `#ex-inv put ${slot}`)}
             onGet={(no) => sendLine(tab.session, `#ex-inv get ${no}`)}
+            onDrop={(no, count) => sendLine(tab.session, `#ex-inv drop ${no} ${count}`)}
+            onOffer={() => sendLine(tab.session, "#ex-inv offer")}
             onSend={(text) => {
               // unequip は装備中の物の一覧を出してから番号を受け取る。番号も一緒に送るので、一覧は出さずに閉じる(Alt+数字の cast と同じ)
               if (text.startsWith("unequip")) listFlow(tab.session).cancel += 1;
@@ -2243,6 +2245,8 @@ const BAG_REFUSED: Record<string, string> = {
   hand: "手持ちが一杯か、その物がありません",
   bad: "出し入れの指定が違います",
   error: "カバンに入れられませんでした",
+  none: "ここで受け取ってもらえる物がありません",
+  store: "預かり所のマスでは置けません",
 };
 
 /** マップを main 窓に出すか(クラシック(1窓)とモダン) */

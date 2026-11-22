@@ -165,6 +165,10 @@ export function BagPanel(props: {
   message: string;
   onPut: (slot: number) => void;
   onGet: (no: number) => void;
+  /** カバンの no 番の物と同じ名前の物を count 個、足元へ置く (#ex-inv drop) */
+  onDrop: (no: number, count: number) => void;
+  /** 足元のスイッチ (店の買い取り) が受け取る物を、カバンと手持ちから全部置く (#ex-inv offer) */
+  onOffer: () => void;
   /** サーバへ1行か複数行を送る(use・equip・unequip・put) */
   onSend: (text: string) => void;
   onClose: () => void;
@@ -186,6 +190,9 @@ export function BagPanel(props: {
   const pages = Math.max(1, Math.ceil(shown.length / PAGE));
   const at = Math.min(page, pages - 1);
   const picked = sel?.where === "hand" ? hand[sel.i] : sel ? (props.bag?.[sel.i - 1] ?? null) : null;
+  // カバンの中の、選んだ物と同じ名前の物の数 (drop の個数)
+  const nameOf = (it: ItemInfo) => it.rawName || it.name;
+  const same = sel?.where === "bag" && picked ? (props.bag ?? []).filter((it) => nameOf(it) === nameOf(picked)).length : 0;
   const detail = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     if (detail.current) lightenColors(detail.current);
@@ -210,7 +217,20 @@ export function BagPanel(props: {
             />
           ))}
         </div>
-        <div className="bag-title">カバンの中{props.bag ? ` (${props.bag.length})` : ""}</div>
+        <div className="bag-title">
+          カバンの中{props.bag ? ` (${props.bag.length})` : ""}
+          <button
+            type="button"
+            className="bag-offer"
+            title="足元の店が買い取る物を、カバンと手持ち (装備中は除く) から全部渡します。店の前のマスに立って押してください"
+            onClick={() => {
+              props.onOffer();
+              setSel(null);
+            }}
+          >
+            ここで売れる物を全部渡す
+          </button>
+        </div>
         <div className="bag-tabs" role="tablist">
           {TABS.map((t, i) => (
             <button
@@ -292,15 +312,38 @@ export function BagPanel(props: {
                 ))}
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  props.onGet(sel.i);
-                  setSel(null);
-                }}
-              >
-                取り出す
-              </button>
+              <div className="bag-actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    props.onGet(sel.i);
+                    setSel(null);
+                  }}
+                >
+                  取り出す
+                </button>
+                {/* 手持ちを通さずに足元へ置く。店の前なら、置いた物を買い取る */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    props.onDrop(sel.i, 1);
+                    setSel(null);
+                  }}
+                >
+                  置く
+                </button>
+                {same > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      props.onDrop(sel.i, same);
+                      setSel(null);
+                    }}
+                  >
+                    同じ物を全部置く ({same})
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}
