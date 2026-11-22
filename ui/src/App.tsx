@@ -1,8 +1,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { emit, emitTo, listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { memo, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-
+import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import { getVersion } from "@tauri-apps/api/app";
 import { latestRelease } from "./update.ts";
@@ -10,7 +9,7 @@ import { isMac, MenuBar } from "./MenuBar";
 import { LogMenu, type LogMenuAt } from "./LogMenu";
 import { selectedLines } from "./logCopy.ts";
 import { MASTER_EXP, parseMasterMagic, runMasterItem, type MasterMenu } from "./masterMagic.ts";
-import { afterSend, caretLine, prepareLine } from "./chat.ts";
+import { caretLine } from "./chat.ts";
 import { SENT_EVENT, type Sent } from "./keyInput";
 import { isNorthFix, isTextTarget, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
 import { escapeTarget, keyAction, listKeyAction, menuAction, moveCommand, moveInput, stepCommands, type AskOptions, type Mods, type MoveKey } from "./keys.ts";
@@ -19,7 +18,6 @@ import { BAG_ICON, BagPanel, ItemIcon, STATUS_ICON } from "./BagPanel.tsx";
 import { PartyHud, PartyPanel } from "./PartyPanel.tsx";
 import { AskDialog } from "./AskDialog";
 import { alertBox, confirmBox, MessageDialogHost } from "./MessageDialog";
-import { popupTagMenu } from "./TagMenuPopup";
 import { assetUrl } from "./asset";
 import { MAP_POP_EVENT, newPopState, popsFromLine } from "./mapPop.ts";
 import { BoardEditor } from "./BoardEditor";
@@ -27,7 +25,6 @@ import { DEFAULT_SETTINGS, EXPERIMENT_EVENT, shortcutText, type Settings } from 
 import { DownloadPanel } from "./DownloadPanel";
 import { MapView, type MapPlace } from "./map";
 import { SettingsPanel } from "./SettingsPanel";
-import { NewCharacter, WorldSelect } from "./NewCharacter";
 import { capConvs, partnersKey, privLines, privPartners, upsertConv, usersFromEvent, type User } from "./priv.ts";
 import { PrivLauncher, PrivWindow, type PrivConv } from "./PrivPanel";
 import { ListOverlay } from "./ListOverlay";
@@ -37,31 +34,33 @@ import { PREDICT_TICK_MS, predictedMap, Predictor } from "./predict.ts";
 import { selfPos } from "./mapRender.ts";
 import { EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type ItemInfo, type MapListAction, type PartyMember, type MapState, type Spell, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
-import { LogLines } from "./LogLineList";
 import { LogFind } from "./LogFind";
-import { lightenColors, pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
+import { pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
 import { createLogWriter } from "./logSave.ts";
 import { characterTarget, needsCloseConfirm } from "./tabs.ts";
 import { signLine, signMode, type SignReading } from "./signHead.ts";
 import { castLines, loadSpellOrder, moveSpell, orderSpells, saveSpellOrder, SPELL_WAIT_MS, waitsForOrder } from "./spells.ts";
 import { SpellBar } from "./SpellBar";
 import { followGoal, followStep, targetPos, type FollowMemory } from "./follow.ts";
-import { ArrowDownToLine, Check, Download, FolderOpen, Import, Megaphone, MessageSquare, Layers, Plug, Plus, Save, Settings as SettingsIcon, Trash2, UserPlus, X } from "lucide-react";
+import { TabBar } from "./TabBar";
+import { LogView } from "./LogView";
+import { INPUT_MENU, INPUT_MENU_EVENT, InputEditor } from "./InputEditor";
+import { CharacterList } from "./CharacterList";
+import { SignCard } from "./SignCard";
+import { LOG_HEIGHT_KEY, LOG_HEIGHTS, LOG_WIDTH_KEY, LOG_MAX_KEY, useStored, LogHeight, LogWidthHandle } from "./LogControls";
+import { MapPane } from "./MapPane";
 
 // src-tauri/src/characters.rs の Store
 type Character = { label: string; host: string; port: number };
-type Store = { characters: Character[]; openTabs: string[] };
+export type Store = { characters: Character[]; openTabs: string[] };
 
-/** 入力欄のツールバーと同じ切り替えのメニュー項目(src-tauri/src/menu.rs の 操作)。App から InputEditor へ送る */
-const INPUT_MENU = ["loud", "all-tab", "log-save", "log-follow", "open-log-dir"];
-const INPUT_MENU_EVENT = "phi-input-menu";
 
 /** 最後の #user からこれだけ何も届かなければ、#ulist の返事が届き終わった事にする */
 const ULIST_QUIET_MS = 300;
 /** 裏のタブでついて行く時、1 歩送ってから移動の返事も地図も届かなければ、次を送るまで待つ上限 (ms) */
 const FOLLOW_PENDING_MS = 600;
 
-type Tab = {
+export type Tab = {
   session: number;
   label: string;
   /** ログ欄の HTML。1要素が1行 */
@@ -1882,485 +1881,8 @@ function pick(e: globalThis.KeyboardEvent) {
   return { code, shiftKey, ctrlKey, altKey, metaKey, repeat };
 }
 
-function TabBar(props: {
-  tabs: Tab[];
-  active: number | null;
-  onSelect: (s: number | null) => void;
-  onClose: (s: number) => void;
-  onSettings: () => void;
-}) {
-  return (
-    <div className="tab-bar">
-      {props.tabs.map((t) => (
-        <span
-          key={t.session}
-          className={[
-            "tab",
-            t.session === props.active ? "active" : t.unread ? "unread" : "",
-            // 切れたタブは見た目で分かるようにする。モダンは状態欄を出さないので、他に知る手段が無い (#132)
-            t.closed ? "closed" : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-          title={t.closed ? "切断中。ファイルのメニューの「接続」で繋ぎ直せます" : undefined}
-        >
-          <button className="tab-label" onClick={() => props.onSelect(t.session)}>
-            {t.session !== props.active && t.hurt && (
-              <span className="tab-hurt" title="HP か MP が減りました">
-                ♥
-              </span>
-            )}
-            {t.label}
-          </button>
-          <button className="tab-close" title="切断して閉じる" onClick={() => props.onClose(t.session)}>
-            <X />
-          </button>
-        </span>
-      ))}
-      <button className="tab" title="キャラを選んで接続する" onClick={() => props.onSelect(null)}>
-        <Plus />
-      </button>
-      <button className="tab tab-settings" onClick={props.onSettings}>
-        <SettingsIcon />
-        設定
-      </button>
-    </div>
-  );
-}
-
-/**
- * ログ欄。follow が on の時は、ログが増えるたびと、中の画像が読み込まれて高さが変わるたびに最下行へ移る。
- * off は Philly の「ログスクロール停止」に当たる
- */
-const LogView = memo(function LogView(props: { lines: LogLine[]; follow: boolean; light?: boolean }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inner = useRef<HTMLDivElement>(null);
-  const follow = useRef(props.follow);
-  follow.current = props.follow;
-
-  const toBottom = () => {
-    const el = ref.current;
-    if (el && follow.current) el.scrollTop = el.scrollHeight;
-  };
-  useEffect(toBottom, [props.lines, props.follow]);
-  // モダンは地図の上に白い文字で出すので、色の付いた文字を白に寄せて薄くする(style.css の [data-lc])
-  useLayoutEffect(() => {
-    if (props.light && inner.current) lightenColors(inner.current);
-  }, [props.lines, props.light]);
-  useEffect(() => {
-    if (!inner.current) return;
-    const ro = new ResizeObserver(toBottom);
-    ro.observe(inner.current);
-    return () => ro.disconnect();
-  }, []);
-
-  return (
-    <div
-      ref={ref}
-      className="phi-log"
-      // フォーカスを受けると「移動モード」になり、キーが操作になる
-      tabIndex={0}
-    >
-      <div ref={inner}>
-        <LogLines lines={props.lines} />
-      </div>
-    </div>
-  );
-});
-
-/**
- * 入力欄(Philly の InputEdit)。Philly と同じ複数行のエディタで、Enter はカーソルの行を送り、送った行は欄に残す。
- * Ctrl+Enter はパーティの発言、Shift+Enter は改行。
- * value を React に持たせない。ログが届くたびの再描画で value を書き戻すと、WebKitGTK が変換中の文字を消す
- */
-function InputEditor(props: {
-  session: number;
-  /** 追加発言(Philly の TalkAdd)。新しい行と、最後の行で ↓ を押した時の行をこれで始める */
-  talkAdd: string;
-  sessions: number[];
-  disabled: boolean;
-  onPriv: () => void;
-  /** パーティに入っている間だけ出す、入力欄の上の「全体」「パーティ」のタブ */
-  party: { mode: boolean; unread: boolean } | null;
-  onPartyMode: (on: boolean) => void;
-  logSave: boolean;
-  onLogSave: (on: boolean) => void;
-  onOpenLogDir: () => void;
-  logFollow: boolean;
-  onLogFollow: (on: boolean) => void;
-}) {
-  const [loud, setLoud] = useState(false);
-  // 確認で「すべて大声」を選んだ。大声を解除するまで確認せず、送っても大声のままにする(Philly の大声の確認)
-  const [loudAll, setLoudAll] = useState(false);
-  // 大声の確認で答えを待っている発言
-  const [loudAsk, setLoudAsk] = useState<{ deliver: () => void; ta: HTMLTextAreaElement } | null>(null);
-  const [allTab, setAllTab] = useState(false);
-  // 連続送信を 100ms 空ける(Philly の SendFromInputEdit)
-  const lastSend = useRef(0);
-
-  function send(ta: HTMLTextAreaElement, ctrl: boolean) {
-    const now = performance.now();
-    if (now - lastSend.current < 100) return;
-    lastSend.current = now;
-    const line = caretLine(ta.value, ta.selectionStart);
-    // パーティのタブでは、Ctrl+Enter と同じく仲間だけへ送る
-    const text = prepareLine(line.text, {
-      ctrl: ctrl || !!props.party?.mode,
-      loud: loud && !allTab,
-      lastLine: line.index + 1 >= line.count,
-    });
-    if (text === null) return;
-    const deliver = () => {
-      if (allTab) props.sessions.forEach((s) => sendLine(s, text));
-      else sendLine(props.session, text);
-      const next = afterSend(ta.value, ta.selectionStart, props.talkAdd);
-      ta.value = next.value;
-      ta.setSelectionRange(next.caret, next.caret);
-      // 送った行が見えるよう、カーソルの位置までスクロールする
-      ta.blur();
-      ta.focus();
-    };
-    // 全タブ発言は確かめてから送る。断ったら全タブ発言を解除し、入力欄はそのまま
-    if (allTab) {
-      confirmBox("全タブに発言します。\nよろしいですか？").then((ok) => {
-        if (ok) deliver();
-        else setAllTab(false);
-        ta.focus();
-      });
-      return;
-    }
-    // Philly は大声の前に確認し、送ったら大声を解除する。「すべて大声」の後は確認しない
-    if (loud && !allTab && !loudAll) {
-      setLoudAsk({ deliver, ta });
-      return;
-    }
-    deliver();
-  }
-
-  // メニューの 操作 の切り替え
-  useEffect(() => {
-    const onMenu = (e: Event) => {
-      const id = (e as CustomEvent<string>).detail;
-      if (id === "loud") {
-        setLoud((v) => !v);
-        setLoudAll(false);
-      } else if (id === "all-tab") setAllTab((v) => !v);
-      else if (id === "log-save") props.onLogSave(!props.logSave);
-      else if (id === "log-follow") props.onLogFollow(!props.logFollow);
-      else if (id === "open-log-dir") props.onOpenLogDir();
-    };
-    window.addEventListener(INPUT_MENU_EVENT, onMenu);
-    return () => window.removeEventListener(INPUT_MENU_EVENT, onMenu);
-  });
-
-  function answerLoud(answer: "yes" | "all" | "no") {
-    const ask = loudAsk;
-    setLoudAsk(null);
-    if (!ask) return;
-    if (answer === "all") setLoudAll(true);
-    else setLoud(false);
-    if (answer === "no") ask.ta.focus();
-    else ask.deliver();
-  }
-
-  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    // Esc でログ欄へ移り、キーを操作に使う(Philly の移動モード)
-    if (e.key === "Escape" && !e.nativeEvent.isComposing) {
-      document.querySelector<HTMLElement>(".log-area .log-shown .phi-log")?.focus();
-      return;
-    }
-    // 最後の行で ↓ を押したら、その行を追加発言にする(Philly の InputEditKeyDown)
-    const ta = e.currentTarget;
-    if (e.key === "ArrowDown" && !e.shiftKey && !e.ctrlKey && !e.altKey && props.talkAdd) {
-      const line = caretLine(ta.value, ta.selectionStart);
-      if (line.index + 1 >= line.count) {
-        e.preventDefault();
-        ta.setRangeText(props.talkAdd, line.start, line.start + line.text.length, "end");
-        return;
-      }
-    }
-    // IME の変換確定の Enter では送らない。WebKit は確定の keydown で isComposing を false にし、keyCode 229 を返す
-    if (e.key !== "Enter" || e.nativeEvent.isComposing || e.keyCode === 229 || e.shiftKey || e.altKey) return;
-    e.preventDefault();
-    send(e.currentTarget, e.ctrlKey);
-  }
-
-  return (
-    <div className="input-area">
-      {loudAsk && (
-        <div
-          className="confirm-dialog"
-          role="dialog"
-          // キーを Philly の操作にしない。Esc は「いいえ」
-          onKeyDown={(e) => {
-            e.stopPropagation();
-            if (e.key === "Escape") answerLoud("no");
-          }}
-        >
-          <p>
-            大声で発言します。
-            <br />
-            この世界にいる全員に聞こえます。
-            <br />
-            よろしいですか？
-          </p>
-          <div className="confirm-buttons">
-            <button autoFocus onClick={() => answerLoud("yes")}>
-              <Check />
-              はい
-            </button>
-            <button onClick={() => answerLoud("all")}>
-              <Megaphone />
-              すべて大声
-            </button>
-            <button onClick={() => answerLoud("no")}>
-              <X />
-              いいえ
-            </button>
-          </div>
-        </div>
-      )}
-      <div className="input-toolbar">
-        {props.party && (
-          <div className="chat-tabs" role="tablist">
-            <button role="tab" aria-selected={!props.party.mode} onClick={() => props.onPartyMode(false)}>
-              全体
-            </button>
-            <button
-              role="tab"
-              aria-selected={props.party.mode}
-              className={props.party.unread ? "unread" : undefined}
-              title="仲間だけに発言し、仲間の発言だけを出す"
-              onClick={() => props.onPartyMode(true)}
-            >
-              パーティ
-            </button>
-          </div>
-        )}
-        <label className={loud ? "toggle on" : "toggle"}>
-          <input
-            type="checkbox"
-            checked={loud}
-            onChange={(e) => {
-              setLoud(e.target.checked);
-              if (!e.target.checked) setLoudAll(false);
-            }}
-          />
-          <Megaphone />
-          {loudAll ? "すべて大声" : "大声"}
-        </label>
-        <label className={allTab ? "toggle on" : "toggle"}>
-          <input type="checkbox" checked={allTab} onChange={(e) => setAllTab(e.target.checked)} />
-          <Layers />
-          全タブ発言
-        </label>
-        <label className={props.logFollow ? "toggle on" : "toggle"} title="ログが増えたら最下行へ移る">
-          <input type="checkbox" checked={props.logFollow} onChange={(e) => props.onLogFollow(e.target.checked)} />
-          <ArrowDownToLine />
-          ログを固定
-        </label>
-        <label className={props.logSave ? "toggle on" : "toggle"}>
-          <input type="checkbox" checked={props.logSave} onChange={(e) => props.onLogSave(e.target.checked)} />
-          <Save />
-          ログ保存
-        </label>
-        <button className="toggle" title="ログの保存先のフォルダを開く" onClick={props.onOpenLogDir}>
-          <FolderOpen />
-          保存先
-        </button>
-        <button className="toggle" onClick={props.onPriv}>
-          <MessageSquare />
-          priv
-        </button>
-      </div>
-      <textarea
-        className={loud ? "input-line loud" : "input-line"}
-        disabled={props.disabled}
-        onKeyDown={onKeyDown}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          const ta = e.currentTarget;
-          popupTagMenu(ta, (v) => (ta.value = v)).catch(console.error);
-        }}
-        rows={3}
-        spellCheck={false}
-        autoFocus
-      />
-    </div>
-  );
-}
-
-function CharacterList(props: {
-  store: Store;
-  error: string;
-  onConnect: (label: string) => void;
-  onChanged: () => void;
-  onError: (message: string) => void;
-  onDownload: () => void;
-}) {
-  const [label, setLabel] = useState("");
-  const [host, setHost] = useState("");
-  const [port, setPort] = useState("");
-  const [id, setId] = useState("");
-  const [folder, setFolder] = useState("");
-  const [imported, setImported] = useState("");
-
-  const run = (p: Promise<unknown>) => p.then(props.onChanged).catch((e) => props.onError(String(e)));
-
-  return (
-    <div className="character-list">
-      {props.error && <p className="error">{props.error}</p>}
-      <table>
-        <tbody>
-          {props.store.characters.map((c) => (
-            <tr key={c.label}>
-              <td>{c.label}</td>
-              <td>
-                {c.host}:{c.port}
-              </td>
-              <td>
-                <button onClick={() => props.onConnect(c.label)}>
-                  <Plug />
-                  接続
-                </button>
-                <button
-                  onClick={() =>
-                    // キャラ ID のファイルも消すので、ID を控えていないとそのキャラに入れなくなる (#130)
-                    void confirmBox(
-                      `「${c.label}」を一覧から削除します。\nキャラ ID も消え、元に戻せません。よろしいですか？`,
-                    ).then((ok) => {
-                      if (ok) run(invoke("delete_character", { label: c.label }));
-                    })
-                  }
-                >
-                  <Trash2 />
-                  削除
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {props.store.characters.length === 0 && (
-        // 初めて開いた時の案内。新規作成が一番下にあり、キャラグラの取得も案内していなかった (#171)
-        <div className="first-run">
-          <p>はじめての方は「新規キャラ作成」で、Philly を使っていた方は「Philly から取り込む」でキャラを登録してください。</p>
-          <p>
-            キャラグラとマップチップは、世界ごとに取得します。
-            <button type="button" onClick={props.onDownload}>
-              <Download />
-              キャラグラとマップチップを取得する
-            </button>
-          </p>
-        </div>
-      )}
-      <NewCharacter onCreated={props.onChanged} onError={props.onError} />
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          invoke<string[]>("import_philly", { folder })
-            .then((labels) => {
-              setImported(labels.length ? `${labels.join("、")} を取り込みました` : "キャラが見つかりませんでした");
-              props.onChanged();
-            })
-            .catch((err) => props.onError(String(err)));
-        }}
-      >
-        <h3>Philly から取り込む</h3>
-        <label>
-          Philly フォルダ(<code>*.chara</code> のあるフォルダ)
-          <input value={folder} onChange={(e) => setFolder(e.target.value)} required />
-        </label>
-        <button type="submit">
-          <Import />
-          取り込む
-        </button>
-        {imported && <p>{imported}</p>}
-      </form>
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          run(invoke("save_character", { character: { label, host, port: Number(port) }, id }));
-          setId("");
-        }}
-      >
-        <h3>キャラを登録</h3>
-        <label>
-          表示名 <input value={label} onChange={(e) => setLabel(e.target.value)} required />
-        </label>
-        <WorldSelect
-          host={host}
-          port={port}
-          onSelect={(h, p) => {
-            setHost(h);
-            setPort(p);
-          }}
-        />
-        <label>
-          サーバ <input value={host} onChange={(e) => setHost(e.target.value)} required />
-        </label>
-        <label>
-          ポート <input value={port} onChange={(e) => setPort(e.target.value)} inputMode="numeric" required />
-        </label>
-        <label>
-          キャラ ID(登録済みのキャラの接続先だけを変える時は空欄)
-          {/* 一覧に無い表示名は新しいキャラなので、ID を要る (#152) */}
-          <input
-            type="password"
-            value={id}
-            onChange={(e) => setId(e.target.value)}
-            required={!props.store.characters.some((c) => c.label === label)}
-          />
-        </label>
-        <button type="submit">
-          <UserPlus />
-          登録
-        </button>
-      </form>
-
-    </div>
-  );
-}
-
 /** 追尾移動で、続けて送る間隔の下限(ms)。サーバは 0.1 秒に1行ずつ処理する */
 const FOLLOW_MS = 110;
-
-/**
- * 看板などの本文の札(試験中)。ログと同じ HTML で、タグの色と大きさを反映する。札は暗い地なので、色の付いた文字は
- * モダンのログと同じく白へ寄せる(lightenColors)。× か Esc か、歩くと閉じる。本文はログにも残る
- */
-function SignCard(props: { lines: string[]; author: { name: string; date: string } | null; onClose: () => void }) {
-  const body = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    if (body.current) lightenColors(body.current);
-  }, [props.lines]);
-  return (
-    <div className="sign-card" role="dialog" aria-label="看板・お知らせ">
-      <div className="sign-head">
-        {/* 看板なら書いた人と日付。サーバが本文の前に送る行から取る (ui/src/signHead.ts) */}
-        {props.author ? (
-          <span title={`${props.author.name} (${props.author.date})`}>
-            {props.author.name}
-            <span className="sign-date">{props.author.date}</span>
-          </span>
-        ) : (
-          <span>看板・お知らせ</span>
-        )}
-        <button type="button" title="閉じる(Esc)" onClick={props.onClose}>
-          <X />
-        </button>
-      </div>
-      <div className="sign-body" ref={body}>
-        {props.lines.map((l, i) => (
-          // html は phi-proto の tag_to_html がエスケープ済みで作ったもの(LogLineList.tsx と同じ)
-          <div key={i} data-line={i} dangerouslySetInnerHTML={{ __html: l }} />
-        ))}
-      </div>
-    </div>
-  );
-}
 
 /** #ex-inv no の理由(phi_dm の phi_items.rs の ex_inv) */
 const BAG_REFUSED: Record<string, string> = {
@@ -2380,134 +1902,3 @@ const BAG_REFUSED: Record<string, string> = {
 
 /** マップを main 窓に出すか(クラシック(1窓)とモダン) */
 const inMain = (s: Settings) => s.singleWindow || s.modern;
-
-const LOG_HEIGHT_KEY = "wphi:modernLogHeight";
-/** モダンのログの高さ(窓の高さの %)。小・中・大 */
-const LOG_HEIGHTS: [string, number][] = [
-  ["小", 20],
-  ["中", 42],
-  ["大", 65],
-];
-
-const LOG_WIDTH_KEY = "wphi:modernLogWidth";
-const LOG_MAX_KEY = "wphi:modernLogMax";
-/** ログの横幅の下限 (px)。これより狭いと 1 行に数文字しか入らない */
-const LOG_MIN_WIDTH = 280;
-
-/** この窓の localStorage に覚える数。読めないか valid に合わなければ既定の値 */
-function useStored(key: string, initial: number, valid: (n: number) => boolean = Number.isFinite): [number, (v: number) => void] {
-  const [v, setV] = useState(() => {
-    try {
-      const n = Number(localStorage.getItem(key) ?? initial);
-      return valid(n) ? n : initial;
-    } catch {
-      return initial;
-    }
-  });
-  const set = (n: number) => {
-    setV(n);
-    try {
-      localStorage.setItem(key, String(n));
-    } catch {
-      // 覚えられなくても、今の値のまま使う
-    }
-  };
-  return [v, set];
-}
-
-/** モダンのログの右上の、高さを選ぶボタンと、窓いっぱいに広げるボタン */
-function LogHeight(props: { value: number; onChange: (v: number) => void; max: boolean; onMax: () => void }) {
-  return (
-    <div className="log-height" role="group" aria-label="ログの高さ">
-      {LOG_HEIGHTS.map(([label, v]) => (
-        <button key={v} type="button" aria-pressed={!props.max && props.value === v} disabled={props.max} onClick={() => props.onChange(v)}>
-          {label}
-        </button>
-      ))}
-      <button type="button" aria-pressed={props.max} title={props.max ? "ログを元の大きさに戻す" : "ログを窓いっぱいに広げる"} onClick={props.onMax}>
-        全
-      </button>
-    </div>
-  );
-}
-
-/** モダンのログの右端。ドラッグで横幅を変える。ダブルクリックで既定の幅に戻す */
-function LogWidthHandle(props: { onChange: (px: number) => void }) {
-  const drag = useRef<{ left: number } | null>(null);
-  return (
-    <div
-      className="log-width-handle"
-      title="ドラッグで横幅を変える(ダブルクリックで元に戻す)"
-      onPointerDown={(e) => {
-        if (e.button !== 0) return;
-        const area = e.currentTarget.parentElement!.getBoundingClientRect();
-        drag.current = { left: area.left };
-        e.currentTarget.setPointerCapture(e.pointerId);
-        e.preventDefault();
-      }}
-      onPointerMove={(e) => {
-        if (!drag.current) return;
-        const right = window.innerWidth - 16;
-        props.onChange(Math.round(Math.max(LOG_MIN_WIDTH, Math.min(right, e.clientX) - drag.current.left)));
-      }}
-      onPointerUp={() => (drag.current = null)}
-      onPointerCancel={() => (drag.current = null)}
-      onDoubleClick={() => props.onChange(0)}
-    />
-  );
-}
-
-const MAP_PANE_KEY = "wphi:mapPaneWidth";
-/** 地図の欄の下のステータス(.status-panel 50px と .map-status-bar 22px と線)と、右の方角と名前の欄(.map-side) */
-const MAP_PANE_BELOW = 74;
-const MAP_PANE_SIDE = 153;
-
-/** ログの左に置く地図(settings.singleWindow)。境目をドラッグして幅を変え、この窓の localStorage に覚える。
- * 縦長の窓では、CSS で地図を上に積む */
-function MapPane() {
-  const [width, setWidth] = useState<number | null>(() => {
-    try {
-      return Number(localStorage.getItem(MAP_PANE_KEY)) || null;
-    } catch {
-      return null;
-    }
-  });
-  const pane = useRef<HTMLDivElement>(null);
-  // 幅を決めていない間は、地図の欄が正方形になる幅にする。欄の高さは、ログの欄の高さからステータスの分を引いた物
-  const [auto, setAuto] = useState(0);
-  useEffect(() => {
-    const body = pane.current?.parentElement;
-    if (!body) return;
-    const ro = new ResizeObserver(() =>
-      setAuto(Math.round(Math.min(body.clientHeight - MAP_PANE_BELOW + MAP_PANE_SIDE, body.clientWidth * 0.6))),
-    );
-    ro.observe(body);
-    return () => ro.disconnect();
-  }, []);
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    const left = pane.current?.getBoundingClientRect().left ?? 0;
-    const bar = e.currentTarget;
-    bar.setPointerCapture(e.pointerId);
-    let w = width ?? auto;
-    const move = (m: PointerEvent) => setWidth((w = Math.max(200, Math.round(m.clientX - left))));
-    const up = () => {
-      bar.removeEventListener("pointermove", move);
-      bar.removeEventListener("pointerup", up);
-      try {
-        if (w) localStorage.setItem(MAP_PANE_KEY, String(w));
-      } catch {
-        // 覚えられなくても、今の幅のまま使う
-      }
-    };
-    bar.addEventListener("pointermove", move);
-    bar.addEventListener("pointerup", up);
-  };
-  return (
-    <>
-      <div className="map-pane" ref={pane} style={{ width: width ?? (auto || undefined) }}>
-        <MapView embedded />
-      </div>
-      <div className="map-pane-splitter" onPointerDown={onPointerDown} title="ドラッグで地図の幅を変える" />
-    </>
-  );
-}
