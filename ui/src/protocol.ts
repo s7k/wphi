@@ -217,6 +217,9 @@ export type MapState = {
   party?: string[];
   /** 仲間の、自分から見た位置の差 (#v6 P の dx・dy。東と南が正)。別の階の仲間は入れない。視界の外の仲間を地図の端に矢印で出す (#191) */
   partyPos?: { name: string; dx: number; dy: number }[];
+  /** 対象 (#183) のキャラの番号と、自動攻撃中か。地図が対象を枠で囲む */
+  target?: number;
+  autoAttack?: boolean;
   walk?: { x: number; y: number; epoch: number; at: number; ms: number; bump?: { dx: number; dy: number; at: number } };
 };
 

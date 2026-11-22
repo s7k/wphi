@@ -336,6 +336,13 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
       window.removeEventListener("keydown", key);
     };
   }, [charMenu]);
+  /** ポインタの下の、自分でない名前のあるキャラ */
+  const charAt = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) / zoom / CHIP_SIZE);
+    const y = Math.floor(((e.clientY - r.top) / zoom - MAP_TOP) / CHIP_SIZE);
+    return chars.find((ch) => ch.x === x && ch.y === y && (x !== me.x || y !== me.y) && stripTags(ch.name)) ?? null;
+  };
   const neighborAt = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     const dx = Math.round(((e.clientX - r.left) / zoom - (me.x + 0.5) * CHIP_SIZE) / CHIP_SIZE);
@@ -369,7 +376,9 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
       return;
     }
     if (e.button === 2) {
-      sendMouse({ type: "hit" });
+      // キャラの上の右クリックは、そのキャラを対象にして殴る (#183)
+      const c = charAt(e);
+      sendMouse(c ? { type: "hit", target: { id: c.id, name: stripTags(c.name) } } : { type: "hit" });
       return;
     }
     const d = e.button === 0 ? dirAt(e) : null;
@@ -665,6 +674,14 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     if (cat === "down") return [one("fx-sink")];
     return [...beam, one("fx-impact")];
   });
+  // 対象 (#183) を枠で囲む。名前は地図がキャラの下に出しているので出さない。自動攻撃中は枠を赤くする
+  const targetChar = state?.target === undefined ? undefined : chars.find((c) => c.id === state.target);
+  const targetEl = targetChar ? (
+    <div
+      className={state?.autoAttack ? "target-ring auto" : "target-ring"}
+      style={{ ...cellAt(targetChar), "--cell": `${CHIP_SIZE * zoom}px` } as React.CSSProperties}
+    />
+  ) : null;
   // 視界の外の仲間を、地図の端に名前と距離付きの矢印で出す (#191)。北固定の時だけ (回る地図では dx・dy の向きが画面と合わない)
   const partyArrows = northFix
     ? (state?.partyPos ?? []).flatMap((p) => {
@@ -725,6 +742,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
           {popEls}
           {fxEls}
           {partyArrows}
+          {targetEl}
           {/* 攻撃の待ち (#attack 〜 #end-at) の間、自キャラの足元に輪を出す。この間の hit は待ちが明けた時に送る (#177) */}
           {state?.mode?.attack && (
             <div

@@ -117,4 +117,6 @@ test("Esc は上に重なっている方から閉じ、何も開いていなけ�
   assert.equal(escapeTarget({ sign: null, privOpen: true }, true), "priv");
   assert.equal(escapeTarget({}, true), "follow");
   assert.equal(escapeTarget(undefined, false), null);
+  assert.equal(escapeTarget({ target: { id: 1 } }, true), "follow");
+  assert.equal(escapeTarget({ target: { id: 1 } }, false), "target");
 });

@@ -367,6 +367,34 @@ body {
   text-shadow: var(--outline);
   white-space: nowrap;
 }
+/* 対象 (#183)。キャラを囲む角の枠。自動攻撃中は赤 */
+.target-ring {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  width: calc(var(--cell) * 1.1);
+  height: calc(var(--cell) * 1.4);
+  margin: calc(var(--cell) * -0.85) 0 0 calc(var(--cell) * -0.55);
+  --c: #ffe070;
+  background:
+    linear-gradient(var(--c), var(--c)) 0 0 / 30% 2px no-repeat,
+    linear-gradient(var(--c), var(--c)) 0 0 / 2px 30% no-repeat,
+    linear-gradient(var(--c), var(--c)) 100% 0 / 30% 2px no-repeat,
+    linear-gradient(var(--c), var(--c)) 100% 0 / 2px 30% no-repeat,
+    linear-gradient(var(--c), var(--c)) 0 100% / 30% 2px no-repeat,
+    linear-gradient(var(--c), var(--c)) 0 100% / 2px 30% no-repeat,
+    linear-gradient(var(--c), var(--c)) 100% 100% / 30% 2px no-repeat,
+    linear-gradient(var(--c), var(--c)) 100% 100% / 2px 30% no-repeat;
+  filter: drop-shadow(0 0 2px #000);
+  animation: target-pulse 1s ease-in-out infinite alternate;
+}
+.target-ring.auto {
+  --c: #ff5050;
+}
+@keyframes target-pulse {
+  from { transform: scale(1); }
+  to { transform: scale(1.08); }
+}
 /* 攻撃の待ち。足元で脈打つ輪 */
 .fx-attack-wait {
   width: calc(var(--cell) * 1.2);

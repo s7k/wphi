@@ -359,19 +359,21 @@ export function menuAction(id: string): KeyAction | null {
 }
 
 /** Esc で閉じる物 */
-export type EscapeTarget = "bag" | "party" | "sign" | "priv" | "follow";
+export type EscapeTarget = "bag" | "party" | "sign" | "priv" | "follow" | "target";
 
 /**
  * Esc で閉じる物を、上に重なっている方から選ぶ (カバン 11、札 6)。
  * 札を先に閉じていた為、両方開いていると見えているカバンでなく裏の札が閉じた。画面が開いていなければ、ついて行くのをやめる
  */
 export function escapeTarget(
-  open: { bagOpen?: boolean; partyOpen?: boolean; sign?: unknown; privOpen?: boolean } | undefined,
+  open: { bagOpen?: boolean; partyOpen?: boolean; sign?: unknown; privOpen?: boolean; target?: unknown } | undefined,
   following: boolean,
 ): EscapeTarget | null {
   if (open?.bagOpen) return "bag";
   if (open?.partyOpen) return "party";
   if (open?.sign) return "sign";
   if (open?.privOpen) return "priv";
-  return following ? "follow" : null;
+  if (following) return "follow";
+  // 最後に対象を外す (#183)
+  return open?.target ? "target" : null;
 }

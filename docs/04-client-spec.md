@@ -658,7 +658,9 @@ Philly は前の移動の地図が届くまで次の移動を送らない作り�
 | N | `n` |
 | Y | `y` |
 | `.`・テンキー. | `.` |
-| Space・テンキー1・Ctrl+Space | `hit` |
+| Space・テンキー1・Ctrl+Space | `hit`。対象があれば、対象が隣ならその方を向く `turn` を先に送り、離れていれば対象へ 1 歩近づく (北固定の v6 の地図だけ) |
+| G・Shift+G | 近い順に対象を回す・自動攻撃を入り切りする (WPHI だけ。ui/src/target.ts) |
+| 地図のキャラの上で右クリック | そのキャラを対象にして `hit` (WPHI だけ) |
 | テンキー3・テンキー Enter | `cast` |
 | Home | `equip` → `sort` |
 | End | `unequip` → `1` |

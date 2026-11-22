@@ -18,7 +18,11 @@ export const RELEASE_ALL = "*release-all";
 /** map 窓から main 窓へ転送するマウス操作 */
 export const MOUSE_EVENT = "phi-mouse";
 /** follow は追尾移動(地図の中クリックで入り切り)の1歩。main 窓が歩く速さに合わせて間引く */
-export type ForwardedMouse = { type: "down"; keys: MoveKey[] } | { type: "follow"; keys: MoveKey[] } | { type: "hit" };
+/** hit の target は右クリックしたキャラ。そのキャラを対象にして殴る (#183) */
+export type ForwardedMouse =
+  | { type: "down"; keys: MoveKey[] }
+  | { type: "follow"; keys: MoveKey[] }
+  | { type: "hit"; target?: { id: number; name: string } };
 
 /** 北固定で方角で進む地図か(Philly の ExMapSize57 && !ExMapStyleTurn)。WPHI の地図は 7x7 か v6 なので、向きだけで決まる */
 export const isNorthFix = (map: MapEvent | undefined) => !map || map.style !== "turn";

@@ -39,6 +39,7 @@ import { pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
 import { createLogWriter } from "./logSave.ts";
 import { characterTarget, needsCloseConfirm } from "./tabs.ts";
 import { signLine, signMode, type SignReading } from "./signHead.ts";
+import { attackPlan, nextTarget } from "./target.ts";
 import { afterClose, DEAD_LINE, KICKED_LINE, lossText, RETRY_DELAYS } from "./reconnect.ts";
 import { applyMapset, holdMapset, type PendingMapset } from "./mapsetPending.ts";
 import { castLines, loadSpellOrder, moveSpell, orderSpells, saveSpellOrder, SPELL_WAIT_MS, waitsForOrder } from "./spells.ts";
@@ -61,6 +62,8 @@ export type Store = { characters: Character[]; openTabs: string[] };
 const ULIST_QUIET_MS = 300;
 /** 裏のタブでついて行く時、1 歩送ってから移動の返事も地図も届かなければ、次を送るまで待つ上限 (ms) */
 const FOLLOW_PENDING_MS = 600;
+/** 自動攻撃で、殴るか近づくかを決める間隔 (ms)。攻撃の待ちの間は殴らないので、待ちより短くてよい */
+const AUTO_ATTACK_MS = 150;
 
 export type Tab = {
   session: number;
@@ -452,6 +455,57 @@ export function App() {
     }
     return party;
   };
+  // 対象 (ui/src/target.ts。#183)。対象のキャラの番号は地図の状態に入れ、地図が枠で囲む
+  const setTarget = (session: number, c: { id: number; name: string } | null) => {
+    const s = mapStates.current.get(session);
+    if (!s) return;
+    s.target = c?.id;
+    if (!c) s.autoAttack = false;
+    sendMapState(session);
+  };
+  const cycleTarget = (session: number) => {
+    const s = mapStates.current.get(session);
+    if (!s?.map) return;
+    const c = nextTarget(s.map, s.party ?? [], s.target ?? null);
+    if (c) setTarget(session, { id: c.id, name: stripTags(c.name) });
+    else append(session, systemNg("近くに対象がいません。"));
+  };
+  const toggleAutoAttack = (session: number) => {
+    const s = mapStates.current.get(session);
+    if (!s) return;
+    if (s.target === undefined) cycleTarget(session);
+    if (s.target === undefined) return;
+    s.autoAttack = !s.autoAttack;
+    sendMapState(session);
+    append(session, systemOk(s.autoAttack ? "自動攻撃を始めました。Shift+G か Esc で止めます。" : "自動攻撃を止めました。"));
+  };
+  /**
+   * 対象を殴る 1 回分。対象が隣なら向いて hit、離れていれば 1 歩近づく。対象が居なければ外す。
+   * auto は自動攻撃の見回りから呼ぶ時で、攻撃の待ちの間は何もしない。対象が無ければ false (呼んだ側が普通の hit を送る)
+   */
+  const attackTarget = (session: number, auto = false): boolean => {
+    const s = mapStates.current.get(session);
+    if (s?.target === undefined || !s.map) return false;
+    const plan = attackPlan(s.map, s.target);
+    if (plan.kind === "lost") {
+      const was = s.autoAttack;
+      setTarget(session, null);
+      append(session, systemOk(was ? "対象を見失ったので、自動攻撃を止めました。" : "対象を見失いました。"));
+    } else if (plan.kind === "hit") {
+      if (!(auto && s.mode?.attack)) sendLines(session, plan.turn ? `turn ${plan.turn}\nhit` : "hit");
+    } else if (plan.kind === "step") {
+      if (!(session === activeRef.current && predictor.current.waiting)) sendMove(session, moveCommand(plan.key, "none", true));
+    } else if (!auto) sendLine(session, "hit");
+    return true;
+  };
+  const lastAuto = useRef(0);
+  const autoAttackTick = (session: number | null) => {
+    if (session === null || !mapStates.current.get(session)?.autoAttack) return;
+    const now = performance.now();
+    if (now - lastAuto.current < AUTO_ATTACK_MS) return;
+    lastAuto.current = now;
+    attackTarget(session, true);
+  };
   /** 裏のタブのついて行く 1 回分。ゲートで飛んだかの判断は省く (歩いた位置を確かめる予想が無い) */
   const followBackground = (session: number, f: { name: string; mem: FollowMemory; lastSend: number; pending?: number }) => {
     const raw = mapStates.current.get(session)?.map;
@@ -518,6 +572,7 @@ export function App() {
       if (predictor.current.tick()) sendMapState(activeRef.current);
       // 裏のタブのキャラも、ついて行く間は歩く
       for (const session of [...follows.current.keys()]) followTick(session);
+      autoAttackTick(activeRef.current);
       stepWalker(activeRef.current);
     }, PREDICT_TICK_MS);
     return () => {
@@ -745,12 +800,13 @@ export function App() {
       const session = activeRef.current;
       if (session === null) return false;
       // カバン・パーティ・看板の札・priv の欄は Esc で閉じる。閉じる順は ui/src/keys.ts の escapeTarget
-      const esc = e.type === "keydown" && e.code === "Escape" ? escapeTarget(tabOf(session), follows.current.has(session)) : null;
+      const esc = e.type === "keydown" && e.code === "Escape" ? escapeTarget({ ...tabOf(session), target: mapStates.current.get(session)?.target }, follows.current.has(session)) : null;
       if (esc) {
         if (esc === "bag") update(session, (t) => ({ ...t, bagOpen: false }));
         else if (esc === "party") update(session, (t) => ({ ...t, partyOpen: false }));
         else if (esc === "sign") closeSign(session);
         else if (esc === "priv") update(session, (t) => ({ ...t, privOpen: false }));
+        else if (esc === "target") setTarget(session, null);
         else stopFollow(session);
         return true;
       }
@@ -810,10 +866,16 @@ export function App() {
         if (!e.repeat) sendLines(session, shortcut);
         return true;
       }
+      // G で近い順に対象を回し、Shift+G で自動攻撃を入り切りする (#183)
+      if (e.code === "KeyG" && !e.ctrlKey && !e.altKey && !e.metaKey && !list) {
+        if (!e.repeat) (e.shiftKey ? toggleAutoAttack(session) : cycleTarget(session));
+        return true;
+      }
       const action = keyAction(e, ctx);
       if (!action) return false;
-      // 押し続けによる自動リピートは送らない
-      if (!e.repeat) runKeyAction(action, session, keyHooks(session));
+      // 押し続けによる自動リピートは送らない。対象があれば hit は対象の方を向いて殴る (#183)
+      if (!e.repeat && !("send" in action && action.send === "hit" && attackTarget(session)))
+        runKeyAction(action, session, keyHooks(session));
       return true;
     };
     const onDom = (e: globalThis.KeyboardEvent) => {
@@ -957,7 +1019,11 @@ export function App() {
       const m = e.payload;
       const session = activeRef.current;
       if (session === null) return;
-      if (m.type === "hit") sendLine(session, "hit");
+      if (m.type === "hit") {
+        // 右クリックしたキャラを対象にする。対象があれば、対象の方を向いて殴るか近づく (#183)
+        if (m.target) setTarget(session, m.target);
+        if (!attackTarget(session)) sendLine(session, "hit");
+      }
       else {
         // 追尾移動は長押しと同じ速さにする。スムーズ移動で歩く時は歩き方に任せる(ui/src/walker.ts)。
         // 位置を予想する時は前の移動の返事を待ち、他は FOLLOW_MS に1歩まで
