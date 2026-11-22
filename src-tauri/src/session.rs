@@ -309,6 +309,8 @@ struct Conn {
     host: String,
     /// 最後に送った `#ex-map view=`。型が変わった時(北固定から回転へなど)と、窓の大きさが変わった時に送り直す
     sent_view: Option<String>,
+    /// v6 の地図を受けて `#map-iv 1` を送ったか (#194)
+    fast_map: bool,
 }
 
 impl Conn {
@@ -320,6 +322,7 @@ impl Conn {
             parser: Parser::new(),
             host,
             sent_view: view.map(|v| view_line(v, false)),
+            fast_map: false,
         }
     }
 }
@@ -475,6 +478,12 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
             reply.push("hit".into());
         }
         let want_view = view.map(|v| view_line(v, conn.parser.map_style() == Some("turn")));
+        // v6 の地図が届いたら、地図の間隔を 1 (0.1 秒) にする。v6 の地図は変わった時しか送られないので、
+        // 止まっている間は増えない。2 (0.2 秒) では、10 歩/秒で歩く他のキャラが 2 マスずつ跳んで見えた (#194)
+        if !conn.fast_map && conn.parser.has_v6_map() {
+            reply.push("#map-iv 1".into());
+            conn.fast_map = true;
+        }
         if want_view != conn.sent_view {
             reply.extend(want_view.clone());
             conn.sent_view = want_view;

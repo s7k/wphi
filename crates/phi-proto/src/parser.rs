@@ -681,6 +681,11 @@ impl Parser {
         self.map_style.as_deref()
     }
 
+    /// v6 の地図 (`#v6 M`) を受けたか
+    pub fn has_v6_map(&self) -> bool {
+        self.v6_size != (0, 0)
+    }
+
     /// `#user` で届いた名前のユーザ番号。priv の宛先を決める為に使う。
     pub fn user_no(&self, name: &str) -> Option<i64> {
         self.ulist.iter().find(|(n, _)| n == name).map(|&(_, no)| no)
@@ -1623,6 +1628,9 @@ mod tests {
             p.feed(b"#v6 G 1 0 push"),
             vec![Event::Moved { dx: 1, dy: 0, reason: Some("push".into()) }]
         );
+        assert!(!p.has_v6_map());
+        p.feed(b"#v6 M N 6a3b0000 3 3");
+        assert!(p.has_v6_map(), "#v6 M を受けたら v6 の地図の接続 (#194)");
         assert_eq!(p.feed(b"#v6 J"), vec![Event::Jumped]);
         assert_eq!(
             p.feed(b"#v6 E hit 10 12 11 12"),
