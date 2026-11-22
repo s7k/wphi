@@ -286,7 +286,7 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
     let mut host = login.host.clone();
     let mut auto = AutoUnequip::default();
 
-    loop {
+    'conn: loop {
         let wake = next_wake(last_recv, keepalive_sent, warned);
         let mut reply: Vec<String> = Vec::new();
         tokio::select! {
@@ -338,6 +338,9 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                             Event::Internal { action: InternalAction::Lag } => reply.push("#end-lag".into()),
                             Event::Internal { action: InternalAction::Remap } => reply.push("#map".into()),
                             Event::Message(m) => emit(log_event(m, &opts, parser.in_more())),
+                            // サーバの #x・#close。ここでは UI へ送らず、受信を終える。終わりに必ず closed() を送るので、
+                            // ここでも送ると UI へ 2 回届く。サーバが接続を閉じなくても、こちらから切る
+                            Event::Connection { .. } => break 'conn,
                             Event::WorldTransfer { ref server, .. } => {
                                 moving_to = Some(server.clone());
                                 emit(UiEvent::Proto(ev));
@@ -805,25 +808,30 @@ mod tests {
             let mut after = vec![read_line().await, read_line().await];
             after.sort();
             w.write_all(b"#x\n").await.unwrap();
-            (got, after)
+            // 接続を閉じずに返す。#x を受けたら、閉じるのを待たずに終える
+            (got, after, r, w)
         });
 
         let (tx, rx) = mpsc::channel(8);
         tx.send("say あ😀".into()).await.unwrap();
         let mut events: Vec<Value> = Vec::new();
-        run(
-            Login {
-                host: "127.0.0.1".into(),
-                port,
-                id: "ID".into(),
-                view: None,
-            },
-            rx,
-            |ev| events.push(serde_json::to_value(ev).unwrap()),
+        let ended = timeout(
+            Duration::from_secs(5),
+            run(
+                Login {
+                    host: "127.0.0.1".into(),
+                    port,
+                    id: "ID".into(),
+                    view: None,
+                },
+                rx,
+                |ev| events.push(serde_json::to_value(ev).unwrap()),
+            ),
         )
         .await;
+        assert!(ended.is_ok(), "#x の後も受信を続けた");
 
-        let (login, after) = server.await.unwrap();
+        let (login, after, _r, _w) = server.await.unwrap();
         assert_eq!(login[0], b"#open ID\n");
         assert_eq!(login.last().unwrap(), b"#ex-switch compress=deflate\n");
         assert_eq!(after, vec![b"#end-lag\n".to_vec(), b"say \x82\xa0?\n".to_vec()]);
@@ -833,7 +841,7 @@ mod tests {
                 json!({"type": "log", "channel": "log",
                        "html": "<font class=\"class_name\">勇者</font> &gt; <font class=\"cl_red\" style=\"color:red;\">こんにちは</font>",
                        "raw": "勇者 > /*cl=red*/こんにちは/*.*/"}),
-                json!({"type": "connection", "state": "closed"}),
+                // #x を受けても、切断は 1 回だけ知らせる (#154)
                 json!({"type": "connection", "state": "closed"}),
             ]
         );
