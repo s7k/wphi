@@ -173,3 +173,10 @@ cp /tmp/icons/{32x32.png,128x128.png,128x128@2x.png,icon.icns,icon.ico,icon.png}
 
 コードは MIT。
 同梱のグラフィックスのライセンスは [resources/phi/README.md](resources/phi/README.md) に従う。
+
+`resources/phi` の外の画像は次の通り。
+
+| ファイル | 出所 |
+|---|---|
+| `ui/src/itemIcons.png` | Shade (Kurt Gabriel Sotelo) の CC0 の素材 ([武器](https://merchant-shade.itch.io/free-16x16-weapon-rpg-icons)、[雑貨](https://merchant-shade.itch.io/16x16-mixed-rpg-icons)) から選んだ絵と、WPHI で同じ描き方で描き足した絵 (拳・鞭・円刃・ステータスの札)。描き足した分はコードと同じ扱い |
+| `src-tauri/icons` | アプリのアイコン。WPHI で描いた物 (元の SVG は `icon.svg`) で、コードと同じ扱い |
