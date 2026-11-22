@@ -1595,6 +1595,42 @@ button > svg:only-child,
   background: rgb(255 255 255 / 25%);
 }
 
+.bag-offer[aria-pressed="true"] {
+  background: rgb(255 255 255 / 35%);
+}
+
+.bag-offer + .bag-offer {
+  margin-right: 6px;
+}
+
+/* 選択モードのチェックの印。タイルの左上に置く */
+.bag-check {
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 45%);
+}
+
+.bag-check.checked {
+  background: #3f9d8e;
+}
+
+.bag-check.checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0;
+  width: 4px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
 .bag-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, 56px);

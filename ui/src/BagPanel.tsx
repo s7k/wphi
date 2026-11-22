@@ -1,6 +1,6 @@
 // カバン。手持ちの 8 個(#v6 I)とインベントリ(#ex-inv)をアイコンで並べ、出し入れする。
 // 行の書式は phi_dm の docs/dev/protocol-v6.md の「持ち物とインベントリ」。v6 で、世界が有効にしている時だけ届く
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { lightenColors } from "./logLines.ts";
 import { Search, X } from "lucide-react";
 import { PALETTE } from "./pixelIcons.ts";
@@ -137,7 +137,10 @@ function handActions(hand: (ItemInfo | null)[], i: number): { label: string; sen
   ];
 }
 
-function Tile(props: { item: ItemInfo | null; selected: boolean; onClick?: () => void }) {
+/** 番号の大きい順。1 つ送るたびに、それより後ろの番号が 1 つずつ詰まる為 */
+const descending = (nos: Set<number>) => [...nos].sort((a, b) => b - a);
+
+function Tile(props: { item: ItemInfo | null; selected: boolean; onClick?: () => void; checked?: boolean }) {
   const it = props.item;
   if (!it) return <div className="bag-tile empty" />;
   const color = ELEMENT_COLOR[it.fn] ?? ELEMENT_COLOR[0];
@@ -147,8 +150,10 @@ function Tile(props: { item: ItemInfo | null; selected: boolean; onClick?: () =>
       className={props.selected ? "bag-tile selected" : "bag-tile"}
       style={color === "rainbow" ? { background: "conic-gradient(#c4482f, #c9a227, #3f9d8e, #3577c4, #7d5bc4, #c4482f)" } : { background: color }}
       title={[it.name, ...details(it)].join("\n")}
+      aria-pressed={props.checked}
       onClick={props.onClick}
     >
+      {props.checked !== undefined && <span className={props.checked ? "bag-check checked" : "bag-check"} aria-hidden="true" />}
       <ItemIcon index={iconOf(it)} size={48} />
       {EQUIP_LABEL[it.eq] && <span className="bag-equip">{EQUIP_LABEL[it.eq]}</span>}
       {it.count !== undefined && <span className="bag-count">{it.count}</span>}
@@ -169,6 +174,9 @@ export function BagPanel(props: {
   onDrop: (no: number, count: number) => void;
   /** 足元のスイッチ (店の買い取り) が受け取る物を、カバンと手持ちから全部置く (#ex-inv offer) */
   onOffer: () => void;
+  /** カバンの番号 (1 から) の物をまとめて扱う。番号の大きい順に並べてある (送るたびに後ろの番号が詰まらない様に) */
+  onDropMany: (nos: number[]) => void;
+  onGetMany: (nos: number[]) => void;
   /** サーバへ1行か複数行を送る(use・equip・unequip・put) */
   onSend: (text: string) => void;
   onClose: () => void;
@@ -177,6 +185,10 @@ export function BagPanel(props: {
   const [tab, setTab] = useState(0);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
+  // 選択モード。カバンの番号 (1 から) の集合。null なら選択モードでない
+  const [checked, setChecked] = useState<Set<number> | null>(null);
+  // カバンの中身が届き直すと番号がずれるので、選択をやめる
+  useEffect(() => setChecked(null), [props.bag]);
   // 手持ちの枠は 8 個に揃える
   const hand = Array.from({ length: 8 }, (_, i) => props.items[i] ?? null);
   // カバンは番号(1 から)を保ったまま、タブと検索で絞る
@@ -189,6 +201,7 @@ export function BagPanel(props: {
   );
   const pages = Math.max(1, Math.ceil(shown.length / PAGE));
   const at = Math.min(page, pages - 1);
+  const free = hand.filter((h) => !h).length;
   const picked = sel?.where === "hand" ? hand[sel.i] : sel ? (props.bag?.[sel.i - 1] ?? null) : null;
   // カバンの中の、選んだ物と同じ名前の物の数 (drop の個数)
   const nameOf = (it: ItemInfo) => it.rawName || it.name;
@@ -219,6 +232,18 @@ export function BagPanel(props: {
         </div>
         <div className="bag-title">
           カバンの中{props.bag ? ` (${props.bag.length})` : ""}
+          <button
+            type="button"
+            className="bag-offer"
+            aria-pressed={checked !== null}
+            title="カバンの物にチェックを付けて、まとめて置いたり手持ちへ出したりします"
+            onClick={() => {
+              setChecked(checked ? null : new Set());
+              setSel(null);
+            }}
+          >
+            {checked ? "選ぶのをやめる" : "選ぶ"}
+          </button>
           <button
             type="button"
             className="bag-offer"
@@ -268,9 +293,23 @@ export function BagPanel(props: {
           ) : shown.length === 0 ? (
             <p className="bag-note">{props.bag.length ? "当てはまる物がありません" : "カバンは空です"}</p>
           ) : (
-            shown.slice(at * PAGE, (at + 1) * PAGE).map(({ it, no }) => (
-              <Tile key={no} item={it} selected={sel?.where === "bag" && sel.i === no} onClick={() => setSel({ where: "bag", i: no })} />
-            ))
+            shown.slice(at * PAGE, (at + 1) * PAGE).map(({ it, no }) =>
+              checked ? (
+                <Tile
+                  key={no}
+                  item={it}
+                  selected={checked.has(no)}
+                  checked={checked.has(no)}
+                  onClick={() => {
+                    const next = new Set(checked);
+                    if (!next.delete(no)) next.add(no);
+                    setChecked(next);
+                  }}
+                />
+              ) : (
+                <Tile key={no} item={it} selected={sel?.where === "bag" && sel.i === no} onClick={() => setSel({ where: "bag", i: no })} />
+              ),
+            )
           )}
         </div>
         {pages > 1 && (
@@ -284,6 +323,43 @@ export function BagPanel(props: {
             <button type="button" disabled={at === pages - 1} onClick={() => setPage(at + 1)}>
               次へ
             </button>
+          </div>
+        )}
+        {checked && (
+          <div className="bag-detail">
+            <div>
+              {checked.size} 個を選んでいます
+              {checked.size > free ? ` (手持ちの空きは ${free} 個)` : ""}
+            </div>
+            <div className="bag-actions">
+              <button type="button" onClick={() => setChecked(new Set(shown.map(({ no }) => no)))}>
+                表示中を全部選ぶ ({shown.length})
+              </button>
+              <button type="button" disabled={!checked.size} onClick={() => setChecked(new Set())}>
+                選択を解除
+              </button>
+              <button
+                type="button"
+                disabled={!checked.size}
+                onClick={() => {
+                  props.onDropMany(descending(checked));
+                  setChecked(null);
+                }}
+              >
+                選んだ物を置く
+              </button>
+              <button
+                type="button"
+                disabled={!checked.size || checked.size > free}
+                title={checked.size > free ? "手持ちの空きが足りません" : undefined}
+                onClick={() => {
+                  props.onGetMany(descending(checked));
+                  setChecked(null);
+                }}
+              >
+                手持ちへ出す
+              </button>
+            </div>
           </div>
         )}
         {picked && sel && (

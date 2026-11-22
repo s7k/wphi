@@ -1599,6 +1599,8 @@ export function App() {
             onGet={(no) => sendLine(tab.session, `#ex-inv get ${no}`)}
             onDrop={(no, count) => sendLine(tab.session, `#ex-inv drop ${no} ${count}`)}
             onOffer={() => sendLine(tab.session, "#ex-inv offer")}
+            onDropMany={(nos) => sendLines(tab.session, nos.map((no) => `#ex-inv drop ${no} 1`).join("\n"))}
+            onGetMany={(nos) => sendLines(tab.session, nos.map((no) => `#ex-inv get ${no}`).join("\n"))}
             onSend={(text) => {
               // unequip は装備中の物の一覧を出してから番号を受け取る。番号も一緒に送るので、一覧は出さずに閉じる(Alt+数字の cast と同じ)
               if (text.startsWith("unequip")) listFlow(tab.session).cancel += 1;
