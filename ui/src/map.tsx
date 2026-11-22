@@ -19,6 +19,7 @@ import { clampZoom, EXPERIMENT_EVENT, type Settings } from "./settings";
 import { MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, CHAR_ACTION_EVENT, type CharAction, PARTY_OPEN_EVENT, type CondEvent, type MapChar, type MapListAction, type MapState, type StatusEvent } from "./protocol";
 import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
 import { hideOnClose, useImages, useScreenshot } from "./windowUtil";
+import { glideMoves, GLIDE_MS } from "./glide.ts";
 import { findChar, MAP_POP_EVENT, type Fx, type Pop, type PopKind } from "./mapPop.ts";
 import { Pixels } from "./BagPanel.tsx";
 import { COMPASS_PIXELS } from "./pixelIcons.ts";
@@ -498,6 +499,23 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
   // 自キャラを描く。毎フレーム全部のマスを描くと、遅い WebView(WebKitGTK)では 60fps に間に合わない。
   // 地図は自キャラより後ろの行と前の行に分け、後ろ → 自キャラ → 前 の順に重ねる。止まっている時と同じく、下の行の壁が自キャラに重なる
   const layers = useRef<{ back: HTMLCanvasElement; front: HTMLCanvasElement; split: number } | null>(null);
+  // 他のキャラを前の地図の位置から滑らせる (ui/src/glide.ts。#195)。glides は個体の番号 → 動いた量と始めた時刻。
+  // 北固定で、自キャラの世界の座標 (#ex-pos か #v6 G で数えた位置) が分かる時だけ。自キャラを滑らせている間は使わない
+  const glideWorld = useRef(new Map<number, { x: number; y: number }>());
+  const glides = useRef(new Map<number, { x: number; y: number; start: number }>());
+  const glideRaf = useRef(0);
+  useEffect(() => {
+    const selfAt = map?.pos ?? (state?.walk && { x: state.walk.x, y: state.walk.y });
+    if (!board || !northFix || !selfAt) {
+      glideWorld.current.clear();
+      return;
+    }
+    const { world, moved } = glideMoves(glideWorld.current, board.chars, board.self, selfAt);
+    glideWorld.current = world;
+    const now = performance.now();
+    for (const [id, d] of moved) glides.current.set(id, { ...d, start: now });
+  }, [board]);
+  useEffect(() => () => cancelAnimationFrame(glideRaf.current), []);
   const layerDirty = useRef(true);
   paint.current = () => {
     const ctx = mapCanvas.current?.getContext("2d");
@@ -522,6 +540,22 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     const origin = variety && northFix && selfAt ? { x: selfAt.x - board.self.x, y: selfAt.y - board.self.y } : undefined;
     const input = { ...board, mapset: state.mapset, origin };
     if (!s) {
+      // 滑らせている他のキャラは、残りの分だけ前の位置へずらして描き、終わるまで描き直す
+      if (glides.current.size) {
+        const now = performance.now();
+        input.chars = board.chars.map((c) => {
+          const g = glides.current.get(c.id);
+          if (!g) return c;
+          const t = (now - g.start) / GLIDE_MS;
+          if (t >= 1) {
+            glides.current.delete(c.id);
+            return c;
+          }
+          return { ...c, glide: { x: -g.x * (1 - t), y: -g.y * (1 - t) } };
+        });
+        cancelAnimationFrame(glideRaf.current);
+        if (glides.current.size) glideRaf.current = requestAnimationFrame(() => paint.current());
+      }
       drawMap(ctx, input, imgs, frame);
       trace(`map draw ${(performance.now() - t0).toFixed(1)}ms`);
       return;

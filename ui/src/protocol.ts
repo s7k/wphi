@@ -24,6 +24,8 @@ export type MapChar = {
   /** 種別。キャラグラが無い時の既定グラを決める */
   default: number;
   magnify?: Magnify;
+  /** 描く位置のずれ (マス)。前の地図の位置から滑らかに動かす間だけ付ける (map.tsx の glides。#195)。サーバからは来ない */
+  glide?: { x: number; y: number };
 };
 
 export type MapEvent = {

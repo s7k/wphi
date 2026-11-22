@@ -424,14 +424,15 @@ function drawChara(
     ctx.font = `bold ${14 * scale}px "Noto Sans JP", "Noto Sans CJK JP", "Segoe UI", "BIZ UDPGothic", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(nameInitial(ch.name), ch.x * cs + cs / 2 + dx, ch.y * cs + cs / 2);
+    ctx.fillText(nameInitial(ch.name), (ch.x + (ch.glide?.x ?? 0)) * cs + cs / 2 + dx, (ch.y + (ch.glide?.y ?? 0)) * cs + cs / 2);
     ctx.restore();
     return;
   }
   // 拡大表示(scale=2)は通常キャラも右側32×32フレームを使い等倍中央配置。
   const r = charaSrcRect(ch.dir, ch.gigant, animFrame, scale === 2);
-  const baseX = ch.x * cs + Math.floor((cs - r.sw) / 2) + dx;
-  const baseY = ch.y * cs + Math.floor((cs - CHARA_H) / 2) - raise;
+  // glide は前の地図の位置から滑らかに動かす間のずれ (#195)
+  const baseX = Math.round((ch.x + (ch.glide?.x ?? 0)) * cs) + Math.floor((cs - r.sw) / 2) + dx;
+  const baseY = Math.round((ch.y + (ch.glide?.y ?? 0)) * cs) + Math.floor((cs - CHARA_H) / 2) - raise;
 
   // 巨大キャラ magnify(#ex-obj): 描画原点補正 + 拡大サイズ。scale で拡大。
   if (ch.magnify) {
@@ -487,7 +488,7 @@ function drawCharaNames(
     if (c.x < 0 || c.x >= width || c.y < 0 || c.y >= height) continue;
     const name = c.name.replace(/\/\*.*?\*\//g, '').trim();
     if (!name) continue;
-    perCell.set(`${c.x},${c.y}`, { x: c.x, y: c.y, name });
+    perCell.set(`${c.x},${c.y}`, { x: c.x + (c.glide?.x ?? 0), y: c.y + (c.glide?.y ?? 0), name });
   }
   if (perCell.size === 0) return;
 
