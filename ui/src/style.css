@@ -1833,6 +1833,8 @@ button > svg:only-child,
 }
 
 .bag-sort select {
+  /* 開いた一覧を暗い地にする。Windows の WebView2 は、選択欄の白い文字のまま白い地の一覧を出して読めなかった */
+  color-scheme: dark;
   font: inherit;
   color: #fff;
   background: rgb(255 255 255 / 12%);
@@ -1842,7 +1844,8 @@ button > svg:only-child,
 }
 
 .bag-sort option {
-  color: #000;
+  color: #fff;
+  background: #1e232b;
 }
 
 .bag-sort + .bag-search {
