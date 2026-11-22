@@ -167,12 +167,15 @@ cp /tmp/icons/{32x32.png,128x128.png,128x128@2x.png,icon.icns,icon.ico,icon.png}
 | `ui` | 窓の画面(React と TypeScript) |
 | `tools/golden` | phi-client-web の Python のパーサの出力を、`phi-proto` の比較テスト用に書き出す |
 | `tools/png2phibmp` | phi-client-web の透過 PNG のキャラグラを Philly の BMP に戻す |
+| `tools/third-party-notices.mjs` | 依存ライブラリの著作権表示とライセンス文 (`src-tauri/THIRD-PARTY-NOTICES.txt`) を、手元の cargo と node_modules から作る |
 | `resources/phi` | 同梱のグラフィックス・スキン・超魔法の定義。ライセンスは同じフォルダの README |
 
 ## ライセンス
 
 コードは MIT。
 同梱のグラフィックスのライセンスは [resources/phi/README.md](resources/phi/README.md) に従う。
+依存ライブラリ (Rust のクレートと、画面に同梱する npm のパッケージ) の著作権表示とライセンス文は `src-tauri/THIRD-PARTY-NOTICES.txt` にまとめ、配布物の `licenses` に入れる。
+依存を足したり版を上げたりしたら、`node tools/third-party-notices.mjs` で作り直してコミットする (check の CI が古いままだと落ちる)。
 
 `resources/phi` の外の画像は次の通り。
 
