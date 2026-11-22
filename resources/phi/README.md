@@ -12,6 +12,7 @@ Philly フォルダを持たない利用者の為に、アプリへ同梱する�
 | `chara/sushi_*.bmp` | phi-client-web の `tools/sushi_gra/gen.py` で描き起こした絵 | MIT。PCGL の対象外 |
 | `chara/alnes_*.bmp` | このリポジトリで描き起こした絵 (Alnes の世界の採取の場、羊、依頼の掲示板、台座の聖剣、駱駝、蠍) | MIT。PCGL の対象外 |
 | `chara/wphi_sparkle.bmp` | WPHI で描いた絵 (魔法の演出の既定グラ。`tools/defaultAssets.py`) | MIT。PCGL の対象外 |
+| `ui/src/pcglItems.png` (このフォルダの外) | phi-client-web の `assets/items/items.png` をそのまま複写。床に落ちている物の絵 | PCGL |
 | `DefaultChip.bmp` | phi-client-web の `assets/chip/default.png` (汎用のマップチップ) を、左半分が絵・右半分がマスクの BMP に戻したもの。世界のマップチップが無い時に使う | PCGL |
 | `wphi/log.css` | WPHI で書いたログのスタイルシート | MIT |
 | `Config/unew.ini`、`Config/worlds.ini` | キャラグラとマップチップの取得元の一覧と、世界の一覧 (#149) | 出所を確かめ中 |

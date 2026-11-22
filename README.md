@@ -169,7 +169,7 @@ cp /tmp/icons/{32x32.png,128x128.png,128x128@2x.png,icon.icns,icon.ico,icon.png}
 | `tools/golden` | phi-client-web の Python のパーサの出力を、`phi-proto` の比較テスト用に書き出す |
 | `tools/png2phibmp` | phi-client-web の透過 PNG のキャラグラを Philly の BMP に戻す |
 | `tools/third-party-notices.mjs` | 依存ライブラリの著作権表示とライセンス文 (`src-tauri/THIRD-PARTY-NOTICES.txt`) を、手元の cargo と node_modules から作る |
-| `tools/defaultAssets.py` | WPHI で描いた既定の絵 (床の物、魔法の演出) を作る |
+| `tools/defaultAssets.py` | WPHI で描いた既定の絵 (魔法のオブジェの既定グラ) を作る |
 | `resources/phi` | 同梱のグラフィックスとログの CSS。ライセンスは同じフォルダの README |
 
 ## ライセンス
@@ -183,5 +183,6 @@ cp /tmp/icons/{32x32.png,128x128.png,128x128@2x.png,icon.icns,icon.ico,icon.png}
 
 | ファイル | 出所 |
 |---|---|
+| `ui/src/pcglItems.png` | 床に落ちている物の絵。phi-client-web の PCGL の items.png ([resources/phi/README.md](resources/phi/README.md)) |
 | `ui/src/itemIcons.png` | Shade (Kurt Gabriel Sotelo) の CC0 の素材 ([武器](https://merchant-shade.itch.io/free-16x16-weapon-rpg-icons)、[雑貨](https://merchant-shade.itch.io/16x16-mixed-rpg-icons)) から選んだ絵と、WPHI で同じ描き方で描き足した絵 (拳・鞭・円刃・ステータスの札)。描き足した分はコードと同じ扱い |
 | `src-tauri/icons` | アプリのアイコン。WPHI で描いた物 (元の SVG は `icon.svg`) で、コードと同じ扱い |

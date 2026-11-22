@@ -7,9 +7,9 @@ test("アイテムは Philly と同じく床の上端の8px上に描く(#41)", (
   assert.deepEqual([r.dx, r.dy, r.dw, r.dh], [32, 56, 32, 32]);
   // 拡大(scale 2)は上げる量も2倍
   assert.equal(itemDrawRect(1, " ".charCodeAt(0), 64, 128, 2).dy, 112);
-  // 防御円の上は、絵の上の空き 11px を切って円の中に収める。絵の位置は変えない
+  // プロテクションサークルの上は下を11px切る
   const c = itemDrawRect(5, "x".charCodeAt(0), 0, 32);
-  assert.deepEqual([c.sy, c.sh, c.dy], [11, 21, 35]);
+  assert.deepEqual([c.sy, c.sh, c.dy], [5, 21, 24]);
 });
 
 test("同じマスのキャラの並べ方(#42)", () => {

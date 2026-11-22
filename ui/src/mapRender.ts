@@ -152,8 +152,8 @@ export function itemNo(attr: number): number {
   return (attr & 0x70) >> 4;
 }
 
-/** 床に落ちている物の絵 (item_no ごとに 32x32 を横に並べた 1 枚)。WPHI で作った物 (tools/defaultAssets.py) */
-export const FLOOR_ITEMS_URL = new URL("./floorItems.png", import.meta.url).href;
+/** 床に落ちている物の絵 (32x32 を横に並べた 1 枚。先頭の 8 枚が item_no)。phi-client-web の PCGL の items.png */
+export const FLOOR_ITEMS_URL = new URL("./pcglItems.png", import.meta.url).href;
 
 /** floorItems.png 上の item_no → 矩形。 */
 export function itemSrcRect(no: number): {
@@ -189,8 +189,6 @@ export const ITEM_Y_ABOVE_FLOOR = 8;
  */
 export const CHARA_Y_ABOVE_FLOOR = 11;
 
-/** 防御円の上で切る、アイテムの上の高さ */
-const ITEM_CLIP_TOP = 11;
 /** アイテムクリップ高(円内に収める可視高 = 32-11)。 */
 export const ITEM_CLIP_H = ITEM_SPRITE_SIZE - 11; // 21
 
@@ -198,7 +196,8 @@ export const ITEM_CLIP_H = ITEM_SPRITE_SIZE - 11; // 21
  * アイテム描画の src/dst 矩形を算出(map_widget.py `_ItemRenderer.draw` 移植)。
  *
  * - 通常セル: 32×32 を (col*cs, row*cs+8) に等倍描画。
- * - 防御円('x'/'%')上: 上11pxを切り、高21pxだけを同じ位置に描く(円内に収める)。
+ * - 防御円('x'/'%')上: 上11pxをクリップし高21pxのみ描画(円内に収める)。
+ *   item_no 5/6 はスプライト先頭が空きのため src_y を +5 して内容をずらす。
  *
  * @param no       item_no(0-7)。
  * @param chipByte 下地チップbyte(防御円判定)。
@@ -229,14 +228,15 @@ export function itemDrawRect(
   const drawY = dstY - ITEM_Y_ABOVE_FLOOR * scale;
 
   if (isCircleChip(chipByte)) {
-    // DrawPart: 上11pxクリップで可視21pxのみ。絵は枠の下寄り (y 12〜27) にあるので、切っても絵は欠けない
+    // DrawPart: 上11pxクリップで可視21pxのみ。item 5/6 は内容を src_y+5。
+    const srcYOffset = no === 5 || no === 6 ? 5 : 0;
     return {
       sx: srcX,
-      sy: ITEM_CLIP_TOP,
+      sy: srcYOffset,
       sw: s,
       sh: ITEM_CLIP_H,
       dx: dstX,
-      dy: drawY + ITEM_CLIP_TOP * scale,
+      dy: drawY,
       dw: s * scale,
       dh: ITEM_CLIP_H * scale,
     };

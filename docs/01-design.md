@@ -199,7 +199,7 @@ BMP を一次情報にし、実行時に読み込む。
 |---|---|---|---|
 | キャラグラ | `chara/<グラ名>.bmp` | 種別ごとの既定グラ。Philly はスキンの `Index.txt` で引く(`GraCache.cpp:472-490`)が、WPHI はスキンを同梱しないので `assets.rs` の DEFAULT_GRA で引く | teal(0,128,128) を透明にする |
 | マップチップ | `chip/<名前>.bmp` | PCGL の汎用のチップ `DefaultChip.bmp`(Philly はスキンの `chip/Default.bmp`。`GraCache.cpp:290`) | 左半分が画像、右半分がマスク |
-| アイテム | UI の `floorItems.png`(WPHI で作った物。Philly はスキンの `Images/Items.bmp`) | なし | PNG の透過 |
+| アイテム | UI の `pcglItems.png`(phi-client-web の PCGL の items.png。Philly はスキンの `Images/Items.bmp`) | なし | PNG の透過 |
 | 方角 | `Skins/<スキン>/Images/Direction.bmp` | なし | 白を透明にする |
 | HP/MP パネル・ステータス | `Skins/<スキン>/Images/` | なし | teal を透明にする |
 
