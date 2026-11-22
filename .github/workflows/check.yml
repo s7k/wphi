@@ -35,6 +35,8 @@ jobs:
           if [ -n "$dup" ]; then echo "$dup"; exit 1; fi
       - run: npm ci
       - run: cargo fmt --all --check
+      # 配布物の licenses に入れる依存ライブラリのライセンス文が、今の依存と合っているか
+      - run: node tools/third-party-notices.mjs --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - run: npx tsc --noEmit

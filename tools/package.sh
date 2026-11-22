@@ -4,7 +4,8 @@
 #   tools/package.sh windows|linux|macos
 #
 # zip の中身は WPHI/ の下に、アプリと空の chara・chip と README.txt と licenses。
-# 同梱のグラフィックスはアプリに埋め込んであるので並べない。PCGL が添付を求めるライセンスの文書だけを licenses に置く。
+# 同梱のグラフィックスはアプリに埋め込んであるので並べない。licenses には PCGL が添付を求めるライセンスの文書と、
+# 依存ライブラリの著作権表示とライセンス文(THIRD-PARTY-NOTICES.txt。tools/third-party-notices.mjs で作る)を置く。
 # WPHI は、アプリを置いたフォルダの chara・chip から先に画像を探す(src-tauri/src/main.rs の app_folder)。
 # 先に npm run tauri build で、その OS の配布物を作っておく。
 set -euo pipefail
@@ -19,6 +20,7 @@ rm -rf "$stage"
 mkdir -p "$stage/chara" "$stage/chip" "$stage/licenses"
 cp "$root/resources/phi/PCGL.txt" "$root/resources/phi/PCGL.utf8.txt" "$stage/licenses/"
 cp "$root/resources/phi/README.md" "$stage/licenses/GRAPHICS.md"
+cp "$root/src-tauri/THIRD-PARTY-NOTICES.txt" "$stage/licenses/"
 
 case "$os" in
   windows)
@@ -53,6 +55,7 @@ esac
   echo "Philly のフォルダがあれば、キャラ選択の画面の「Philly から取り込む」で指定してもよい。"
   echo
   echo "同梱のキャラグラは PCGL(Phi Charactor Graphics License)のグラフィックスで、全文は licenses にある。"
+  echo "使っているライブラリの著作権表示とライセンス文は licenses/THIRD-PARTY-NOTICES.txt にある。"
   case "$os" in
     windows)
       echo

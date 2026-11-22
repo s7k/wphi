@@ -25,7 +25,7 @@ delharc = "0.8.0"
 flate2 = "1.1.11"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["rt-multi-thread"] }
+tokio = { version = "1", features = ["rt-multi-thread", "test-util"] }
 serde_json = "1"
 
 [target.'cfg(windows)'.dependencies]

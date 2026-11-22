@@ -4,3 +4,4 @@ dist/
 src-tauri/gen/
 dist-zip/
 mise.local.toml
+__pycache__/

@@ -52,6 +52,9 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf
 
       - run: npm ci
+      # 配布物の licenses に入れる依存ライブラリのライセンス文(src-tauri/THIRD-PARTY-NOTICES.txt)が、今の依存と合っているか。
+      # 文はコミットした物を使い、ここでは作り直さない(手元でもネットワークに出ずに配布物を作れるよう)
+      - run: node tools/third-party-notices.mjs --check
       - run: cargo test --workspace
       - run: npm test
       - run: npx tauri build --bundles ${{ matrix.bundles }} ${{ matrix.args }}
