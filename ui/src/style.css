@@ -1876,6 +1876,12 @@ button > svg:only-child,
   min-height: 60px;
 }
 
+/* カバンの中身は縮めない。縮めると、溢れたタイルが下のページの切り替えと詳しい情報に重なって押せなくなる。
+   窓に収まらない時は、カバンの欄 (.bag-body) ごとスクロールする */
+.bag-body > * {
+  flex-shrink: 0;
+}
+
 /* カバンの中のページ送り(BagPanel.tsx の PAGE) */
 .bag-pages {
   display: flex;

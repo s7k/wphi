@@ -353,6 +353,20 @@ export function BagPanel(props: {
             />
           </label>
         </div>
+        {/* 一覧の上に置く。下に置くと、一覧が窓に収まらない時にスクロールしないと見えない */}
+        {pages > 1 && (
+          <div className="bag-pages">
+            <button type="button" disabled={at === 0} onClick={() => setPage(at - 1)}>
+              前へ
+            </button>
+            <span>
+              {at + 1} / {pages}
+            </span>
+            <button type="button" disabled={at === pages - 1} onClick={() => setPage(at + 1)}>
+              次へ
+            </button>
+          </div>
+        )}
         <div className="bag-grid bag-store">
           {props.bag === null ? (
             <p className="bag-note">読み込み中...</p>
@@ -380,19 +394,6 @@ export function BagPanel(props: {
             )
           )}
         </div>
-        {pages > 1 && (
-          <div className="bag-pages">
-            <button type="button" disabled={at === 0} onClick={() => setPage(at - 1)}>
-              前へ
-            </button>
-            <span>
-              {at + 1} / {pages}
-            </span>
-            <button type="button" disabled={at === pages - 1} onClick={() => setPage(at + 1)}>
-              次へ
-            </button>
-          </div>
-        )}
         {checked && (
           <div className="bag-detail" ref={detail}>
             {picked && (

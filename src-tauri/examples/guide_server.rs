@@ -137,6 +137,18 @@ fn big_frame() -> Vec<Vec<u8>> {
     lines
 }
 
+/// カバンの中が 95 個 (素材を名前を変えて並べる)
+fn bag_many() -> Vec<Vec<u8>> {
+    let mut lines: Vec<Vec<u8>> = (1..=95)
+        .map(|i| {
+            format!("#ex-inv I {i}\teq=-\tit=4\twt=0\tmt=1\tfn={}\twp={}\top={},0,0,0\tready=0\ttype=Resource\twtype=claw\tmat=Leather\telem=Earth\tname=Pelt {i:03}", i % 7, i % 13, i % 17)
+                .into_bytes()
+        })
+        .collect();
+    lines.push(b"#ex-inv .".to_vec());
+    lines
+}
+
 fn transcript() -> Vec<Vec<u8>> {
     let mut out: Vec<Vec<u8>> = Vec::new();
     let mut text = |s: &str| out.push(codec::encode(s));
@@ -322,6 +334,8 @@ fn main() {
                             "near" => frame(8, 8, b'R'),
                             "back" => frame(6, 8, b'R'),
                             "big" => big_frame(),
+                            // カバンに 1 ページ (40 個) を超える 95 個。ページの切り替えを試す時
+                            "bag-many" => bag_many(),
                             _ => effect_lines(&scene),
                         })
                         .to_string()
