@@ -92,7 +92,7 @@ export function SpellBar(props: {
             type="button"
             className={cls.filter(Boolean).join(" ")}
             disabled={props.waiting}
-            aria-label={i < 8 ? `${s.name} (Ctrl+${i + 1})` : s.name}
+            aria-label={i < 8 ? `${s.name} (Ctrl+${i + 1}・Alt+${i + 1})` : s.name}
             style={color === "rainbow" ? { background: "conic-gradient(#c4482f, #c9a227, #3f9d8e, #3577c4, #7d5bc4, #c4482f)" } : { background: color }}
             onPointerDown={onDown(i)}
             onPointerMove={onDrag}

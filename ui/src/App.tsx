@@ -342,8 +342,14 @@ export function App() {
       return { ...t, spells: orderSpells(order, t.spells ?? []).ordered };
     });
   const castSpellSlot = (session: number, n: number) => {
-    const spell = tabsRef.current.find((t) => t.session === session)?.spells?.[n - 1];
-    if (spell) castSpell(session, spell);
+    const spells = tabsRef.current.find((t) => t.session === session)?.spells;
+    // 魔法の列が無いサーバ (#v6 S を送らない) では、所持魔法の何番目かを唱える (Philly の Alt+数字)
+    if (!spells?.length) {
+      listFlow(session).cancel += 1;
+      sendLines(session, `cast\n${n}`);
+      return;
+    }
+    if (spells[n - 1]) castSpell(session, spells[n - 1]);
   };
   const openBag = (session: number) => {
     update(session, (t) => ({ ...t, bagOpen: true, bagMessage: "" }));
