@@ -58,6 +58,9 @@ test("フルキー移動", () => {
   assert.deepEqual(act(key("KeyJ"), full), { send: "hit" });
   // 無効なら数字はリストの番号
   assert.deepEqual(act(key("Digit8"), north), { send: "8" });
+  // I はカバンを開く。フルキー移動の時はテンキーの 5 (後ろを向く)
+  assert.deepEqual(act(key("KeyI"), north), { menu: "bag-open" });
+  assert.deepEqual(act(key("KeyI"), full), { send: "turn b" });
 });
 
 test("リスト表示中のキー", () => {

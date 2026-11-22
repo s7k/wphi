@@ -124,6 +124,8 @@ const NONE: Record<string, KeyAction> = {
   KeyD: { send: "erase" },
   KeyF: { send: "floor item" },
   KeyH: { send: "hi" },
+  // フルキーで移動する設定の時は、I は移動 (FULL_KEY_MOVE) が先に取る
+  KeyI: { menu: "bag-open" },
   KeyM: { send: "check\nlook" },
   KeyN: { send: "n" },
   KeyP: { ask: { title: "支払い金額", label: "支払う金額", numeric: true }, send: "pay {}" },

@@ -812,6 +812,20 @@ export function App() {
       if (id === "all-force-close") return tabsNow.filter((t) => !t.closed).forEach((t) => forceClose(t.session));
       if (id === "new-tab") return setActive(null);
       if (id === "bag-open") return session === null ? undefined : openBag(session);
+      // カバンの操作は、断られた理由 (#ex-inv no) がカバンの画面に出るので、開いてから送る
+      if (id === "bag-stash" && session !== null) {
+        // 装備中以外の手持ちを、枠の後ろから入れる (入れるたびに後ろの枠が詰まる為)
+        const hand = tabsRef.current.find((t) => t.session === session)?.items ?? [];
+        const slots = hand.flatMap((it, i) => (it && it.eq === "-" ? [i + 1] : [])).reverse();
+        openBag(session);
+        if (slots.length) sendLines(session, slots.map((k) => `#ex-inv put ${k}`).join("\n"));
+        return;
+      }
+      if (id === "bag-offer" && session !== null) {
+        openBag(session);
+        sendLine(session, "#ex-inv offer");
+        return;
+      }
       if (id === "party-open")
         return session === null ? undefined : update(session, (t) => ({ ...t, partyOpen: true, bagOpen: false }));
       if (id === "download") return setDownloadOpen(true);
