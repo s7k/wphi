@@ -49,7 +49,7 @@ import { LogView } from "./LogView";
 import { INPUT_MENU, INPUT_MENU_EVENT, InputEditor } from "./InputEditor";
 import { CharacterList } from "./CharacterList";
 import { SignCard } from "./SignCard";
-import { LOG_HEIGHT_KEY, LOG_HEIGHTS, LOG_WIDTH_KEY, LOG_MAX_KEY, useStored, LogHeight, LogWidthHandle } from "./LogControls";
+import { LOG_HEIGHT_KEY, LOG_HEIGHTS, LOG_WIDTH_KEY, LOG_MAX_KEY, useStored, LogHeight, LogWidthHandle, LOG_FILTER_KEY, LOG_FILTERS, LogFilter } from "./LogControls";
 import { MapPane } from "./MapPane";
 
 // src-tauri/src/characters.rs の Store
@@ -202,6 +202,8 @@ export function App() {
   // モダンのログの横幅 (px。0 なら CSS の既定) と、窓いっぱいに広げてログだけ見るモード
   const [logWidth, setLogWidth] = useStored(LOG_WIDTH_KEY, 0);
   const [logMax, setLogMax] = useStored(LOG_MAX_KEY, 0);
+  // ログに出す行の種類 (LOG_FILTERS の番号。#181)
+  const [logFilter, setLogFilter] = useStored(LOG_FILTER_KEY, 0, (v) => v >= 0 && v < LOG_FILTERS.length);
   // 新しい版があれば、Release のページを開くか聞く(#25)。見られなくても何も出さない
   useEffect(() => {
     checkUpdate(true).catch(console.error);
@@ -1773,7 +1775,10 @@ export function App() {
         )}
         <div className={logMax && settings.modern ? "log-area log-max" : "log-area"}>
           {settings.modern && (
-            <LogHeight value={logHeight} onChange={setLogHeight} max={!!logMax} onMax={() => setLogMax(logMax ? 0 : 1)} />
+            <>
+              <LogHeight value={logHeight} onChange={setLogHeight} max={!!logMax} onMax={() => setLogMax(logMax ? 0 : 1)} />
+              <LogFilter value={logFilter} onChange={setLogFilter} />
+            </>
           )}
           {settings.modern && !logMax && <LogWidthHandle onChange={setLogWidth} />}
           <div
@@ -1796,6 +1801,7 @@ export function App() {
                   lines={t.partyMode ? t.partyLines : t.lines}
                   follow={logFollow && !findOpen}
                   light={settings.modern}
+                  only={settings.modern ? LOG_FILTERS[logFilter]?.[1] : undefined}
                 />
               </div>
             ))}

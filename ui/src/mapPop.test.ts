@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { findChar, newPopState, popsFromLine } from "./mapPop.ts";
+import { findChar, newPopState, popsFromLine, logKind } from "./mapPop.ts";
 
 const DM = "/*color=gray*/DM";
 
@@ -112,4 +112,14 @@ test("同じ名前なら中央に近いキャラ", () => {
   assert.equal(findChar(chars, "スライム", me), chars[1]);
   assert.equal(findChar(chars, "花子", me), undefined);
   assert.equal(findChar(chars, "", me), chars[2]);
+});
+
+test("ログの行を発言・戦闘・その他に分ける (#181)", () => {
+  assert.equal(logKind("Kotone > こんにちは"), "talk");
+  assert.equal(logKind("[Sora] > 後で会いましょう"), "talk");
+  assert.equal(logKind("DM Mirai は 市場の猫 を /*.*/木の枝 /*color=gray*/で攻撃した. [/*color=-hp*/12/*color=gray*/ hp] ".replace("DM ", "DM > ")), "battle");
+  assert.equal(logKind("DM > Mirai はミスした. "), "battle");
+  assert.equal(logKind("DM > Mirai は Kotone に Protect をかけた. "), "battle");
+  assert.equal(logKind("DM > はじまりの草原に着いた。"), "other");
+  assert.equal(logKind(undefined), "other");
 });

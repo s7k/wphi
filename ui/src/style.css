@@ -1765,6 +1765,12 @@ button > svg:only-child,
   background: rgb(0 0 0 / 65%);
 }
 
+/* ログの絞り込みは左上 (右上は高さのボタン) */
+.log-height.log-filter {
+  right: auto;
+  left: 12px;
+}
+
 .log-height button {
   font: inherit;
   font-size: 11px;

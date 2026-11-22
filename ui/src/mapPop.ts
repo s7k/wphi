@@ -146,3 +146,18 @@ export function findChar<C extends { x: number; y: number; name: string }>(
   }
   return best;
 }
+
+/**
+ * ログの行の種類 (ログの絞り込み。#181)。talk は発言 (priv と NPC を含む)、battle は戦闘の知らせ
+ * (増減・ミス・死亡・状態異常・強化・弱体・呪文をかけた行)、other はそれ以外 (DM の案内、システムの行など)
+ */
+export function logKind(raw: string | undefined): "talk" | "battle" | "other" {
+  if (!raw) return "other";
+  const text = stripTags(raw);
+  const sep = text.indexOf(" > ");
+  if (sep <= 0) return "other";
+  if (text.slice(0, sep).trim() !== "DM") return "talk";
+  const body = text.slice(sep + 3).trim();
+  if (/^.+? は .+? に .+ をかけた\./.test(body) || /^.+? は .+? を .+ (?:で|で攻撃した)/.test(body)) return "battle";
+  return popsFromLine(raw).length ? "battle" : "other";
+}

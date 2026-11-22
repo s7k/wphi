@@ -51,6 +51,27 @@ export function LogHeight(props: { value: number; onChange: (v: number) => void;
   );
 }
 
+export const LOG_FILTER_KEY = "wphi:logFilter";
+/** ログの絞り込み (#181)。全部・発言 (priv と NPC を含む)・戦闘 (ui/src/mapPop.ts の logKind) */
+export const LOG_FILTERS: [string, "talk" | "battle" | undefined][] = [
+  ["全部", undefined],
+  ["発言", "talk"],
+  ["戦闘", "battle"],
+];
+
+/** ログの左上の、出す行の種類を選ぶボタン */
+export function LogFilter(props: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="log-height log-filter" role="group" aria-label="ログに出す行">
+      {LOG_FILTERS.map(([label], i) => (
+        <button key={label} type="button" aria-pressed={props.value === i} onClick={() => props.onChange(i)}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** モダンのログの右端。ドラッグで横幅を変える。ダブルクリックで既定の幅に戻す */
 export function LogWidthHandle(props: { onChange: (px: number) => void }) {
   const drag = useRef<{ left: number } | null>(null);
