@@ -330,8 +330,22 @@ export function App() {
     sendLines(session, castLines(spell));
     if (waitsForOrder(spell)) {
       update(session, (t) => ({ ...t, spellWaiting: true }));
-      window.setTimeout(() => update(session, (t) => (t.spellWaiting ? { ...t, spellWaiting: false } : t)), SPELL_WAIT_MS);
+      // 前の詠唱のタイマーは消す。残すと、次の詠唱の待ちを早く解き、古い番号で別の呪文を唱えた (#162)
+      clearSpellWait(session);
+      spellWaitTimers.current.set(
+        session,
+        window.setTimeout(() => {
+          spellWaitTimers.current.delete(session);
+          update(session, (t) => (t.spellWaiting ? { ...t, spellWaiting: false } : t));
+        }, SPELL_WAIT_MS),
+      );
     }
+  };
+  /** 詠唱の待ちを解くタイマー。呪文の並び (#v6 S) が届いた時と、次に唱える時に消す */
+  const spellWaitTimers = useRef(new Map<number, number>());
+  const clearSpellWait = (session: number) => {
+    window.clearTimeout(spellWaitTimers.current.get(session));
+    spellWaitTimers.current.delete(session);
   };
   /** 魔法の列を並べ替えて、キャラの並びとして保存する */
   const moveSpellTile = (session: number, from: number, to: number) =>
@@ -383,10 +397,12 @@ export function App() {
     append(session, systemOk(`${name} について行きます。移動のキーか Esc でやめます。`));
   };
   const stopFollow = (session: number, message?: string) => {
-    if (!follows.current.delete(session)) return;
+    const was = follows.current.delete(session);
+    // follows に無くても帯 (following) は消す。再接続の後に帯だけが残り、「やめる」で消えなかった (#160)
+    if (!was && !tabsRef.current.find((t) => t.session === session)?.following) return;
     if (session === activeRef.current) walker.current.clear();
     update(session, (t) => ({ ...t, following: null }));
-    append(session, systemOk(message ?? "ついて行くのをやめました。"));
+    if (was) append(session, systemOk(message ?? "ついて行くのをやめました。"));
   };
   /**
    * ついて行く 1 回分。見回り (PREDICT_TICK_MS) ごとに、ついて行っている全部のタブについて呼ぶ。
@@ -1347,6 +1363,8 @@ export function App() {
               append(session, systemNg("ファイルのメニューの「接続」で繋ぎ直せます。"));
             }
           update(session, (t) => ({ ...t, closed: true }));
+          // 切れたら、ついて行くのをやめる。裏のタブは切れたセッションへ go を送り続けた (#160)
+          if (follows.current.has(session)) stopFollow(session, "切断したので、ついて行くのをやめました。");
           break;
         }
         case "userList":
@@ -1372,6 +1390,7 @@ export function App() {
           update(session, (t) => ({ ...t, items: ev.items }));
           break;
         case "spells":
+          clearSpellWait(session);
           // 列の並びはキャラごとに最初に見た順で固定し、番号だけ今の物にする
           update(session, (t) => {
             const { order, ordered } = orderSpells(loadSpellOrder(t.label), ev.spells);
@@ -1457,7 +1476,12 @@ export function App() {
       forgetSession(replace);
       append(session, systemOk("サーバーに接続します..."));
       setTabs((ts) =>
-        ts.map((t) => (t.session === replace ? { ...t, session, closed: false, list: null, board: false, users: [] } : t)),
+        // ついて行く帯と詠唱の待ちも戻す。前のセッションのまま残り、帯が消えず、魔法の列が押せなかった (#160)
+        ts.map((t) =>
+          t.session === replace
+            ? { ...t, session, closed: false, list: null, board: false, users: [], following: null, spellWaiting: false }
+            : t,
+        ),
       );
       setActive((a) => (a === replace ? session : a));
       early.splice(0).forEach(handle);
@@ -1524,6 +1548,7 @@ export function App() {
     userClosing.current.delete(session);
     mapStates.current.delete(session);
     pendingMapsets.current.delete(session);
+    clearSpellWait(session);
     listFlows.current.delete(session);
     lastUlist.current.delete(session);
     pendingLines.current.delete(session);
