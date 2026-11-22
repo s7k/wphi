@@ -215,6 +215,8 @@ export type MapState = {
    */
   /** 仲間の名前(タグを除く。自分は除く)。地図のキャラを選んだ時に、誘うか一覧を開くかを決める */
   party?: string[];
+  /** 仲間の、自分から見た位置の差 (#v6 P の dx・dy。東と南が正)。別の階の仲間は入れない。視界の外の仲間を地図の端に矢印で出す (#191) */
+  partyPos?: { name: string; dx: number; dy: number }[];
   walk?: { x: number; y: number; epoch: number; at: number; ms: number; bump?: { dx: number; dy: number; at: number } };
 };
 

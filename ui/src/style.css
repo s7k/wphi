@@ -341,6 +341,32 @@ body {
   pointer-events: none;
   z-index: 2;
 }
+/* 視界の外の仲間の矢印 (map.tsx の partyArrows)。left・top は窓の端に寄せた位置 */
+.party-arrow {
+  position: absolute;
+  /* モダンのログ (4) に重なっても見える様に、ログより前に出す */
+  z-index: 5;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.party-arrow-head {
+  width: 0;
+  height: 0;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left: 14px solid #8fe08f;
+  filter: drop-shadow(0 0 2px #000);
+}
+.party-arrow-name {
+  font-size: 11px;
+  color: #fff;
+  text-shadow: var(--outline);
+  white-space: nowrap;
+}
 /* 攻撃の待ち。足元で脈打つ輪 */
 .fx-attack-wait {
   width: calc(var(--cell) * 1.2);

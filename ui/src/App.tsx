@@ -1056,6 +1056,7 @@ export function App() {
         break;
       case "party":
         s.party = ev.members.slice(1).map((m) => m.name);
+        s.partyPos = ev.members.slice(1).flatMap((m) => (m.dx === undefined || m.dy === undefined ? [] : [{ name: m.name, dx: m.dx, dy: m.dy }]));
         break;
       case "mode":
         s.mode = ev;

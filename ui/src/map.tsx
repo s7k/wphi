@@ -665,6 +665,28 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     if (cat === "down") return [one("fx-sink")];
     return [...beam, one("fx-impact")];
   });
+  // 視界の外の仲間を、地図の端に名前と距離付きの矢印で出す (#191)。北固定の時だけ (回る地図では dx・dy の向きが画面と合わない)
+  const partyArrows = northFix
+    ? (state?.partyPos ?? []).flatMap((p) => {
+        const x = me.x + p.dx;
+        const y = me.y + p.dy;
+        if (x >= 0 && x < boardW && y >= 0 && y < boardH) return [];
+        const c = cellAt(me);
+        const half = { w: (boardW / 2 - 2) * CHIP_SIZE * zoom, h: (boardH / 2 - 1.6) * CHIP_SIZE * zoom };
+        const len = Math.max(Math.abs(p.dx) * CHIP_SIZE * zoom / half.w, Math.abs(p.dy) * CHIP_SIZE * zoom / half.h);
+        const left = c.left + (p.dx * CHIP_SIZE * zoom) / len;
+        const top = c.top + (p.dy * CHIP_SIZE * zoom) / len;
+        const deg = (Math.atan2(p.dy, p.dx) * 180) / Math.PI;
+        return [
+          <div key={`pa-${p.name}`} className="party-arrow" style={{ left, top }}>
+            <span className="party-arrow-head" style={{ transform: `rotate(${deg}deg)` }} />
+            <span className="party-arrow-name">
+              {p.name} {Math.max(Math.abs(p.dx), Math.abs(p.dy))}
+            </span>
+          </div>,
+        ];
+      })
+    : [];
 
   // 名前の一覧は上の行から順に並べる(CharacterNameList.cpp の SetNameList)
   const names = chars
@@ -702,6 +724,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
           />
           {popEls}
           {fxEls}
+          {partyArrows}
           {/* 攻撃の待ち (#attack 〜 #end-at) の間、自キャラの足元に輪を出す。この間の hit は待ちが明けた時に送る (#177) */}
           {state?.mode?.attack && (
             <div
