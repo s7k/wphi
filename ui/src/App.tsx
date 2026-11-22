@@ -62,6 +62,11 @@ export type Store = { characters: Character[]; openTabs: string[] };
 const ULIST_QUIET_MS = 300;
 /** 裏のタブでついて行く時、1 歩送ってから移動の返事も地図も届かなければ、次を送るまで待つ上限 (ms) */
 const FOLLOW_PENDING_MS = 600;
+/** 詠唱の始め (DMM_CAST_NOW) と、止まった知らせ (DMM_CAST_STOP)。タグを除いた行で見る */
+const CAST_START = /^DM > (.+ を唱えています\.\.\.|.+ is being cast\.\.\.)/;
+const CAST_STOP = /^DM > (詠唱を止めました|Stop casting)/;
+/** 詠唱の長さの上限の見込み (ms)。#end-mg が届かない時に待たせ続けない為 */
+const CAST_MAX_MS = 8000;
 /** 自動攻撃で、殴るか近づくかを決める間隔 (ms)。攻撃の待ちの間は殴らないので、待ちより短くてよい */
 const AUTO_ATTACK_MS = 150;
 
@@ -413,7 +418,7 @@ export function App() {
    * 1 歩送ったら移動の返事か地図が届くまで待つ (位置の予想は表のタブの分しか無い)
    */
   const followTick = (session: number | null) => {
-    if (session === null) return;
+    if (session === null || casting(session)) return;
     const f = follows.current.get(session);
     if (!f) return;
     if (session !== activeRef.current) return followBackground(session, f);
@@ -455,6 +460,10 @@ export function App() {
     }
     return party;
   };
+  // 詠唱中 (DMM_CAST_NOW の行から #end-mg か DMM_CAST_STOP まで)。この間はついて行く・追尾移動・自動攻撃の go と hit を待たせる。
+  // 詠唱中に go などの行を受けると、DM は詠唱を止める (#186)。#end-mg が来ない時の為に CAST_MAX_MS で切る
+  const castUntil = useRef(new Map<number, number>());
+  const casting = (session: number) => (castUntil.current.get(session) ?? 0) > performance.now();
   // 対象 (ui/src/target.ts。#183)。対象のキャラの番号は地図の状態に入れ、地図が枠で囲む
   const setTarget = (session: number, c: { id: number; name: string } | null) => {
     const s = mapStates.current.get(session);
@@ -500,7 +509,7 @@ export function App() {
   };
   const lastAuto = useRef(0);
   const autoAttackTick = (session: number | null) => {
-    if (session === null || !mapStates.current.get(session)?.autoAttack) return;
+    if (session === null || !mapStates.current.get(session)?.autoAttack || casting(session)) return;
     const now = performance.now();
     if (now - lastAuto.current < AUTO_ATTACK_MS) return;
     lastAuto.current = now;
@@ -508,6 +517,7 @@ export function App() {
   };
   /** 裏のタブのついて行く 1 回分。ゲートで飛んだかの判断は省く (歩いた位置を確かめる予想が無い) */
   const followBackground = (session: number, f: { name: string; mem: FollowMemory; lastSend: number; pending?: number }) => {
+    if (casting(session)) return;
     const raw = mapStates.current.get(session)?.map;
     const party = followParty(session, f.name, raw);
     if (!raw || !party) return;
@@ -1027,6 +1037,8 @@ export function App() {
       else {
         // 追尾移動は長押しと同じ速さにする。スムーズ移動で歩く時は歩き方に任せる(ui/src/walker.ts)。
         // 位置を予想する時は前の移動の返事を待ち、他は FOLLOW_MS に1歩まで
+        // 詠唱中は追尾移動の go を送らない。go を受けると DM が詠唱を止める (#186)
+        if (m.type === "follow" && casting(session)) return;
         if (m.type === "follow" && walking(session)) {
           walker.current.setFollow(m.keys, "none");
           stepWalker(session);
@@ -1385,6 +1397,8 @@ export function App() {
           append(session, ev.html, ev.raw);
           if (ev.raw) {
             const plain = stripTags(ev.raw);
+            if (CAST_START.test(plain)) castUntil.current.set(session, performance.now() + CAST_MAX_MS);
+            if (CAST_STOP.test(plain)) castUntil.current.delete(session);
             if (DEAD_LINE.test(plain)) died.current.add(session);
             if (KICKED_LINE.test(plain)) kicked.current.add(session);
           }
@@ -1549,6 +1563,10 @@ export function App() {
           // #v6 E。演出を当たった個体の位置に出す。名前で探すと、同じ名前の敵が並んだ時に別の個体に出た
           if (session === activeRef.current && settingsRef.current.mapEffects)
             emit(MAP_POP_EVENT, { pops: [], fx: [{ kind: ev.kind, from: ev.from, at: ev.at, element: ev.element, category: ev.category, wait: ev.wait }], to: mapPlace() }).catch(console.error);
+          break;
+        case "castEnd":
+          // #end-mg で詠唱が終わる (#186)
+          castUntil.current.delete(session);
           break;
         case "jumped":
           if (session === activeRef.current) {

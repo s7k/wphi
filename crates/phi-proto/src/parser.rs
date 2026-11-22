@@ -66,6 +66,8 @@ pub enum Event {
     },
     /// `#v6 J`。go 以外(スイッチ・ゲート・罠など)で動いた。予想と覚えた通れる・通れないを捨てる
     Jumped,
+    /// `#end-mg`。呪文の一覧か詠唱が終わった。詠唱の終わりを UI が知る為に、mode が変わらなくても送る
+    CastEnd,
     /// `#v6 E 種類 AX AY TX TY [属性 [分類]]`。攻撃と呪文の演出の位置(視界の座標。`#v6 O` と同じ)。戦闘のログの行の直前に届く。
     /// 種類は chant(詠唱の始め。両方の座標が唱えた人)・hit・miss・magic・spell。攻撃した側が視界の外なら from は None。
     /// 属性は武器か呪文の属性 (fire など)。分類は呪文の演出の分け方 (line・explode・heal など。DM の魔法の表示オブジェと同じ)。
@@ -819,7 +821,12 @@ impl Parser {
             "#attack" => return self.set_mode(|m| m.attack = true),
             "#end-at" => return self.set_mode(|m| m.attack = false),
             "#magic" => return self.set_mode(|m| m.magic = true),
-            "#end-mg" => return self.set_mode(|m| m.magic = false),
+            "#end-mg" => {
+                // 詠唱の終わりも #end-mg で届く。呪文の一覧を出していなければ mode は変わらないので、CastEnd を必ず送る
+                let mut v = self.set_mode(|m| m.magic = false);
+                v.push(Event::CastEnd);
+                return v;
+            }
             "#ex-list-mode-end" => return self.end_list(),
             "#m57 ." => return self.finish_map(),
             "#v6 ." => return self.finish_v6(),

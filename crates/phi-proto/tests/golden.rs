@@ -40,7 +40,11 @@ fn matches_python_parser() {
         let mut parser = Parser::new();
         for (i, step) in scenario["steps"].as_array().unwrap().iter().enumerate() {
             let line = unhex(step["line"].as_str().unwrap());
-            let got = serde_json::to_value(parser.feed(&line)).unwrap();
+            // castEnd は WPHI だけのイベント (詠唱の終わり)。Python 版には無いので除いて比べる
+            let mut got = serde_json::to_value(parser.feed(&line)).unwrap();
+            if let Some(a) = got.as_array_mut() {
+                a.retain(|e| e["type"] != "castEnd");
+            }
             let want = split_size(&step["events"]);
             if got != want {
                 failures.push(format!("{name}[{i}]\n  want {want}\n  got  {got}"));
