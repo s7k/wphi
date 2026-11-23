@@ -510,16 +510,17 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
                     if text == "#ulist" {
                         conn.parser.clear_users();
                     }
-                    if text.starts_with(INTERNAL_PREFIX) {
+                    // 系統魔法の #wphi-cast は unequip に直して送る。内部行として捨てる判定より先に見る。
+                    // 先に捨てていた間は、Alt+W などの系統魔法が何も送らなかった
+                    if let Some(unequip) = auto.start(&text, std::time::Instant::now()) {
+                        reply.push(unequip.into());
+                    } else if text.starts_with(INTERNAL_PREFIX) {
                         // 確かめの期限が切れた後に届いた TRANSFER_YES などは、サーバへ送らない
                         keep_view(&text, &mut view);
                     } else if hits.hold(&text, conn.parser.attacking(), Instant::now()) {
                         // 攻撃の待ちの間の hit は送らず、待ちが明けた時に 1 回だけ送る (#177)
                     } else {
-                        match auto.start(&text, std::time::Instant::now()) {
-                            Some(unequip) => reply.push(unequip.into()),
-                            None => reply.push(text),
-                        }
+                        reply.push(text);
                     }
                 }
                 None => return emit(quit(&mut conn.stream).await),
@@ -1421,6 +1422,23 @@ mod tests {
         drop(tx);
         let _ = timeout(Duration::from_secs(5), run).await;
         drop(dst_listener);
+    }
+
+    /// 系統魔法の #wphi-cast は、内部行として捨てずに unequip を送る
+    #[tokio::test]
+    async fn system_magic_sends_unequip() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let src = tokio::spawn(src_server(listener, String::new()));
+        let (tx, rx) = mpsc::channel(8);
+        let run = tokio::spawn(run(login()(port), rx, |_| {}));
+        tx.send("#wphi-cast 0 cast\twizard eye".into()).await.unwrap();
+        assert_eq!(
+            timeout(Duration::from_secs(5), src).await.unwrap().unwrap(),
+            "unequip\n"
+        );
+        drop(tx);
+        let _ = timeout(Duration::from_secs(5), run).await;
     }
 
     /// UI が切った時(送信キューを閉じた時)も #x を送り、切れた事を UI に知らせる(#77)
