@@ -13,7 +13,7 @@ import { caretLine } from "./chat.ts";
 import { SENT_EVENT, type Sent } from "./keyInput";
 import { isNorthFix, isTextTarget, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
 import { escapeTarget, keyAction, listKeyAction, menuAction, moveCommand, moveInput, stepCommands, type AskOptions, type Mods, type MoveKey } from "./keys.ts";
-import { MAX_UNCONFIRMED, walkable, Walker } from "./walker.ts";
+import { MAX_UNCONFIRMED, WALK_DIAGONAL_LINE_MS, WALK_DIAGONAL_MS, walkable, Walker } from "./walker.ts";
 import { BAG_ICON, BagPanel, ItemIcon, STATUS_ICON } from "./BagPanel.tsx";
 import { PartyHud, PartyPanel } from "./PartyPanel.tsx";
 import { AskDialog } from "./AskDialog";
@@ -472,6 +472,8 @@ export function App() {
   // 詠唱中 (DMM_CAST_NOW の行から #end-mg か DMM_CAST_STOP まで)。この間はついて行く・追尾移動・自動攻撃の go と hit を待たせる。
   // 詠唱中に go などの行を受けると、DM は詠唱を止める (#186)。#end-mg が来ない時の為に CAST_MAX_MS で切る
   const castUntil = useRef(new Map<number, number>());
+  /** 斜めの 1 歩を 1 行で送れるセッション (#ex-switch move=diag の返事。#196) */
+  const diagLine = useRef(new Set<number>());
   const casting = (session: number) => (castUntil.current.get(session) ?? 0) > performance.now();
   // 対象 (ui/src/target.ts。#183)。対象のキャラの番号は地図の状態に入れ、地図が枠で囲む
   const setTarget = (session: number, c: { id: number; name: string } | null) => {
@@ -563,6 +565,10 @@ export function App() {
       return keys.filter((_, i) => kept.includes(texts[i]));
     };
     walker.current.weight = settingsRef.current.smoothWeight ?? 0;
+    // 斜めの 1 行を受けるサーバでは、斜めを 1 行・140ms で歩く (#196)
+    const diag = diagLine.current.has(session);
+    walker.current.diagMs = diag ? WALK_DIAGONAL_LINE_MS : WALK_DIAGONAL_MS;
+    walker.current.diagLines = diag ? 1 : 2;
     const s = walker.current.next(room, pick);
     // 返事を待って止まった時をトレースに残す(続く間は1回だけ)
     if (!canStep && !walkWaiting.current)
@@ -571,7 +577,7 @@ export function App() {
     if (!s) return;
     trace(`walk ${s.keys.join("")} ${s.ms}ms`);
     closeSign(session);
-    for (const text of stepCommands(s.keys, s.mods, true)) {
+    for (const text of stepCommands(s.keys, s.mods, true, diagLine.current.has(session))) {
       predictor.current.walkStep(text, s.ms, s.at);
       sendLine(session, text);
     }
@@ -1062,7 +1068,7 @@ export function App() {
         }
         // 斜めは2方向を1歩ずつ送り、斜めに1マス進む(#76)
         const northFix = keyContext(mapStates.current.get(session), true).northFix;
-        for (const text of stepCommands(m.keys, "none", northFix)) sendMove(session, text);
+        for (const text of stepCommands(m.keys, "none", northFix, diagLine.current.has(session))) sendMove(session, text);
       }
     });
     // map 窓のリストのクリック(#9)
@@ -1614,6 +1620,9 @@ export function App() {
           if (session === activeRef.current && settingsRef.current.mapEffects)
             emit(MAP_POP_EVENT, { pops: [], fx: [{ kind: ev.kind, from: ev.from, at: ev.at, element: ev.element, category: ev.category, wait: ev.wait }], to: mapPlace() }).catch(console.error);
           break;
+        case "moveDiag":
+          diagLine.current.add(session);
+          break;
         case "castEnd": {
           // #end-mg で詠唱が終わる (#186)。自分の詠唱バーも消す
           castUntil.current.delete(session);
@@ -1741,6 +1750,7 @@ export function App() {
     userClosing.current.delete(session);
     died.current.delete(session);
     kicked.current.delete(session);
+    diagLine.current.delete(session);
     mapStates.current.delete(session);
     pendingMapsets.current.delete(session);
     clearSpellWait(session);

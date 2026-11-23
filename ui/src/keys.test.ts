@@ -117,6 +117,9 @@ test("Esc は上に重なっている方から閉じ、何も開いていなけ�
   assert.equal(escapeTarget({ sign: null, privOpen: true }, true), "priv");
   assert.equal(escapeTarget({}, true), "follow");
   assert.equal(escapeTarget(undefined, false), null);
+  assert.deepEqual(stepCommands(["8", "6"], "none", true, true), ["go ne"], "斜めの 1 行 (#196)");
+  assert.deepEqual(stepCommands(["2", "4"], "none", true, true), ["go sw"]);
+  assert.deepEqual(stepCommands(["8", "6"], "none", false, true).length, 2, "回る地図は 2 行のまま");
   assert.equal(escapeTarget({ target: { id: 1 } }, true), "follow");
   assert.equal(escapeTarget({ target: { id: 1 } }, false), "target");
 });

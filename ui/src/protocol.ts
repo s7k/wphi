@@ -107,6 +107,7 @@ export type UiEvent =
   /** #v6 J。go 以外で動いた */
   | { type: "jumped" }
   | { type: "castEnd" }
+  | { type: "moveDiag" }
   | { type: "wait"; who?: number; kind: string; ticks?: number; spell?: number }
   | { type: "charHp"; id: number; hp: number; ag: boolean }
   | { type: "floor"; items: FloorItem[] }

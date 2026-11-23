@@ -115,6 +115,8 @@ fn login_lines(id: Option<&str>, view: Option<(u8, u8)>) -> Vec<String> {
             "#ex-switch ex-disp-magic=false".into(),
             // 朱蓮の絶対座標(v5y の :U ZA 拡張)。他の世界は =false を返す
             "#ex-switch ex-abspos=true".into(),
+            // 斜めの 1 歩を 1 行で送る (#196)。返事 (#ex-switch move=diag) があった接続でだけ使う。知らないサーバは読み捨てる
+            "#ex-switch move=diag".into(),
             // v6 のサーバは返事の行の後ろから deflate で送る(phi_dm の docs/dev/protocol-v6.md の「通信の圧縮」)。他のサーバは読み捨てる
             "#ex-switch compress=deflate".into(),
         ])

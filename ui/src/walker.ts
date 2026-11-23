@@ -8,6 +8,8 @@ import type { MoveKey } from "./keys.ts";
 /** 縦横の1歩と斜めの1歩(2行)を滑らせる時間(ms)。サーバは 0.1 秒に1行ずつ処理するので、それより短くしない */
 export const WALK_MS = 100;
 export const WALK_DIAGONAL_MS = 200;
+/** 斜めの 1 行 (#196) の 1 歩。サーバは斜めの 1 歩を平均 1.4 ティックで進める */
+export const WALK_DIAGONAL_LINE_MS = 140;
 /**
  * 返事の来ていない移動 (行) がこれ以上あれば、次の1歩を待つ。回線が遅い時にサーバより先へ行き過ぎない。
  * 返事は「往復 + サーバのティック待ち (0〜100ms)」で届くので、2 では往復 100ms を超えると歩みが止まった (#146)。
@@ -76,6 +78,12 @@ export class Walker<M> {
   private released: { key: MoveKey; mods: M; at: number } | null = null;
   /** キーを押し始めた時刻。押しているキーが無い所から押した時に決める (加速の起点) */
   private holdStart = 0;
+  /**
+   * 斜めの 1 歩の時間と行数。既定は縦と横の 2 行 (200ms)。斜めの 1 行を受けるサーバ (#196) では、
+   * サーバが斜めの 1 歩に 1.4 ティック掛けるので 140ms・1 行にする
+   */
+  diagMs = WALK_DIAGONAL_MS;
+  diagLines = 2;
   /** 歩き出しの重さ (設定のスライダー、-2〜2。WEIGHTS)。追尾移動には掛けない */
   weight = 0;
   private now: () => number;
@@ -127,11 +135,11 @@ export class Walker<M> {
     if (!want) this.released = null;
     if (!want || canStep === false || canStep === 0) return null;
     const keys = pick ? pick(want.keys, want.mods) : want.keys;
-    if (typeof canStep === "number" && keys.length > canStep) return null;
+    if (typeof canStep === "number" && (keys.length > 1 ? this.diagLines : keys.length) > canStep) return null;
     this.released = null;
     // キーで歩く時は、押し始めからの時間で1歩を長くする (追尾移動はそのまま)
     const factor = held ? rampFactor(at - this.holdStart, this.weight) : 1;
-    const step = { ...want, keys, ms: Math.round((keys.length > 1 ? WALK_DIAGONAL_MS : WALK_MS) * factor), at };
+    const step = { ...want, keys, ms: Math.round((keys.length > 1 ? this.diagMs : WALK_MS) * factor), at };
     this.busyUntil = at + step.ms;
     return step;
   }

@@ -95,6 +95,8 @@ pub enum Event {
         hp: u8,
         ag: bool,
     },
+    /// `#ex-switch move=diag` の返事。この接続では斜めの 1 歩を `go ne` などの 1 行で送れる (#196)
+    MoveDiag,
     /// `#end-mg`。呪文の一覧か詠唱が終わった。詠唱の終わりを UI が知る為に、mode が変わらなくても送る
     CastEnd,
     /// `#v6 E 種類 AX AY TX TY [属性 [分類]]`。攻撃と呪文の演出の位置(視界の座標。`#v6 O` と同じ)。戦闘のログの行の直前に届く。
@@ -1062,6 +1064,9 @@ impl Parser {
         }
         if text.trim_end() == "#v6 J" {
             return vec![Event::Jumped];
+        }
+        if text.trim_end() == "#ex-switch move=diag" {
+            return vec![Event::MoveDiag];
         }
         if let Some(rest) = text.strip_prefix("#v6 B ") {
             if rest.trim() == "." {

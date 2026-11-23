@@ -17,6 +17,11 @@ const STEP: Record<string, { dx: number; dy: number }> = {
   e: { dx: 1, dy: 0 },
   s: { dx: 0, dy: 1 },
   w: { dx: -1, dy: 0 },
+  // 斜めの 1 行 (#196。#ex-switch move=diag に答えたサーバだけ)
+  ne: { dx: 1, dy: -1 },
+  nw: { dx: -1, dy: -1 },
+  se: { dx: 1, dy: 1 },
+  sw: { dx: -1, dy: 1 },
 };
 
 /** 送った移動の返事を待つ時間(ms)の下限と上限。サーバは 0.1 秒に1行処理するので、近ければ地図は送ってから
@@ -158,7 +163,7 @@ export class Predictor {
    */
   pick(texts: string[]): string[] {
     if (texts.length !== 2 || !this.acked) return texts;
-    const steps = texts.map((t) => /^go ([NESWnesw])$/.exec(t));
+    const steps = texts.map((t) => /^go (ne|nw|se|sw|[NESWnesw])$/.exec(t));
     if (!steps[0] || !steps[1]) return texts;
     const r = this.replay();
     if (r.unknown) return texts;
@@ -172,7 +177,7 @@ export class Predictor {
    * 前に送って返事を待っている移動も、送った順を崩さないよう進んだとみなす側へ移す
    */
   walkStep(text: string, ms: number, at?: number) {
-    const m = /^go ([NESWnesw])$/.exec(text);
+    const m = /^go (ne|nw|se|sw|[NESWnesw])$/.exec(text);
     if (!m) return;
     const now = this.now();
     // 滑らせ始めるのは歩き方の予定の時刻。見回りの遅れで1歩ごとの始まりがずれると、地図が止まってから急いだ (#146)
@@ -222,7 +227,7 @@ export class Predictor {
 
   /** 行を送った時。北固定の go の時だけ数える */
   sent(text: string) {
-    const m = /^go ([NESWnesw])$/.exec(text);
+    const m = /^go (ne|nw|se|sw|[NESWnesw])$/.exec(text);
     if (m) this.queue.push({ ...STEP[m[1].toLowerCase()], at: this.now() });
   }
 

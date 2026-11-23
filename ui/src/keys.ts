@@ -255,8 +255,14 @@ export function moveCommand(key: MoveKey, mods: Mods, northFix: boolean): string
  * 1 歩 (斜めなら縦と横の 2 行) のコマンド。北固定の斜めは、縦の 1 行を向きを変えない go n / go s (Ctrl の移動) にし、
  * 横を向いたまま歩く。縦も go N / go S で送ると、1 歩ごとに上下と左右を交互に向いた
  */
-export function stepCommands(keys: MoveKey[], mods: Mods, northFix: boolean): string[] {
+export function stepCommands(keys: MoveKey[], mods: Mods, northFix: boolean, diagLine = false): string[] {
   const diagonal = northFix && mods === "none" && keys.length > 1;
+  // 斜めの 1 行を受けるサーバ (#ex-switch move=diag。#196) には、北東などを 1 行で送る。縦横と同じ速さで歩ける
+  if (diagonal && diagLine && keys.length === 2) {
+    const ns = keys.some((k) => k === "8" || k === "up") ? "n" : keys.some((k) => k === "2" || k === "down") ? "s" : "";
+    const ew = keys.some((k) => k === "6" || k === "right") ? "e" : keys.some((k) => k === "4" || k === "left") ? "w" : "";
+    if (ns && ew) return [`go ${ns}${ew}`];
+  }
   const vertical = (k: MoveKey) => k === "8" || k === "2" || k === "up" || k === "down";
   return keys.map((k) => moveCommand(k, diagonal && vertical(k) ? "ctrl" : mods, northFix));
 }
