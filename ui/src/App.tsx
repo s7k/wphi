@@ -84,6 +84,7 @@ const TRADE_REFUSED: Record<string, string> = {
   empty: "その枠には何もありません",
   equipped: "装備中の物は出せません",
   nobreak: "その物は出せません",
+  epic: "Epic の物は取引に出せません",
   many: "出せる物は 8 個までです",
   gp: "お金が足りません",
 };
@@ -2312,6 +2313,7 @@ const BAG_REFUSED: Record<string, string> = {
   empty: "その枠には何もありません",
   equipped: "装備中の物は入れられません",
   nobreak: "この物はカバンに入れられません",
+  epic: "Epic の物は床に置けません",
   full: "カバンが一杯です",
   hand: "手持ちが一杯か、その物がありません",
   bad: "出し入れの指定が違います",
