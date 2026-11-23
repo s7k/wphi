@@ -526,6 +526,8 @@ export function App() {
   const toggleAutoAttack = (session: number) => {
     const s = mapStates.current.get(session);
     if (!s) return;
+    // v6 でないサーバ (v5y など) では使わない。近づく動きも HP バーも無く、隣を殴り続けるだけになる為 (作者の判断)
+    if (!s.autoAttack && !s.map?.v6) return void append(session, systemNg("自動攻撃は v6 のサーバでだけ使えます。"));
     if (s.target === undefined) cycleTarget(session);
     if (s.target === undefined) return;
     s.autoAttack = !s.autoAttack;
