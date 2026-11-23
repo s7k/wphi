@@ -52,11 +52,8 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf
 
       - run: npm ci
-      # 配布物の licenses に入れる依存ライブラリのライセンス文(src-tauri/THIRD-PARTY-NOTICES.txt)が、今の依存と合っているか。
-      # 文はコミットした物を使い、ここでは作り直さない(手元でもネットワークに出ずに配布物を作れるよう)
-      - run: node tools/third-party-notices.mjs --check
-      - run: cargo test --workspace
-      - run: npm test
+      # 試験 (cargo test・npm test) とライセンス文の照合は、同じ commit を main の check (check.yml) が確かめるので、ここでは走らせない。
+      # Windows の依存を試験用と配布用で 2 回作る事になり、リリースのビルドが毎回 3〜9 分長くなっていた
       - run: npx tauri build --bundles ${{ matrix.bundles }} ${{ matrix.args }}
 
       # 展開してそのまま使える zip(アプリと空の chara・chip と README.txt)
