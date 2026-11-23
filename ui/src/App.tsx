@@ -2313,7 +2313,7 @@ const BAG_REFUSED: Record<string, string> = {
   empty: "その枠には何もありません",
   equipped: "装備中の物は入れられません",
   nobreak: "この物はカバンに入れられません",
-  epic: "Epic の物は床に置けません",
+  epic: "Epic の物は床に出せず、消す事も出来ません",
   full: "カバンが一杯です",
   hand: "手持ちが一杯か、その物がありません",
   bad: "出し入れの指定が違います",
