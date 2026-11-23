@@ -325,7 +325,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
   };
   // 隣(上下左右)のキャラを左クリックすると、誘うか仲間の一覧を開くメニューを出す。
   // join は向いている先の相手しか誘えないので、その向きを向いてから送る。回転マップは画面の上が前
-  const [charMenu, setCharMenu] = useState<{ left: number; top: number; name: string; turn: string | null } | null>(null);
+  const [charMenu, setCharMenu] = useState<{ left: number; top: number; name: string; id: number; turn: string | null } | null>(null);
   useEffect(() => {
     if (!charMenu) return;
     const close = () => setCharMenu(null);
@@ -353,7 +353,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     if (!c) return null;
     const turns = northFix ? { "0,-1": "n", "1,0": "e", "0,1": "s", "-1,0": "w" } : { "0,-1": null, "1,0": "r", "0,1": "b", "-1,0": "l" };
     const area = mapArea.current!.getBoundingClientRect();
-    return { left: e.clientX - area.left, top: e.clientY - area.top, name: stripTags(c.name), turn: turns[`${dx},${dy}` as keyof typeof turns] };
+    return { left: e.clientX - area.left, top: e.clientY - area.top, name: stripTags(c.name), id: c.id, turn: turns[`${dx},${dy}` as keyof typeof turns] };
   };
   const onMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button === 0 && !follow && state) {
@@ -750,11 +750,24 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
     />
   ) : null;
   // 視界の外の仲間を、地図の端に名前と距離付きの矢印で出す (#191)。北固定の時だけ (回る地図では dx・dy の向きが画面と合わない)
+  // GM が置いた目印 (#v6 L。#191) も同じく出す。視界の中の目印は、その場所に旗を出す
+  const arrowTargets = [
+    ...(state?.partyPos ?? []).map((p) => ({ ...p, mark: false })),
+    ...(state?.marks ?? []).map((p) => ({ ...p, mark: true })),
+  ];
   const partyArrows = northFix
-    ? (state?.partyPos ?? []).flatMap((p) => {
+    ? arrowTargets.flatMap((p) => {
         const x = me.x + p.dx;
         const y = me.y + p.dy;
-        if (x >= 0 && x < boardW && y >= 0 && y < boardH) return [];
+        if (x >= 0 && x < boardW && y >= 0 && y < boardH) {
+          if (!p.mark) return [];
+          const at = cellAt({ x, y });
+          return [
+            <div key={`mk-${p.name}`} className="party-arrow mark-flag" style={{ left: at.left, top: at.top - CHIP_SIZE * 0.6 * zoom }}>
+              <span className="party-arrow-name">⚑ {p.name}</span>
+            </div>,
+          ];
+        }
         const c = cellAt(me);
         const half = { w: (boardW / 2 - 2) * CHIP_SIZE * zoom, h: (boardH / 2 - 1.6) * CHIP_SIZE * zoom };
         const len = Math.max(Math.abs(p.dx) * CHIP_SIZE * zoom / half.w, Math.abs(p.dy) * CHIP_SIZE * zoom / half.h);
@@ -762,7 +775,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
         const top = c.top + (p.dy * CHIP_SIZE * zoom) / len;
         const deg = (Math.atan2(p.dy, p.dx) * 180) / Math.PI;
         return [
-          <div key={`pa-${p.name}`} className="party-arrow" style={{ left, top }}>
+          <div key={`pa-${p.mark ? "m" : "p"}${p.name}`} className={p.mark ? "party-arrow mark" : "party-arrow"} style={{ left, top }}>
             <span className="party-arrow-head" style={{ transform: `rotate(${deg}deg)` }} />
             <span className="party-arrow-name">
               {p.name} {Math.max(Math.abs(p.dx), Math.abs(p.dy))}
@@ -865,17 +878,17 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
                   パーティに誘う
                 </button>
               )}
-              {(["talk", "priv", "pay"] as const).map((action) => (
+              {(["talk", "priv", "pay", "trade"] as const).map((action) => (
                 <button
                   key={action}
                   type="button"
                   onClick={() => {
-                    const a: CharAction = { action, name: charMenu.name, turn: charMenu.turn };
+                    const a: CharAction = { action, name: charMenu.name, turn: charMenu.turn, id: charMenu.id };
                     emitTo("main", CHAR_ACTION_EVENT, a).catch(console.error);
                     setCharMenu(null);
                   }}
                 >
-                  {action === "talk" ? "話す" : action === "priv" ? "ささやく (priv)" : "お金を渡す"}
+                  {{ talk: "話す", priv: "ささやく (priv)", pay: "お金を渡す", trade: "取引する" }[action]}
                 </button>
               ))}
             </div>

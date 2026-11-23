@@ -32,7 +32,7 @@ import { checkAll, listNo, listOk, moreNo, moveListCursor, receiveList, type Lis
 import { trace } from "./trace.ts";
 import { PREDICT_TICK_MS, predictedMap, Predictor } from "./predict.ts";
 import { selfPos } from "./mapRender.ts";
-import { CHAR_ACTION_EVENT, EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, type CharAction, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type FloorItem, type TalkWord, type ItemInfo, type MapListAction, type PartyMember, type MapState, type Spell, type UiEvent } from "./protocol";
+import { CHAR_ACTION_EVENT, EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, type CharAction, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type FloorItem, type TalkWord, type Quest, type TradeSide, type ItemInfo, type MapListAction, type PartyMember, type MapState, type Spell, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogFind } from "./LogFind";
 import { pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
@@ -40,7 +40,7 @@ import { createLogWriter } from "./logSave.ts";
 import { characterTarget, needsCloseConfirm } from "./tabs.ts";
 import { signLine, signMode, type SignReading } from "./signHead.ts";
 import { attackPlan, nextTarget } from "./target.ts";
-import { ShopPanel, TalkPanel } from "./ShopTalk";
+import { QuestHud, ShopPanel, TalkPanel, TradePanel } from "./ShopTalk";
 import { afterClose, DEAD_LINE, KICKED_LINE, lossText, RETRY_DELAYS } from "./reconnect.ts";
 import { applyMapset, holdMapset, type PendingMapset } from "./mapsetPending.ts";
 import { castLines, loadSpellOrder, moveSpell, orderSpells, saveSpellOrder, SPELL_WAIT_MS, waitsForOrder } from "./spells.ts";
@@ -63,6 +63,30 @@ export type Store = { characters: Character[]; openTabs: string[] };
 const ULIST_QUIET_MS = 300;
 /** 裏のタブでついて行く時、1 歩送ってから移動の返事も地図も届かなければ、次を送るまで待つ上限 (ms) */
 const FOLLOW_PENDING_MS = 600;
+/** 取引の終わりと断りの理由 (#v6 Y end と #ex-trade no。phi_dm の docs/dev/protocol-v6.md の「取引」) */
+const TRADE_END: Record<string, string> = {
+  moved: "どちらかが動きました",
+  gone: "相手が居なくなりました",
+  cancel: "取りやめました",
+  short: "出す物かお金が足りません",
+  full: "受け取る場所が足りません",
+  far: "相手が離れています",
+};
+const TRADE_REFUSED: Record<string, string> = {
+  off: "この世界か相手は取引に対応していません",
+  bad: "指定が違います",
+  far: "相手が隣にいません",
+  busy: "相手は取引中です",
+  refused: "断られました",
+  moved: "動いたので取りやめました",
+  gone: "相手が居なくなりました",
+  none: "その物がありません",
+  empty: "その枠には何もありません",
+  equipped: "装備中の物は出せません",
+  nobreak: "その物は出せません",
+  many: "出せる物は 8 個までです",
+  gp: "お金が足りません",
+};
 /** 詠唱の始め (DMM_CAST_NOW) と、止まった知らせ (DMM_CAST_STOP)。タグを除いた行で見る */
 const CAST_START = /^DM > (.+ を唱えています\.\.\.|.+ is being cast\.\.\.)/;
 const CAST_STOP = /^DM > (詠唱を止めました|Stop casting)/;
@@ -116,6 +140,10 @@ export type Tab = {
   shop?: FloorItem[];
   /** NPC に言える言葉 (#v6 K。#188)。会話の窓を出していなければ undefined */
   talk?: TalkWord[];
+  /** 今出ている依頼 (#v6 Q。#193) */
+  quests?: Quest[];
+  /** 取引の両方の出す物 (#v6 Y。#192)。取引していなければ undefined */
+  trade?: { name: string; me: TradeSide; you: TradeSide };
   bagOpen?: boolean;
   bagMessage?: string;
   /** 仲間の一覧(#v6 P。自分が先頭)。パーティに入っていなければ空 */
@@ -850,6 +878,7 @@ export function App() {
         else if (esc === "priv") update(session, (t) => ({ ...t, privOpen: false }));
         else if (esc === "target") setTarget(session, null);
         else if (esc === "talk") update(session, (t) => ({ ...t, talk: undefined }));
+        else if (esc === "trade") sendLine(session, "#ex-trade cancel");
         else if (esc === "shop") update(session, (t) => ({ ...t, shop: undefined }));
         else stopFollow(session);
         return true;
@@ -1115,7 +1144,11 @@ export function App() {
       const session = activeRef.current;
       if (session === null) return;
       const { action, name, turn } = e.payload;
-      if (action === "talk") {
+      if (action === "trade") {
+        // 取引の申し込み (#192)。番号は #v6 O の個体の番号
+        if (e.payload.id !== undefined) sendLine(session, `#ex-trade C${e.payload.id.toString(16).padStart(4, "0")}`);
+        append(session, systemOk(`${name} に取引を申し込みました。`));
+      } else if (action === "talk") {
         // NPC の方を向いてから、言える言葉を求める (#188)
         sendLines(session, turn ? `turn ${turn}\n#ex-talk` : "#ex-talk");
       } else if (action === "priv") {
@@ -1164,6 +1197,9 @@ export function App() {
         if (session === activeRef.current) predictor.current.onMap(ev.pos ? `${ev.pos.x},${ev.pos.y}` : null, ev);
         break;
       }
+      case "marks":
+        s.marks = ev.marks;
+        break;
       case "charHp":
         s.charHp = { ...s.charHp, [ev.id]: { hp: ev.hp, ag: ev.ag } };
         break;
@@ -1576,6 +1612,25 @@ export function App() {
         case "shop":
           update(session, (t) => ({ ...t, shop: ev.items.length ? ev.items : undefined }));
           break;
+        case "quests":
+          update(session, (t) => ({ ...t, quests: ev.quests }));
+          break;
+        case "tradeAsk":
+          // 取引の申し込み (#192)。受けると一覧が届いて窓が開く
+          void confirmBox(`${ev.name} から取引を申し込まれました。受けますか？`).then((ok) =>
+            sendLine(session, ok ? "#ex-trade ok" : "#ex-trade cancel"),
+          );
+          break;
+        case "trade":
+          update(session, (t) => ({ ...t, trade: { name: ev.name, me: ev.me, you: ev.you } }));
+          break;
+        case "tradeEnd":
+          update(session, (t) => ({ ...t, trade: undefined }));
+          append(session, ev.reason === "done" ? systemOk("取引が済みました。") : systemNg(`取引をやめました (${TRADE_END[ev.reason] ?? ev.reason})。`));
+          break;
+        case "tradeRefused":
+          append(session, systemNg(`取引できません (${TRADE_REFUSED[ev.reason] ?? ev.reason})。`));
+          break;
         case "talkWords":
           if (!ev.words.length) {
             update(session, (t) => ({ ...t, talk: undefined }));
@@ -1874,7 +1929,22 @@ export function App() {
           </div>
         )}
         {settings.modern && boards}
-        {tab.shop && !tab.talk && (
+        {tab.trade && (
+          <TradePanel
+            name={tab.trade.name}
+            me={tab.trade.me}
+            you={tab.trade.you}
+            hand={tab.items ?? []}
+            bag={tab.bag ?? null}
+            onPut={(slot) => sendLine(tab.session, `#ex-trade put ${slot}`)}
+            onBag={(no) => sendLine(tab.session, `#ex-trade bag ${no}`)}
+            onGp={(gp) => sendLine(tab.session, `#ex-trade gp ${gp}`)}
+            onOk={() => sendLine(tab.session, "#ex-trade ok")}
+            onCancel={() => sendLine(tab.session, "#ex-trade cancel")}
+          />
+        )}
+        {settings.modern && tab.quests && <QuestHud quests={tab.quests} />}
+        {tab.shop && !tab.talk && !tab.trade && (
           <ShopPanel
             items={tab.shop}
             gp={mapStates.current.get(tab.session)?.status?.gp}

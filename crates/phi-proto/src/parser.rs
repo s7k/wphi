@@ -78,6 +78,34 @@ pub enum Event {
     TalkWords {
         words: Vec<TalkWord>,
     },
+    /// `#v6 L 名前<TAB>dx=<TAB>dy=` 〜 `#v6 L .`。GM が置いた自分の階の目印までの差 (#191)。空なら目印は無い
+    Marks {
+        marks: Vec<Mark>,
+    },
+    /// `#v6 Y ask C%04x 名前`。取引の申し込みを受けた (#192)
+    TradeAsk {
+        id: u32,
+        name: String,
+    },
+    /// `#v6 Y with` 〜 `#v6 Y .`。取引の両方の出す物 (#192)
+    Trade {
+        id: u32,
+        name: String,
+        me: TradeSide,
+        you: TradeSide,
+    },
+    /// `#v6 Y done` (入れ替えた) か `#v6 Y end 理由`。取引の終わり
+    TradeEnd {
+        reason: String,
+    },
+    /// `#ex-trade no 理由`。取引の操作を断られた
+    TradeRefused {
+        reason: String,
+    },
+    /// `#v6 Q 番号<TAB>title=<TAB>text=` 〜 `#v6 Q .`。今出ている依頼と、その今の段階の目的 (#193)
+    Quests {
+        quests: Vec<Quest>,
+    },
     /// `#v6 W`。詠唱 (cast) と攻撃の待ち (at) の長さ (0.1 秒単位)。ticks が None なら止まった。
     /// who は周りのキャラの番号 (#v6 O の C%04x)、自分なら None。spell は自分の詠唱の呪文の番号 (#v6 S の番号) (#185)
     Wait {
@@ -137,6 +165,37 @@ pub enum Event {
     BagRefused {
         reason: String,
     },
+}
+
+/// 目印 1 つ (`#v6 L` の欄)。自分からの差 (東と南が正)
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Mark {
+    pub name: String,
+    pub dx: i32,
+    pub dy: i32,
+}
+
+/// 取引の片方の出す物 (`#v6 Y me` / `you`)
+#[derive(Debug, Clone, PartialEq, Default, Serialize)]
+pub struct TradeSide {
+    pub gp: i64,
+    pub ok: bool,
+    pub items: Vec<TradeItem>,
+}
+
+/// 取引に出した物 1 つ。from は出した所 (`put 枠` か `bag 番号`)。同じ行を送り直すと引っ込める
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct TradeItem {
+    pub from: String,
+    pub item: Item,
+}
+
+/// 依頼 1 つ (`#v6 Q` の欄)
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Quest {
+    pub no: u32,
+    pub title: String,
+    pub text: String,
 }
 
 /// NPC に言える言葉 1 つ (`#v6 K` の欄)。menu はスイッチのメニューの選択で、`?` を付けずにそのまま送る
@@ -765,6 +824,10 @@ pub struct Parser {
     talk: Vec<TalkWord>,
     /// 直前の `#v6 T` の発言の種類。次の 1 行に付ける (#190)
     speech: Option<String>,
+    /// `#v6 L`・`#v6 Y`・`#v6 Q` で受けている途中の物
+    marks: Vec<Mark>,
+    trade: Option<(u32, String, TradeSide, TradeSide)>,
+    quests: Vec<Quest>,
 
     eagle: EagleEyeAccum,
     mapset: Option<String>,
@@ -1092,6 +1155,63 @@ impl Parser {
         if text.trim_end() == "#ex-switch move=diag" {
             return vec![Event::MoveDiag];
         }
+        if let Some(rest) = text.strip_prefix("#v6 L ") {
+            if rest.trim() == "." {
+                return vec![Event::Marks {
+                    marks: std::mem::take(&mut self.marks),
+                }];
+            }
+            let (name, fields) = rest.split_once('\t').unwrap_or((rest, ""));
+            let num = |k: &str| {
+                fields
+                    .split('\t')
+                    .find_map(|f| f.strip_prefix(k))
+                    .and_then(|v| v.trim().parse().ok())
+            };
+            if let (Some(dx), Some(dy)) = (num("dx="), num("dy="))
+                && self.marks.len() < MAX_LIST_LINES
+            {
+                self.marks.push(Mark {
+                    name: name.trim().to_string(),
+                    dx,
+                    dy,
+                });
+            }
+            return Vec::new();
+        }
+        if let Some(rest) = text.strip_prefix("#v6 Q ") {
+            if rest.trim() == "." {
+                return vec![Event::Quests {
+                    quests: std::mem::take(&mut self.quests),
+                }];
+            }
+            let (no, fields) = rest.split_once('\t').unwrap_or((rest, ""));
+            let field = |k: &str| {
+                fields
+                    .split('\t')
+                    .find_map(|f| f.strip_prefix(k))
+                    .unwrap_or("")
+                    .to_string()
+            };
+            if let Ok(no) = no.trim().parse()
+                && self.quests.len() < MAX_LIST_LINES
+            {
+                self.quests.push(Quest {
+                    no,
+                    title: field("title="),
+                    text: field("text="),
+                });
+            }
+            return Vec::new();
+        }
+        if let Some(rest) = text.strip_prefix("#ex-trade no ") {
+            return vec![Event::TradeRefused {
+                reason: rest.trim().to_string(),
+            }];
+        }
+        if let Some(rest) = text.strip_prefix("#v6 Y ") {
+            return self.parse_trade(rest).into_iter().collect();
+        }
         if let Some(rest) = text.strip_prefix("#v6 B ") {
             if rest.trim() == "." {
                 return vec![Event::Shop {
@@ -1242,6 +1362,68 @@ impl Parser {
     }
 
     /// モードを変え、変わった時だけ全項目の mode イベントを返す。
+    /// `#v6 Y` の 1 行 (#192)
+    fn parse_trade(&mut self, rest: &str) -> Option<Event> {
+        let id_name = |r: &str| {
+            let (id, name) = r.trim().split_once(' ').unwrap_or((r.trim(), ""));
+            Some((
+                u32::from_str_radix(id.strip_prefix('C')?, 16).ok()?,
+                name.trim().to_string(),
+            ))
+        };
+        if let Some(r) = rest.strip_prefix("ask ") {
+            let (id, name) = id_name(r)?;
+            return Some(Event::TradeAsk { id, name });
+        }
+        if let Some(r) = rest.strip_prefix("with ") {
+            let (id, name) = id_name(r)?;
+            self.trade = Some((id, name, TradeSide::default(), TradeSide::default()));
+            return None;
+        }
+        if rest.trim() == "done" {
+            self.trade = None;
+            return Some(Event::TradeEnd { reason: "done".into() });
+        }
+        if let Some(r) = rest.strip_prefix("end") {
+            self.trade = None;
+            return Some(Event::TradeEnd {
+                reason: r.trim().to_string(),
+            });
+        }
+        if rest.trim() == "." {
+            let (id, name, me, you) = self.trade.take()?;
+            return Some(Event::Trade { id, name, me, you });
+        }
+        let t = self.trade.as_mut()?;
+        let (head, fields) = rest.split_once('\t').unwrap_or((rest, ""));
+        let mut head = head.split_whitespace();
+        let side = match head.next()? {
+            "me" => &mut t.2,
+            "you" => &mut t.3,
+            _ => return None,
+        };
+        if head.next().is_none() {
+            for f in fields.split('\t') {
+                match f.split_once('=') {
+                    Some(("gp", v)) => side.gp = v.trim().parse().unwrap_or(0),
+                    Some(("ok", v)) => side.ok = v.trim() == "1",
+                    _ => {}
+                }
+            }
+        } else if side.items.len() < 16 {
+            let from = fields
+                .split('\t')
+                .find_map(|f| f.strip_prefix("from="))
+                .unwrap_or("")
+                .to_string();
+            side.items.push(TradeItem {
+                from,
+                item: parse_item(fields),
+            });
+        }
+        None
+    }
+
     /// 攻撃の待ち (`#attack` 〜 `#end-at`) の最中か
     pub fn attacking(&self) -> bool {
         self.mode.attack
@@ -1960,6 +2142,37 @@ mod tests {
             matches!(&p.feed(b"(Kotone) > \x82\xa0")[..], [Event::Message(m)] if m.speech.as_deref() == Some("shout"))
         );
         assert!(matches!(&p.feed(b"Kotone > hi")[..], [Event::Message(m)] if m.speech.is_none()));
+        p.feed(b"#v6 L Inn\tdx=3\tdy=-2");
+        assert!(
+            matches!(&p.feed(b"#v6 L .")[..], [Event::Marks { marks }] if marks[0] == Mark { name: "Inn".into(), dx: 3, dy: -2 })
+        );
+        p.feed(b"#v6 Q 1\ttitle=Wolf\ttext=3/5");
+        assert!(
+            matches!(&p.feed(b"#v6 Q .")[..], [Event::Quests { quests }] if quests[0].title == "Wolf" && quests[0].text == "3/5")
+        );
+        assert_eq!(
+            p.feed(b"#v6 Y ask C0002 Bob"),
+            vec![Event::TradeAsk {
+                id: 2,
+                name: "Bob".into()
+            }]
+        );
+        p.feed(b"#v6 Y with C0002 Bob");
+        p.feed(b"#v6 Y me\tgp=0\tok=1");
+        p.feed(b"#v6 Y me 1\tfrom=put 1\teq=-\tit=3\tname=Nuts");
+        p.feed(b"#v6 Y you\tgp=50\tok=0");
+        let t = p.feed(b"#v6 Y .");
+        assert!(
+            matches!(&t[..], [Event::Trade { id: 2, me, you, .. }] if me.ok && me.items[0].from == "put 1" && you.gp == 50 && !you.ok)
+        );
+        assert_eq!(
+            p.feed(b"#v6 Y end moved"),
+            vec![Event::TradeEnd { reason: "moved".into() }]
+        );
+        assert_eq!(
+            p.feed(b"#ex-trade no far"),
+            vec![Event::TradeRefused { reason: "far".into() }]
+        );
         assert!(!p.has_v6_map());
         p.feed(b"#v6 M N 6a3b0000 3 3");
         assert!(p.has_v6_map(), "#v6 M を受けたら v6 の地図の接続 (#194)");

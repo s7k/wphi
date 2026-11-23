@@ -361,6 +361,14 @@ body {
   border-left: 14px solid #8fe08f;
   filter: drop-shadow(0 0 2px #000);
 }
+/* 目印 (#191) の矢印は黄色。視界の中の目印は旗だけ */
+.party-arrow.mark .party-arrow-head {
+  border-left-color: #ffd060;
+}
+.party-arrow.mark .party-arrow-name,
+.mark-flag .party-arrow-name {
+  color: #ffe080;
+}
 .party-arrow-name {
   font-size: 11px;
   color: #fff;
@@ -2005,6 +2013,90 @@ button > svg:only-child,
 
 .main-body {
   position: relative;
+}
+
+/* 依頼 (#193)。モダンの左上の HUD の下 */
+.quest-hud {
+  position: absolute;
+  left: 16px;
+  top: calc(var(--hud-bottom, 88px) + 8px);
+  z-index: 3;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+  color: #fff;
+  text-shadow: var(--outline);
+  font-size: 12px;
+}
+.quest-row {
+  display: flex;
+  flex-direction: column;
+}
+.quest-title {
+  font-weight: bold;
+  color: #ffe080;
+}
+.quest-title::before {
+  content: "◆ ";
+}
+/* 取引の窓 (#192) */
+.sign-card.trade-card {
+  max-height: calc(100% - var(--hud-bottom, 88px) - 24px);
+  overflow-y: auto;
+  padding-bottom: 4px;
+}
+.trade-body {
+  display: flex;
+  gap: 12px;
+  padding: 6px 12px;
+}
+.trade-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.trade-head {
+  font-size: 12px;
+  opacity: 0.85;
+}
+.trade-ok {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: #3a9a3a;
+  color: #fff;
+}
+.trade-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  min-height: 36px;
+}
+.trade-items .bag-tile {
+  transform: scale(0.7);
+  margin: -7px;
+}
+.trade-none {
+  opacity: 0.6;
+  font-size: 12px;
+}
+.trade-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 12px;
+  border-top: 1px solid rgb(255 255 255 / 20%);
+}
+.trade-pick input[type="number"] {
+  width: 80px;
+}
+.trade-buttons {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px;
 }
 
 /* 店と会話の窓 (ShopTalk.tsx)。看板の札 (.sign-card) と同じ見た目 */

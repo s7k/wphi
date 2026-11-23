@@ -113,6 +113,12 @@ export type UiEvent =
   | { type: "floor"; items: FloorItem[] }
   | { type: "shop"; items: FloorItem[] }
   | { type: "talkWords"; words: TalkWord[] }
+  | { type: "marks"; marks: { name: string; dx: number; dy: number }[] }
+  | { type: "quests"; quests: Quest[] }
+  | { type: "tradeAsk"; id: number; name: string }
+  | { type: "trade"; id: number; name: string; me: TradeSide; you: TradeSide }
+  | { type: "tradeEnd"; reason: string }
+  | { type: "tradeRefused"; reason: string }
   | { type: "effect"; kind: string; from?: { x: number; y: number }; at: { x: number; y: number }; element?: string; category?: string; wait?: number }
   /** #v6 S。覚えている呪文を cast の番号の順に */
   | { type: "spells"; spells: Spell[] }
@@ -151,13 +157,17 @@ export const PARTY_OPEN_EVENT = "phi-party-open";
 export const PARTY_FOLLOW_EVENT = "phi-party-follow";
 /** 地図のキャラのメニューの、ささやく・お金を渡す (map.tsx → App。#192)。turn は相手の方を向く turn の向き */
 export const CHAR_ACTION_EVENT = "phi-char-action";
-export type CharAction = { action: "priv" | "pay" | "talk"; name: string; turn: string | null };
+export type CharAction = { action: "priv" | "pay" | "talk" | "trade"; name: string; turn: string | null; id?: number };
 
 /** 持ち物 1 個(phi_dm の docs/dev/protocol-v6.md の「呪文・持ち物・カバン」) */
 /** 足元の物 1 つ (#ex-inv F。#189)。番号は get の一覧と #ex-inv pick と同じ数え方。お金は gp だけ */
 export type FloorItem = { no: number; gp?: number; item?: ItemInfo };
 /** NPC に言える言葉 (#v6 K。#188)。menu はスイッチのメニューの選択 */
 export type TalkWord = { word: string; menu: boolean };
+/** 依頼 1 つ (#v6 Q。#193)。text は今の段階の目的 (タグ付き) */
+export type Quest = { no: number; title: string; text: string };
+/** 取引の片方の出す物 (#v6 Y。#192)。from は出した所 (put 枠 か bag 番号) */
+export type TradeSide = { gp: number; ok: boolean; items: { from: string; item: ItemInfo }[] };
 
 export type ItemInfo = {
   /** 装備の印。W 武器、A 防具、O その他、- 無し */
@@ -231,6 +241,8 @@ export type MapState = {
   party?: string[];
   /** 仲間の、自分から見た位置の差 (#v6 P の dx・dy。東と南が正)。別の階の仲間は入れない。視界の外の仲間を地図の端に矢印で出す (#191) */
   partyPos?: { name: string; dx: number; dy: number }[];
+  /** GM が置いた自分の階の目印までの差 (#v6 L。#191)。地図の端に矢印で出す */
+  marks?: { name: string; dx: number; dy: number }[];
   /** 対象 (#183) のキャラの番号と、自動攻撃中か。地図が対象を枠で囲む */
   target?: number;
   autoAttack?: boolean;

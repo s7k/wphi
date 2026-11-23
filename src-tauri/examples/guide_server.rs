@@ -229,6 +229,20 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
             "#ex-inv .",
         ],
         "party-end" => &["#v6 P ."],
+        // 確かめ用: 目印 (#v6 L)、依頼 (#v6 Q)、取引 (#v6 Y)
+        "fx-marks" => &["#v6 L 宿屋\tdx=30\tdy=-4", "#v6 L 井戸\tdx=2\tdy=1", "#v6 L ."],
+        "fx-quest" => &[
+            "#v6 Q 1\ttitle=狼の毛皮\ttext=狼の毛皮を集める 3/5",
+            "#v6 Q 2\ttitle=迷子の猫\ttext=市場の猫を見つける",
+            "#v6 Q .",
+        ],
+        "fx-trade" => &[
+            "#v6 Y with C0002 Kotone",
+            "#v6 Y me\tgp=0\tok=1",
+            "#v6 Y me 1\tfrom=put 5\teq=-\tit=3\twt=0\tmt=1\tfn=1\twp=1\top=1,0,1,0\tready=0\ttype=Food\twtype=claw\tmat=Wood\telem=Earth\tname=Nuts",
+            "#v6 Y you\tgp=50\tok=0",
+            "#v6 Y .",
+        ],
         // 確かめ用: 店 (#v6 B) と NPC との会話 (#v6 K)
         "fx-shop" => &[
             "#v6 B 1\tgp=200\teq=-\tit=1\twt=0\tmt=3\tfn=1\twp=8\top=2,25,10,0\tready=0\ttype=Armor\twtype=claw\tmat=Steel\telem=Earth\tname=Iron shield",
