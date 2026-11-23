@@ -955,6 +955,7 @@ mod tests {
                 text: "ボーン".into(),
                 from: None,
                 markup: false,
+                speech: None,
             };
             match log_event(m, &LogOptions::default(), in_more) {
                 UiEvent::Ui(UiOnly::Log { text, .. }) => text,
