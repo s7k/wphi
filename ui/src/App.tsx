@@ -546,7 +546,8 @@ export function App() {
     // 表のタブは、返事を待たずに進んだとみなした分をずらした地図で決める。届いた最後の地図のままだと、
     // 送った 1 歩の分を数えずにもう 1 歩送り、行き過ぎて対象のマスに重なった
     const o = session === activeRef.current ? predictor.current.offset : { dx: 0, dy: 0 };
-    const plan = attackPlan(o.dx || o.dy ? predictedMap(s.map, o.dx, o.dy) : s.map, s.target);
+    // 自動攻撃のこちらの攻撃の待ちの間は、こちらを向いている敵の横へよける (target.ts の dodge)
+    const plan = attackPlan(o.dx || o.dy ? predictedMap(s.map, o.dx, o.dy) : s.map, s.target, { dodge: auto && !!s.mode?.attack });
     if (plan.kind === "lost") {
       const was = s.autoAttack;
       setTarget(session, null);
