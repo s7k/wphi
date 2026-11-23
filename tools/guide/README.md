@@ -17,3 +17,5 @@ cargo run --example guide_server --manifest-path src-tauri/Cargo.toml &
 npx vite --config tools/guide/vite.config.ts &
 node tools/guide/shoot.mjs ../s7k.github.io/wphi/guide/images
 ```
+
+vite を 5179 でない番号で立てた時は、`GUIDE_URL=http://localhost:<番号>` を付けて shoot.mjs を動かす。

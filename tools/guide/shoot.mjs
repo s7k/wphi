@@ -9,6 +9,8 @@ const chrome =
   process.env.CHROME ??
   `${process.env.HOME}/.cache/puppeteer/chrome-headless-shell/linux-131.0.6778.204/chrome-headless-shell-linux64/chrome-headless-shell`;
 const browser = await chromium.launch({ executablePath: chrome });
+// vite のページ。別のポートで立てた時は GUIDE_URL で変える
+const base = process.env.GUIDE_URL ?? "http://localhost:5179";
 
 /** 新しいページで WPHI を開く。query は shot.tsx の切り替え(?modern など) */
 async function open(query) {
@@ -21,7 +23,7 @@ async function open(query) {
   await page.route("http://phi-asset.localhost/**", (r) =>
     r.continue({ url: r.request().url().replace("http://phi-asset.localhost/", "http://127.0.0.1:5180/asset/") }),
   );
-  await page.goto(`http://localhost:5179/${query}`);
+  await page.goto(`${base}/${query}`);
   return page;
 }
 const shotOf = (page) => (name, opts = {}) => page.screenshot({ path: `${out}/${name}.png`, ...opts });
@@ -51,6 +53,11 @@ await page.waitForTimeout(300);
 await page.locator(".bag-tile").nth(0).click();
 await page.waitForTimeout(200);
 await shot("bag");
+// カバンの足元の欄。「足元を見る」で #ex-inv floor を送り、足元の物の行を流す
+await button("足元を見る").click();
+await page.evaluate(() => window.guideEffect("fx-floor"));
+await page.waitForTimeout(300);
+await shot("bag-floor");
 await page.keyboard.press("Escape");
 await page.locator(".phi-log").focus();
 await page.keyboard.press("Escape");
@@ -78,6 +85,24 @@ await shot("party");
 await page.keyboard.press("Escape");
 await page.evaluate(() => window.guideEffect("party-end"));
 await page.waitForTimeout(300);
+// 視界の外の仲間。地図の端に矢印を出す
+await page.evaluate(() => window.guideEffect("fx-party-far"));
+await page.waitForTimeout(400);
+await shot("party-far");
+await page.evaluate(() => window.guideEffect("party-end"));
+await page.waitForTimeout(300);
+
+// NPC との会話の窓と、店の窓
+await page.evaluate(() => window.guideEffect("fx-talk"));
+await page.waitForTimeout(300);
+await shot("talk");
+await page.locator(".phi-log").focus();
+await page.keyboard.press("Escape");
+await page.evaluate(() => window.guideEffect("fx-shop"));
+await page.waitForTimeout(300);
+await shot("shop");
+await page.locator(".phi-log").focus();
+await page.keyboard.press("Escape");
 
 // 看板を読んだ時の札
 await page.evaluate(() => window.guideEffect("sign"));
@@ -123,24 +148,44 @@ const map = await page.locator("canvas").first().boundingBox();
 const clip = { x: Math.round(map.x + map.width / 2 - 105), y: Math.round(map.y + map.height / 2 - 85), width: 300, height: 170 };
 for (const [scene, at] of [
   ["talk", 0],
-  ["slash", 60],
+  ["slash", 120],
   ["bolt", 180],
   ["heal", 250],
   ["status", 250],
   ["dead", 200],
   ["buff", 450],
   ["debuff", 300],
+  ["fx-explode", 350],
+  ["fx-swirl", 400],
 ]) {
   await page.evaluate((s) => window.guideEffect(s), scene);
   await page.waitForTimeout(100);
   await page.evaluate((t) => document.getAnimations().forEach((a) => ((a.currentTime = t), a.pause())), at);
-  await shot(`effect-${scene}`, { clip });
+  await shot(`effect-${scene.replace("fx-", "")}`, { clip });
   await page.evaluate(() => document.getAnimations().forEach((a) => a.play()));
   await page.waitForTimeout(4500);
 }
+// 対象 (G で一番近い猫) と HP バー、詠唱バー、足元の魔法陣と攻撃の待ちの輪
+await page.locator(".phi-log").focus();
+await page.keyboard.press("g");
+await page.evaluate(() => window.guideEffect("fx-hpbar"));
+await page.evaluate(() => window.guideEffect("fx-chant"));
+await page.waitForTimeout(100);
+await page.evaluate(() => document.getAnimations().forEach((a) => ((a.currentTime = 400), a.pause())));
+await shot("target", { clip });
+await page.evaluate(() => document.getAnimations().forEach((a) => a.play()));
+await page.keyboard.press("Escape");
 await page.evaluate(() =>
   document.querySelectorAll(".log-area, .modern-hud, .bag-button").forEach((e) => (e.style.visibility = "")),
 );
+
+// ログの絞り込み。演出で流した戦闘の行だけを出す
+await button("戦闘").click();
+await page.waitForTimeout(300);
+// 絞り込みのボタンはログの枠の上にはみ出すので、上へ広げて切り抜く
+const log = await page.locator(".log-area").boundingBox();
+await shot("log-filter", { clip: { x: log.x, y: log.y - 16, width: log.width, height: log.height + 16 } });
+await button("全部").click();
 
 // 設定
 await button("設定").click();
