@@ -122,4 +122,7 @@ test("ログの行を発言・戦闘・その他に分ける (#181)", () => {
   assert.equal(logKind("DM > Mirai は Kotone に Protect をかけた. "), "battle");
   assert.equal(logKind("DM > はじまりの草原に着いた。"), "other");
   assert.equal(logKind(undefined), "other");
+  // #v6 T の種類があればそれで決める
+  assert.equal(logKind("DM > 店主 > いらっしゃい", "npc"), "talk");
+  assert.equal(logKind("Kotone > 扉が開いた", "switch"), "other");
 });

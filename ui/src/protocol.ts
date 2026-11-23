@@ -81,7 +81,7 @@ export type NoticeEvent = {
 export type ModeEvent = { type: "mode"; attack: boolean; magic: boolean; list: boolean; more: boolean };
 
 export type UiEvent =
-  | { type: "log"; channel: string; html: string; from?: string; noFlash?: boolean; raw?: string }
+  | { type: "log"; channel: string; html: string; from?: string; noFlash?: boolean; raw?: string; speech?: string }
   | { type: "error"; message: string }
   | { type: "connection"; state: "closed" }
   /** 効果音。file が false ならタスクバーの点滅 */
@@ -110,6 +110,8 @@ export type UiEvent =
   | { type: "wait"; who?: number; kind: string; ticks?: number; spell?: number }
   | { type: "charHp"; id: number; hp: number; ag: boolean }
   | { type: "floor"; items: FloorItem[] }
+  | { type: "shop"; items: FloorItem[] }
+  | { type: "talkWords"; words: TalkWord[] }
   | { type: "effect"; kind: string; from?: { x: number; y: number }; at: { x: number; y: number }; element?: string; category?: string; wait?: number }
   /** #v6 S。覚えている呪文を cast の番号の順に */
   | { type: "spells"; spells: Spell[] }
@@ -148,11 +150,13 @@ export const PARTY_OPEN_EVENT = "phi-party-open";
 export const PARTY_FOLLOW_EVENT = "phi-party-follow";
 /** 地図のキャラのメニューの、ささやく・お金を渡す (map.tsx → App。#192)。turn は相手の方を向く turn の向き */
 export const CHAR_ACTION_EVENT = "phi-char-action";
-export type CharAction = { action: "priv" | "pay"; name: string; turn: string | null };
+export type CharAction = { action: "priv" | "pay" | "talk"; name: string; turn: string | null };
 
 /** 持ち物 1 個(phi_dm の docs/dev/protocol-v6.md の「呪文・持ち物・カバン」) */
 /** 足元の物 1 つ (#ex-inv F。#189)。番号は get の一覧と #ex-inv pick と同じ数え方。お金は gp だけ */
 export type FloorItem = { no: number; gp?: number; item?: ItemInfo };
+/** NPC に言える言葉 (#v6 K。#188)。menu はスイッチのメニューの選択 */
+export type TalkWord = { word: string; menu: boolean };
 
 export type ItemInfo = {
   /** 装備の印。W 武器、A 防具、O その他、- 無し */

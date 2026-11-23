@@ -229,6 +229,13 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
             "#ex-inv .",
         ],
         "party-end" => &["#v6 P ."],
+        // 確かめ用: 店 (#v6 B) と NPC との会話 (#v6 K)
+        "fx-shop" => &[
+            "#v6 B 1\tgp=200\teq=-\tit=1\twt=0\tmt=3\tfn=1\twp=8\top=2,25,10,0\tready=0\ttype=Armor\twtype=claw\tmat=Steel\telem=Earth\tname=Iron shield",
+            "#v6 B 2\tgp=5000\teq=-\tit=2\twt=1\tmt=3\tfn=6\twp=10\top=12,30,0,0\tready=0\ttype=Weapon\twtype=Sword\tmat=Steel\telem=Fire\tname=Flame sword",
+            "#v6 B .",
+        ],
+        "fx-talk" => &["#v6 K bye", "#v6 K help", "#v6 K shop", "#v6 K inn", "#v6 K 宿に泊まる\tmenu", "#v6 K ."],
         // 確かめ用: 足元の物 (#ex-inv F)
         "fx-floor" => &[
             "#ex-inv F 1\teq=-\tit=5\twt=0\tmt=1\tfn=1\twp=1\top=1,0,1,0\tready=0\ttype=Food\twtype=claw\tmat=Wood\telem=Earth\tname=Nuts",

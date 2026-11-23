@@ -108,7 +108,7 @@ const TABS: { label: string; match: (it: ItemInfo) => boolean }[] = [
 const SORT_KEY = "wphi:bagSort";
 
 /** 詳しい情報の行。数値の意味は用途で変わる(phi_dm の phi_magic/detect.rs の detect_item。ER・Effect・S.E. は Detect の呼び名) */
-function details(it: ItemInfo): string[] {
+export function details(it: ItemInfo): string[] {
   const kind = it.it === IT.weapon ? `${it.type} / ${it.wtype}` : it.type;
   const lines = [`${kind}・${it.mat}・属性 ${it.elem}`, `攻撃力 ${it.op[0]}・重さ ${it.wp}`];
   if (it.it === IT.armor) lines.push(`防御率 ${it.op[1]}%・魔法防御率 ${it.op[2]}%`);
@@ -153,7 +153,7 @@ function pickedNames(bag: ItemInfo[], nos: Set<number>): string {
 /** 番号の大きい順。1 つ送るたびに、それより後ろの番号が 1 つずつ詰まる為 */
 const descending = (nos: Set<number>) => [...nos].sort((a, b) => b - a);
 
-function Tile(props: { item: ItemInfo | null; selected: boolean; onClick?: () => void; checked?: boolean }) {
+export function Tile(props: { item: ItemInfo | null; selected: boolean; onClick?: () => void; checked?: boolean }) {
   const it = props.item;
   if (!it) return <div className="bag-tile empty" />;
   const color = ELEMENT_COLOR[it.fn] ?? ELEMENT_COLOR[0];

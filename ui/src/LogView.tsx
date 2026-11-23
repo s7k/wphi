@@ -16,7 +16,7 @@ export const LogView = memo(function LogView(props: {
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const lines = useMemo(
-    () => (props.only ? props.lines.filter((l) => logKind(l.raw) === props.only) : props.lines),
+    () => (props.only ? props.lines.filter((l) => logKind(l.raw, l.speech) === props.only) : props.lines),
     [props.lines, props.only],
   );
   const inner = useRef<HTMLDivElement>(null);

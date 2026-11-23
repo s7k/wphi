@@ -65,6 +65,9 @@ pub enum UiOnly {
         /// 元の行(PHI のタグ付き)。ログ欄の「タグ付きでコピー」などに使う(#81)
         #[serde(skip_serializing_if = "String::is_empty")]
         raw: String,
+        /// 発言の種類 (#v6 T。#190)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        speech: Option<String>,
         /// タスクバーを点滅させない行(Philly の NotFlashRegexp)。main.rs が決める
         #[serde(skip_serializing_if = "std::ops::Not::not")]
         no_flash: bool,
@@ -879,6 +882,7 @@ fn debug_line(dir: &str, text: &str) -> UiEvent {
         from: None,
         text: String::new(),
         raw: String::new(),
+        speech: None,
         no_flash: true,
     })
 }
@@ -893,6 +897,7 @@ fn system(ok: bool, text: &str) -> UiEvent {
         from: None,
         text: String::new(),
         raw: String::new(),
+        speech: None,
         no_flash: false,
     })
 }
@@ -905,6 +910,7 @@ fn log_event(m: Message, opts: &LogOptions, in_more: bool) -> UiEvent {
         html: to_html(&m.text, opts),
         from: m.from,
         raw: m.text.clone(),
+        speech: m.speech,
         text: if in_more { String::new() } else { m.text },
         no_flash: false,
     })

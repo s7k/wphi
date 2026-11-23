@@ -70,6 +70,14 @@ pub enum Event {
     Floor {
         items: Vec<FloorItem>,
     },
+    /// `#v6 B` 〜 `#v6 B .`。乗ったマスの売り場の品と値段 (#187)。gp が値段。空なら売り場から離れた
+    Shop {
+        items: Vec<FloorItem>,
+    },
+    /// `#v6 K` 〜 `#v6 K .`。`#ex-talk` への返事で、足元か目の前の NPC に言える言葉 (#188)
+    TalkWords {
+        words: Vec<TalkWord>,
+    },
     /// `#v6 W`。詠唱 (cast) と攻撃の待ち (at) の長さ (0.1 秒単位)。ticks が None なら止まった。
     /// who は周りのキャラの番号 (#v6 O の C%04x)、自分なら None。spell は自分の詠唱の呪文の番号 (#v6 S の番号) (#185)
     Wait {
@@ -127,6 +135,13 @@ pub enum Event {
     BagRefused {
         reason: String,
     },
+}
+
+/// NPC に言える言葉 1 つ (`#v6 K` の欄)。menu はスイッチのメニューの選択で、`?` を付けずにそのまま送る
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct TalkWord {
+    pub word: String,
+    pub menu: bool,
 }
 
 /// 足元の物 1 つ (`#ex-inv F` の欄)。お金なら gp だけで item は無い
@@ -483,6 +498,9 @@ pub struct Message {
     pub from: Option<String>,
     /// カラーマークアップ(`/*...*/`)を含むか。
     pub markup: bool,
+    /// 発言の種類 (直前の `#v6 T`。say shout area party npc switch)。送らないサーバでは None (#190)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speech: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize)]
@@ -718,6 +736,12 @@ pub struct Parser {
     v6_sets: Vec<(usize, usize, u8)>,
     /// `#ex-inv F` で受けている途中の足元の物
     floor: Vec<FloorItem>,
+    /// `#v6 B` で受けている途中の売り場の品 (#187)
+    shop: Vec<FloorItem>,
+    /// `#v6 K` で受けている途中の NPC に言える言葉 (#188)
+    talk: Vec<TalkWord>,
+    /// 直前の `#v6 T` の発言の種類。次の 1 行に付ける (#190)
+    speech: Option<String>,
 
     eagle: EagleEyeAccum,
     mapset: Option<String>,
@@ -756,6 +780,24 @@ impl Parser {
     }
 
     pub fn feed(&mut self, raw: &[u8]) -> Vec<Event> {
+        // #v6 T は次の 1 行の発言の種類。次の行が発言でなくても、そこで捨てる (#190)
+        if let Some(rest) = raw.strip_prefix(b"#v6 T ") {
+            self.speech = String::from_utf8_lossy(rest).split_whitespace().next().map(str::to_string);
+            return Vec::new();
+        }
+        let speech = self.speech.take();
+        let mut events = self.feed_line(raw);
+        if let Some(k) = speech {
+            for ev in &mut events {
+                if let Event::Message(m) = ev {
+                    m.speech = Some(k.clone());
+                }
+            }
+        }
+        events
+    }
+
+    fn feed_line(&mut self, raw: &[u8]) -> Vec<Event> {
         if raw.is_empty() {
             return Vec::new();
         }
@@ -1020,6 +1062,29 @@ impl Parser {
         }
         if text.trim_end() == "#v6 J" {
             return vec![Event::Jumped];
+        }
+        if let Some(rest) = text.strip_prefix("#v6 B ") {
+            if rest.trim() == "." {
+                return vec![Event::Shop { items: std::mem::take(&mut self.shop) }];
+            }
+            if let Some((no, fields)) = rest.split_once('\t')
+                && let Ok(no) = no.trim().parse()
+                && self.shop.len() < MAX_LIST_LINES
+            {
+                let gp = fields.split('\t').find_map(|f| f.strip_prefix("gp=")).and_then(|v| v.trim().parse().ok());
+                self.shop.push(FloorItem { no, gp, item: Some(parse_item(fields)) });
+            }
+            return Vec::new();
+        }
+        if let Some(rest) = text.strip_prefix("#v6 K ") {
+            if rest.trim() == "." {
+                return vec![Event::TalkWords { words: std::mem::take(&mut self.talk) }];
+            }
+            if self.talk.len() < MAX_LIST_LINES {
+                let (word, tail) = rest.split_once('\t').unwrap_or((rest, ""));
+                self.talk.push(TalkWord { word: word.trim().to_string(), menu: tail.trim() == "menu" });
+            }
+            return Vec::new();
         }
         if let Some(rest) = text.strip_prefix("#v6 W ") {
             return parse_wait(rest).into_iter().collect();
@@ -1375,6 +1440,7 @@ fn message(channel: Channel, text: String, from: Option<String>) -> Event {
         text,
         from,
         markup,
+        speech: None,
     })
 }
 
@@ -1726,6 +1792,15 @@ mod tests {
         assert_eq!(p.feed(b"#ex-inv F 1\tgp=120"), vec![]);
         let floor = p.feed(b"#ex-inv F .");
         assert!(matches!(&floor[..], [Event::Floor { items }] if items.len() == 1 && items[0].gp == Some(120) && items[0].item.is_none()));
+        assert_eq!(p.feed(b"#v6 B 1\tgp=200\teq=-\tit=1\tname=Iron shield"), vec![]);
+        assert!(matches!(&p.feed(b"#v6 B .")[..], [Event::Shop { items }] if items[0].gp == Some(200) && items[0].item.as_ref().unwrap().name == "Iron shield"));
+        assert_eq!(p.feed(b"#v6 K shop"), vec![]);
+        assert_eq!(p.feed(b"#v6 K \xe5\xae\xbf\tmenu"), vec![]);
+        assert!(matches!(&p.feed(b"#v6 K .")[..], [Event::TalkWords { words }] if words.len() == 2 && !words[0].menu && words[1].menu));
+        // #v6 T は次の発言の行に種類を付ける
+        p.feed(b"#v6 T shout C0003");
+        assert!(matches!(&p.feed(b"(Kotone) > \x82\xa0")[..], [Event::Message(m)] if m.speech.as_deref() == Some("shout")));
+        assert!(matches!(&p.feed(b"Kotone > hi")[..], [Event::Message(m)] if m.speech.is_none()));
         assert!(!p.has_v6_map());
         p.feed(b"#v6 M N 6a3b0000 3 3");
         assert!(p.has_v6_map(), "#v6 M を受けたら v6 の地図の接続 (#194)");

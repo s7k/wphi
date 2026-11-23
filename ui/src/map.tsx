@@ -865,7 +865,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
                   パーティに誘う
                 </button>
               )}
-              {(["priv", "pay"] as const).map((action) => (
+              {(["talk", "priv", "pay"] as const).map((action) => (
                 <button
                   key={action}
                   type="button"
@@ -875,7 +875,7 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
                     setCharMenu(null);
                   }}
                 >
-                  {action === "priv" ? "ささやく (priv)" : "お金を渡す"}
+                  {action === "talk" ? "話す" : action === "priv" ? "ささやく (priv)" : "お金を渡す"}
                 </button>
               ))}
             </div>

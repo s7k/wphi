@@ -32,7 +32,7 @@ import { checkAll, listNo, listOk, moreNo, moveListCursor, receiveList, type Lis
 import { trace } from "./trace.ts";
 import { PREDICT_TICK_MS, predictedMap, Predictor } from "./predict.ts";
 import { selfPos } from "./mapRender.ts";
-import { CHAR_ACTION_EVENT, EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, type CharAction, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type FloorItem, type ItemInfo, type MapListAction, type PartyMember, type MapState, type Spell, type UiEvent } from "./protocol";
+import { CHAR_ACTION_EVENT, EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, type CharAction, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type FloorItem, type TalkWord, type ItemInfo, type MapListAction, type PartyMember, type MapState, type Spell, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogFind } from "./LogFind";
 import { pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
@@ -40,6 +40,7 @@ import { createLogWriter } from "./logSave.ts";
 import { characterTarget, needsCloseConfirm } from "./tabs.ts";
 import { signLine, signMode, type SignReading } from "./signHead.ts";
 import { attackPlan, nextTarget } from "./target.ts";
+import { ShopPanel, TalkPanel } from "./ShopTalk";
 import { afterClose, DEAD_LINE, KICKED_LINE, lossText, RETRY_DELAYS } from "./reconnect.ts";
 import { applyMapset, holdMapset, type PendingMapset } from "./mapsetPending.ts";
 import { castLines, loadSpellOrder, moveSpell, orderSpells, saveSpellOrder, SPELL_WAIT_MS, waitsForOrder } from "./spells.ts";
@@ -109,6 +110,10 @@ export type Tab = {
   bag?: ItemInfo[] | null;
   /** 足元の物 (#ex-inv F。#189)。求めていなければ undefined */
   floor?: FloorItem[] | null;
+  /** 乗ったマスの売り場の品 (#v6 B。#187)。売り場でなければ undefined */
+  shop?: FloorItem[];
+  /** NPC に言える言葉 (#v6 K。#188)。会話の窓を出していなければ undefined */
+  talk?: TalkWord[];
   bagOpen?: boolean;
   bagMessage?: string;
   /** 仲間の一覧(#v6 P。自分が先頭)。パーティに入っていなければ空 */
@@ -821,6 +826,8 @@ export function App() {
         else if (esc === "sign") closeSign(session);
         else if (esc === "priv") update(session, (t) => ({ ...t, privOpen: false }));
         else if (esc === "target") setTarget(session, null);
+        else if (esc === "talk") update(session, (t) => ({ ...t, talk: undefined }));
+        else if (esc === "shop") update(session, (t) => ({ ...t, shop: undefined }));
         else stopFollow(session);
         return true;
       }
@@ -1082,7 +1089,10 @@ export function App() {
       const session = activeRef.current;
       if (session === null) return;
       const { action, name, turn } = e.payload;
-      if (action === "priv") {
+      if (action === "talk") {
+        // NPC の方を向いてから、言える言葉を求める (#188)
+        sendLines(session, turn ? `turn ${turn}\n#ex-talk` : "#ex-talk");
+      } else if (action === "priv") {
         requestUlist(session);
         update(session, (t) => ({
           ...t,
@@ -1358,9 +1368,9 @@ export function App() {
   const linesPort = useRef<MessageChannel | null>(null);
   /** 画面に出す時刻。時刻を出さない設定なら空(LogDispTime) */
   const shownTime = (time: string) => (settingsRef.current.logDispTime ? time : "");
-  const append = (session: number, html: string, raw?: string) => {
+  const append = (session: number, html: string, raw?: string, speech?: string) => {
     const time = timePrefix();
-    const line = { html: shownTime(time) + html, raw };
+    const line = { html: shownTime(time) + html, raw, speech };
     const tab = tabOf(session);
     // 保存するログには、時刻を出さない設定でも時刻を入れる(Philly の LogSaveTextWithTime=on)
     if (tab?.logSave) saveLog(tab.label, time + html, settingsRef.current.logSaveHtml);
@@ -1422,7 +1432,7 @@ export function App() {
       }
       switch (ev.type) {
         case "log":
-          append(session, ev.html, ev.raw);
+          append(session, ev.html, ev.raw, ev.speech);
           if (ev.raw) {
             const plain = stripTags(ev.raw);
             if (CAST_START.test(plain)) castUntil.current.set(session, performance.now() + CAST_MAX_MS);
@@ -1536,6 +1546,15 @@ export function App() {
           break;
         case "floor":
           update(session, (t) => ({ ...t, floor: ev.items }));
+          break;
+        case "shop":
+          update(session, (t) => ({ ...t, shop: ev.items.length ? ev.items : undefined }));
+          break;
+        case "talkWords":
+          if (!ev.words.length) {
+            update(session, (t) => ({ ...t, talk: undefined }));
+            append(session, systemNg("話せる相手が足元か目の前にいません。"));
+          } else update(session, (t) => ({ ...t, talk: ev.words }));
           break;
         case "bag":
           // 断られた理由 (bagMessage) は残す。まとめて送った途中の 1 行が断られても、後の一覧で消えない様に。
@@ -1825,6 +1844,28 @@ export function App() {
           </div>
         )}
         {settings.modern && boards}
+        {tab.shop && !tab.talk && (
+          <ShopPanel
+            items={tab.shop}
+            gp={mapStates.current.get(tab.session)?.status?.gp}
+            onBuy={(f) =>
+              void confirmBox(`${f.item?.name ?? "品"} を ${f.gp} gp で買います。よろしいですか？`).then(
+                (ok) => ok && sendLine(tab.session, `pay ${f.gp}`),
+              )
+            }
+            onClose={() => update(tab.session, (t) => ({ ...t, shop: undefined }))}
+          />
+        )}
+        {tab.talk && (
+          <TalkPanel
+            words={tab.talk}
+            onSay={(w) => {
+              // 話した後の言える言葉は変わる (hi の後など) ので、続けて求め直す
+              sendLines(tab.session, `${w.menu ? w.word : `${w.word}?`}\n#ex-talk`);
+            }}
+            onClose={() => update(tab.session, (t) => ({ ...t, talk: undefined }))}
+          />
+        )}
         {tab.sign && <SignCard lines={tab.sign} author={tab.signAuthor ?? null} onClose={() => closeSign(tab.session)} />}
         {settings.modern && !tab.bagOpen && (
           <SpellBar

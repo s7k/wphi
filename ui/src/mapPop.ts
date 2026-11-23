@@ -151,7 +151,9 @@ export function findChar<C extends { x: number; y: number; name: string }>(
  * ログの行の種類 (ログの絞り込み。#181)。talk は発言 (priv と NPC を含む)、battle は戦闘の知らせ
  * (増減・ミス・死亡・状態異常・強化・弱体・呪文をかけた行)、other はそれ以外 (DM の案内、システムの行など)
  */
-export function logKind(raw: string | undefined): "talk" | "battle" | "other" {
+export function logKind(raw: string | undefined, speech?: string): "talk" | "battle" | "other" {
+  // DM が発言の種類 (#v6 T) を送るサーバでは、それで決める。スイッチの案内は発言に入れない
+  if (speech) return speech === "switch" ? "other" : "talk";
   if (!raw) return "other";
   const text = stripTags(raw);
   const sep = text.indexOf(" > ");
