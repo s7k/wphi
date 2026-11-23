@@ -506,7 +506,10 @@ export function App() {
   const attackTarget = (session: number, auto = false): boolean => {
     const s = mapStates.current.get(session);
     if (s?.target === undefined || !s.map) return false;
-    const plan = attackPlan(s.map, s.target);
+    // 表のタブは、返事を待たずに進んだとみなした分をずらした地図で決める。届いた最後の地図のままだと、
+    // 送った 1 歩の分を数えずにもう 1 歩送り、行き過ぎて対象のマスに重なった
+    const o = session === activeRef.current ? predictor.current.offset : { dx: 0, dy: 0 };
+    const plan = attackPlan(o.dx || o.dy ? predictedMap(s.map, o.dx, o.dy) : s.map, s.target);
     if (plan.kind === "lost") {
       const was = s.autoAttack;
       setTarget(session, null);
@@ -514,11 +517,18 @@ export function App() {
     } else if (plan.kind === "hit") {
       if (!(auto && s.mode?.attack)) sendLines(session, plan.turn ? `turn ${plan.turn}\nhit` : "hit");
     } else if (plan.kind === "step") {
-      if (!(session === activeRef.current && predictor.current.waiting)) sendMove(session, moveCommand(plan.key, "none", true));
+      // ついて行く機能と同じく、前の移動の返事を待ち、FOLLOW_MS に 1 歩まで
+      const now = performance.now();
+      const waiting = session === activeRef.current && (predictor.current.waiting || predictor.current.unconfirmed > 0);
+      if (!waiting && now - lastAutoStep.current >= FOLLOW_MS) {
+        lastAutoStep.current = now;
+        sendMove(session, moveCommand(plan.key, "none", true));
+      }
     } else if (!auto) sendLine(session, "hit");
     return true;
   };
   const lastAuto = useRef(0);
+  const lastAutoStep = useRef(0);
   const autoAttackTick = (session: number | null) => {
     if (session === null || !mapStates.current.get(session)?.autoAttack || casting(session)) return;
     const now = performance.now();

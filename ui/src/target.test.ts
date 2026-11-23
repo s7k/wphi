@@ -25,6 +25,8 @@ test("対象が隣なら向いて殴り、離れていれば近づき、居な�
   assert.deepEqual(attackPlan(map([ch(2, 3, 2, "Slime")]), 2), { kind: "hit", turn: "n" });
   assert.deepEqual(attackPlan(map([ch(2, 3, 6, "Slime")]), 2), { kind: "step", key: "2" });
   assert.deepEqual(attackPlan(map([]), 2), { kind: "lost" });
+  // 同じマスに重なったら、隣へよける
+  assert.equal(attackPlan(map([ch(2, 3, 3, "Slime")]), 2).kind, "step");
   // 回る地図は画面の上が前で、自分は真ん中より下 (7x7 なら (3, 4))
   assert.deepEqual(attackPlan({ ...map([ch(2, 2, 4, "Slime")]), style: "turn" }, 2), { kind: "hit", turn: "l" });
 });

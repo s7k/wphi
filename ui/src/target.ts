@@ -45,6 +45,14 @@ export function attackPlan(map: MapEvent, id: number): AttackPlan {
     return { kind: "hit", turn: turn ?? null };
   }
   if (turnMap || !map.v6) return { kind: "wait" };
+  // 対象が同じマスに乗っている時 (敵の方から重なってきた時) は、隣の通れるマスへよける。hit は隣にしか当たらない
+  if (charCells(c, map.dir).some((p) => p.x === me.x && p.y === me.y)) {
+    for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+      const key = followStep(map, { x: me.x + dx, y: me.y + dy }, true);
+      if (key && key !== "arrived") return { kind: "step", key };
+    }
+    return { kind: "wait" };
+  }
   const step = followStep(map, { x: c.x, y: c.y });
   return step && step !== "arrived" ? { kind: "step", key: step } : { kind: "wait" };
 }
