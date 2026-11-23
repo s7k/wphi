@@ -52,6 +52,10 @@ export type Settings = {
   hudStats: string[];
   /** 別のサーバの世界へ移る時に、キャラの ID を送ってよいか確かめる(#51) */
   confirmTransfer: boolean;
+  /** 自動攻撃を止める自分の HP の割合 (%)。0 なら止めない */
+  autoStopHp: number;
+  /** キーもマウスも触らない時間がこの分を超えたら自動攻撃を止める。0 なら止めない */
+  autoStopIdleMin: number;
 };
 
 /** モダンの左上に出せるステータス。設定の画面の並びと、出す順 */

@@ -14,18 +14,23 @@ const OBJECT_KINDS = new Set([0x80, 0x81, 0x82, 0x70, 0x75]);
  * G で次の対象。自分・仲間・オブジェを除いた名前のあるキャラを近い順に並べ、今の対象の次を選ぶ (最後なら最初へ戻る)。
  * 居なければ null
  */
-export function nextTarget(map: MapEvent, party: string[], current: number | null): MapChar | null {
+export function nextTarget(map: MapEvent, party: string[], current: number | null, aggro: Set<number> = new Set()): MapChar | null {
   const me = selfPos(map.width, map.height, map.style === "turn");
   const dist = (c: MapChar) => Math.abs(c.x - me.x) + Math.abs(c.y - me.y);
+  // 自分か仲間を狙っている敵 (#v6 H の ag) を、距離より先に並べる
   const list = map.chars
     .filter((c) => (c.x !== me.x || c.y !== me.y) && stripTags(c.name) && !party.includes(stripTags(c.name)) && !OBJECT_KINDS.has(c.default))
-    .sort((a, b) => dist(a) - dist(b) || a.id - b.id);
+    .sort((a, b) => Number(aggro.has(b.id)) - Number(aggro.has(a.id)) || dist(a) - dist(b) || a.id - b.id);
   if (list.length === 0) return null;
   const i = list.findIndex((c) => c.id === current);
   return list[(i + 1) % list.length];
 }
 
-export type AttackPlan = { kind: "lost" } | { kind: "hit"; turn: string | null } | { kind: "step"; key: MoveKey } | { kind: "wait" };
+export type AttackPlan =
+  | { kind: "lost" }
+  | { kind: "hit"; turn: string | null; near?: { x: number; y: number } }
+  | { kind: "step"; key: MoveKey }
+  | { kind: "wait" };
 
 /**
  * 対象を殴る為に次にする事。対象が地図に居なければ lost。隣 (上下左右。2x2 の敵は体のどこか) なら、その方を向く turn と hit。
@@ -58,7 +63,7 @@ export function attackPlan(map: MapEvent, id: number, opts: { dodge?: boolean } 
     const turn = turnMap
       ? ({ "0,-1": null, "1,0": "r", "0,1": "b", "-1,0": "l" } as Record<string, string | null>)[d]
       : ({ "0,-1": "n", "1,0": "e", "0,1": "s", "-1,0": "w" } as Record<string, string>)[d];
-    return { kind: "hit", turn: turn ?? null };
+    return { kind: "hit", turn: turn ?? null, near: { x: near.x - me.x, y: near.y - me.y } };
   }
   if (turnMap || !map.v6) return { kind: "wait" };
   // 1 歩で着く対象の隣のマスがあれば、対象の正面 (向いている先) より横や後ろを選ぶ。正面へ入ると殴られる

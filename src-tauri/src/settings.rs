@@ -69,6 +69,10 @@ pub struct Settings {
     pub hud_stats: Vec<String>,
     /// 別のサーバ (違うホストかポート) の世界へ移る時に、キャラの ID を送ってよいか確かめる(#51)。既定はオフ(Philly に無い)
     pub confirm_transfer: bool,
+    /// 自動攻撃を止める自分の HP の割合 (%)。0 なら止めない(Philly に無い)
+    pub auto_stop_hp: u8,
+    /// キーもマウスも触らない時間がこの分を超えたら自動攻撃を止める。0 なら止めない(Philly に無い)
+    pub auto_stop_idle_min: u16,
 }
 
 impl Default for Settings {
@@ -103,6 +107,8 @@ impl Default for Settings {
             auto_connect: true,
             hud_stats: vec!["hp".into(), "mp".into()],
             confirm_transfer: false,
+            auto_stop_hp: 30,
+            auto_stop_idle_min: 10,
         }
     }
 }

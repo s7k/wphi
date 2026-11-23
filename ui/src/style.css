@@ -2015,12 +2015,10 @@ button > svg:only-child,
   position: relative;
 }
 
-/* 依頼 (#193)。モダンの左上の HUD の下 */
+/* 依頼 (#193)。右上の、仲間の一覧の下 (.right-stack)。左上は HUD で混み合う為 */
 .quest-hud {
-  position: absolute;
-  left: 16px;
-  top: calc(var(--hud-bottom, 88px) + 8px);
-  z-index: 3;
+  text-align: right;
+  align-items: flex-end;
   max-width: 260px;
   display: flex;
   flex-direction: column;
@@ -2539,11 +2537,22 @@ button > svg:only-child,
 }
 
 /* 仲間の一覧(PartyPanel.tsx)。閉じている間は右上のボタンの下に小さく出す */
-.party-hud {
+/* 右上の、仲間の一覧と依頼を縦に並べる入れ物 (App.tsx) */
+.right-stack {
   position: absolute;
   top: 56px;
   right: 16px;
   z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+.right-stack > * {
+  pointer-events: auto;
+}
+.party-hud {
   width: 168px;
   padding: 6px 8px;
   display: flex;
@@ -2559,7 +2568,7 @@ button > svg:only-child,
 }
 
 /* priv の欄(幅 300px と左の枠 3px)を開いている間は、その左に出す */
-.party-hud.beside-priv {
+.right-stack.beside-priv {
   right: 327px;
 }
 

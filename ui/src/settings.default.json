@@ -42,5 +42,7 @@
     "hp",
     "mp"
   ],
-  "confirmTransfer": false
+  "confirmTransfer": false,
+  "autoStopHp": 30,
+  "autoStopIdleMin": 10
 }

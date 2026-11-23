@@ -185,6 +185,31 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
           </div>
         </fieldset>
         <fieldset className="settings-group">
+          <legend>戦闘</legend>
+          <label>
+            自動攻撃を止める自分の HP{" "}
+            <input
+              type="number"
+              min={0}
+              max={90}
+              value={s.autoStopHp}
+              onChange={(e) => set("autoStopHp", Math.max(0, Math.min(90, Math.round(Number(e.target.value) || 0))))}
+            />{" "}
+            % 未満 (0 なら止めない)
+          </label>
+          <label>
+            キーもマウスも触らない時間が{" "}
+            <input
+              type="number"
+              min={0}
+              max={120}
+              value={s.autoStopIdleMin}
+              onChange={(e) => set("autoStopIdleMin", Math.max(0, Math.min(120, Math.round(Number(e.target.value) || 0))))}
+            />{" "}
+            分を超えたら自動攻撃を止める (0 なら止めない)
+          </label>
+        </fieldset>
+        <fieldset className="settings-group">
           <legend>魔法</legend>
           <label>
             <input

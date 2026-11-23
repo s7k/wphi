@@ -18,17 +18,19 @@ test("G は自分・仲間・オブジェを除き、近い順に対象を回す
   assert.equal(nextTarget(m, ["Kotone"], 3)?.id, 2);
   assert.equal(nextTarget(m, ["Kotone"], 2)?.id, 3, "最後の次は最初へ戻る");
   assert.equal(nextTarget(map([ch(1, 3, 3, "Me")]), [], null), null);
+  // 狙ってくる敵を先に
+  assert.equal(nextTarget(m, ["Kotone"], null, new Set([2]))?.id, 2);
 });
 
 test("対象が隣なら向いて殴り、離れていれば近づき、居なければ外す", () => {
-  assert.deepEqual(attackPlan(map([ch(2, 4, 3, "Slime")]), 2), { kind: "hit", turn: "e" });
-  assert.deepEqual(attackPlan(map([ch(2, 3, 2, "Slime")]), 2), { kind: "hit", turn: "n" });
+  assert.deepEqual(attackPlan(map([ch(2, 4, 3, "Slime")]), 2), { kind: "hit", turn: "e", near: { x: 1, y: 0 } });
+  assert.deepEqual(attackPlan(map([ch(2, 3, 2, "Slime")]), 2), { kind: "hit", turn: "n", near: { x: 0, y: -1 } });
   assert.deepEqual(attackPlan(map([ch(2, 3, 6, "Slime")]), 2), { kind: "step", key: "2" });
   assert.deepEqual(attackPlan(map([]), 2), { kind: "lost" });
   // 同じマスに重なったら、隣へよける
   assert.equal(attackPlan(map([ch(2, 3, 3, "Slime")]), 2).kind, "step");
   // 回る地図は画面の上が前で、自分は真ん中より下 (7x7 なら (3, 4))
-  assert.deepEqual(attackPlan({ ...map([ch(2, 2, 4, "Slime")]), style: "turn" }, 2), { kind: "hit", turn: "l" });
+  assert.deepEqual(attackPlan({ ...map([ch(2, 2, 4, "Slime")]), style: "turn" }, 2), { kind: "hit", turn: "l", near: { x: -1, y: 0 } });
 });
 
 test("自動攻撃の待ちの間は、こちらを向いている隣の敵の横へよける", () => {
@@ -41,5 +43,5 @@ test("自動攻撃の待ちの間は、こちらを向いている隣の敵の�
   // こちらを向いていなければ、待ちの間は動かない
   assert.deepEqual(attackPlan(map([ch(2, 3, 2, "Slime", 1, "R")]), 2, { dodge: true }), { kind: "wait" });
   // 待ちが明けていれば (dodge でなければ) 殴る
-  assert.deepEqual(attackPlan(facing, 2), { kind: "hit", turn: "n" });
+  assert.deepEqual(attackPlan(facing, 2), { kind: "hit", turn: "n", near: { x: 0, y: -1 } });
 });

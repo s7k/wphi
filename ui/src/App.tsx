@@ -31,7 +31,7 @@ import { ListOverlay } from "./ListOverlay";
 import { checkAll, listNo, listOk, moreNo, moveListCursor, receiveList, type ListFlow, type ListState } from "./list.ts";
 import { trace } from "./trace.ts";
 import { PREDICT_TICK_MS, predictedMap, Predictor } from "./predict.ts";
-import { selfPos } from "./mapRender.ts";
+import { hasItem, selfPos } from "./mapRender.ts";
 import { CHAR_ACTION_EVENT, EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, type CharAction, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type FloorItem, type TalkWord, type Quest, type TradeSide, type ItemInfo, type MapListAction, type PartyMember, type MapState, type Spell, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogFind } from "./LogFind";
@@ -94,6 +94,10 @@ const CAST_STOP = /^DM > (詠唱を止めました|Stop casting)/;
 const CAST_MAX_MS = 8000;
 /** 自動攻撃で、殴るか近づくかを決める間隔 (ms)。攻撃の待ちの間は殴らないので、待ちより短くてよい */
 const AUTO_ATTACK_MS = 150;
+/** 自動攻撃で、近づけずに待つのがこれより続いたら諦める (ms) */
+const STUCK_MS = 4000;
+/** 倒した後、落とし物が地図に載るのを待つ間と、拾う手順の 1 歩ごとの間 (ms) */
+const LOOT_WAIT_MS = 400;
 
 export type Tab = {
   session: number;
@@ -519,7 +523,8 @@ export function App() {
   const cycleTarget = (session: number) => {
     const s = mapStates.current.get(session);
     if (!s?.map) return;
-    const c = nextTarget(s.map, s.party ?? [], s.target ?? null);
+    const aggro = new Set(Object.entries(s.charHp ?? {}).flatMap(([id, v]) => (v.ag ? [Number(id)] : [])));
+    const c = nextTarget(s.map, s.party ?? [], s.target ?? null, aggro);
     if (c) setTarget(session, { id: c.id, name: stripTags(c.name) });
     else append(session, systemNg("近くに対象がいません。"));
   };
@@ -548,11 +553,19 @@ export function App() {
     const o = session === activeRef.current ? predictor.current.offset : { dx: 0, dy: 0 };
     // 自動攻撃のこちらの攻撃の待ちの間は、こちらを向いている敵の横へよける (target.ts の dodge)
     const plan = attackPlan(o.dx || o.dy ? predictedMap(s.map, o.dx, o.dy) : s.map, s.target, { dodge: auto && !!s.mode?.attack });
+    const now = performance.now();
+    if (plan.kind !== "wait") stuck.current.delete(session);
     if (plan.kind === "lost") {
       const was = s.autoAttack;
       setTarget(session, null);
-      append(session, systemOk(was ? "対象を見失ったので、自動攻撃を止めました。" : "対象を見失いました。"));
+      // 直前まで隣で殴っていた対象が消えたら、倒したとみなし、そのマスに落ちた物を拾いに行く (自動攻撃の時だけ)
+      const near = lastNear.current.get(session);
+      if (was && near && near.id === s.target && now - near.at < 1500) {
+        loot.current.set(session, { dx: near.dx, dy: near.dy, at: now, phase: "look" });
+        append(session, systemOk("対象を倒したので、自動攻撃を止めました。"));
+      } else append(session, systemOk(was ? "対象を見失ったので、自動攻撃を止めました。" : "対象を見失いました。"));
     } else if (plan.kind === "hit") {
+      if (plan.near) lastNear.current.set(session, { id: s.target, dx: plan.near.x, dy: plan.near.y, at: now });
       if (!(auto && s.mode?.attack)) sendLines(session, plan.turn ? `turn ${plan.turn}\nhit` : "hit");
     } else if (plan.kind === "step") {
       // ついて行く機能と同じく、前の移動の返事を待ち、FOLLOW_MS に 1 歩まで
@@ -563,15 +576,72 @@ export function App() {
         sendMove(session, moveCommand(plan.key, "none", true));
       }
     } else if (!auto) sendLine(session, "hit");
+    else if (!s.mode?.attack) {
+      // 道が無いなどで近づけないまま (待つだけのまま) STUCK_MS 経ったら、諦めて止める
+      const since = stuck.current.get(session) ?? now;
+      stuck.current.set(session, since);
+      if (now - since > STUCK_MS) {
+        stuck.current.delete(session);
+        setTarget(session, null);
+        append(session, systemNg("対象に届かないので、自動攻撃を止めました。"));
+      }
+    }
     return true;
+  };
+  // 自動攻撃の歯止めと後始末 (#183)。lastInput は最後にキーかマウスを触った時刻、stuck は近づけずに待ち始めた時刻、
+  // lastNear は最後に隣で殴った対象とその向き、loot は倒した対象のマスの落とし物を拾う手順
+  const lastInput = useRef(performance.now());
+  const stuck = useRef(new Map<number, number>());
+  const lastNear = useRef(new Map<number, { id: number; dx: number; dy: number; at: number }>());
+  const loot = useRef(new Map<number, { dx: number; dy: number; at: number; phase: "look" | "walk" | "pick" }>());
+  const stopAuto = (session: number, message: string) => {
+    const s = mapStates.current.get(session);
+    if (!s?.autoAttack) return;
+    s.autoAttack = false;
+    update(session, (t) => ({ ...t, autoAttack: false }));
+    sendMapState(session);
+    append(session, systemNg(message));
+  };
+  /** 倒した対象のマスに落ちた物を拾う 1 回分。look で物があれば 1 歩乗り、着いたらカバンへ拾い、残りのお金を get で拾う */
+  const lootTick = (session: number) => {
+    const l = loot.current.get(session);
+    const map = mapStates.current.get(session)?.map;
+    if (!l || !map) return;
+    const now = performance.now();
+    if (now - l.at < LOOT_WAIT_MS || (session === activeRef.current && predictor.current.waiting)) return;
+    const me = selfPos(map.width, map.height, false);
+    const itemAt = (x: number, y: number) => hasItem(map.cells[y * map.width + x]?.attr ?? 0);
+    if (l.phase === "look") {
+      const key = ({ "0,-1": "8", "1,0": "6", "0,1": "2", "-1,0": "4" } as Record<string, MoveKey>)[`${l.dx},${l.dy}`];
+      if (!key || !itemAt(me.x + l.dx, me.y + l.dy)) return void loot.current.delete(session);
+      sendMove(session, moveCommand(key, "none", true));
+      loot.current.set(session, { ...l, at: now, phase: "walk" });
+    } else if (l.phase === "walk") {
+      sendLine(session, "#ex-inv pick");
+      loot.current.set(session, { ...l, at: now, phase: "pick" });
+    } else {
+      // カバンへ拾えない物 (お金や、カバンの無い世界の物) が残っていれば get で拾う
+      if (itemAt(me.x, me.y)) sendLine(session, "get");
+      loot.current.delete(session);
+    }
   };
   const lastAuto = useRef(0);
   const lastAutoStep = useRef(0);
   const autoAttackTick = (session: number | null) => {
-    if (session === null || !mapStates.current.get(session)?.autoAttack || casting(session)) return;
+    if (session === null || casting(session)) return;
     const now = performance.now();
     if (now - lastAuto.current < AUTO_ATTACK_MS) return;
     lastAuto.current = now;
+    if (loot.current.has(session)) return lootTick(session);
+    const s = mapStates.current.get(session);
+    if (!s?.autoAttack) return;
+    const st = settingsRef.current;
+    // 触らない時間と自分の HP の歯止め。自動攻撃は hit と go を送り続けるので、DM から見ると放置にならない
+    if (st.autoStopIdleMin > 0 && now - lastInput.current > st.autoStopIdleMin * 60_000)
+      return stopAuto(session, `${st.autoStopIdleMin} 分触らなかったので、自動攻撃を止めました。`);
+    const hp = s.status;
+    if (st.autoStopHp > 0 && hp?.hp !== undefined && hp.maxHp && (hp.hp * 100) / hp.maxHp < st.autoStopHp)
+      return stopAuto(session, `HP が ${st.autoStopHp}% を切ったので、自動攻撃を止めました。`);
     attackTarget(session, true);
   };
   /** 裏のタブのついて行く 1 回分。ゲートで飛んだかの判断は省く (歩いた位置を確かめる予想が無い) */
@@ -955,6 +1025,8 @@ export function App() {
       return true;
     };
     const onDom = (e: globalThis.KeyboardEvent) => {
+      // 自動攻撃の放置の歯止めの為に、最後に触った時刻を覚える (発言欄の打鍵も含む)
+      lastInput.current = performance.now();
       // ログの検索(Ctrl+F、macOS は Cmd+F)。入力欄にいても開く
       if (e.type === "keydown" && e.code === "KeyF" && (isMac() ? e.metaKey : e.ctrlKey) && !e.shiftKey && !e.altKey) {
         e.preventDefault();
@@ -983,7 +1055,10 @@ export function App() {
       });
     };
     document.addEventListener("click", onClick);
-    const forwarded = listen<ForwardedKey>(KEY_EVENT, (e) => onKey(e.payload));
+    const forwarded = listen<ForwardedKey>(KEY_EVENT, (e) => {
+      lastInput.current = performance.now();
+      onKey(e.payload);
+    });
     // リスト表示中に何かを送ったら、続きのページの番号(ずれ+9)でない限りリストを閉じる(Philly の SendTextListCancel)。
     // v5y は「番号ではありません」でリストを取り消しても、リストの終わりを送ってこない
     const onSent = ({ session, text }: Sent) => {
@@ -1095,6 +1170,7 @@ export function App() {
     // マップのマウス操作(Philly の MapForm.cpp の FormMouseDown)
     let lastFollow = 0;
     const mouse = listen<ForwardedMouse>(MOUSE_EVENT, (e) => {
+      lastInput.current = performance.now();
       const m = e.payload;
       const session = activeRef.current;
       if (session === null) return;
@@ -1946,7 +2022,6 @@ export function App() {
             onCancel={() => sendLine(tab.session, "#ex-trade cancel")}
           />
         )}
-        {settings.modern && tab.quests && <QuestHud quests={tab.quests} />}
         {tab.shop && !tab.talk && !tab.trade && (
           <ShopPanel
             items={tab.shop}
@@ -2004,8 +2079,14 @@ export function App() {
             <ItemIcon index={STATUS_ICON} size={32} />
           </button>
         )}
-        {!!tab.party?.length && !tab.partyOpen && !tab.bagOpen && (
-          <PartyHud members={tab.party} besidePriv={!!tab.privOpen} onOpen={() => update(tab.session, (t) => ({ ...t, partyOpen: true, bagOpen: false }))} />
+        {/* 右上の、仲間の一覧と依頼 (#193) を縦に並べる。左上は HUD で混み合う為 */}
+        {((!!tab.party?.length && !tab.partyOpen) || (settings.modern && !!tab.quests?.length)) && !tab.bagOpen && (
+          <div className={tab.privOpen ? "right-stack beside-priv" : "right-stack"}>
+            {!!tab.party?.length && !tab.partyOpen && (
+              <PartyHud members={tab.party} besidePriv={false} onOpen={() => update(tab.session, (t) => ({ ...t, partyOpen: true, bagOpen: false }))} />
+            )}
+            {settings.modern && tab.quests && <QuestHud quests={tab.quests} />}
+          </div>
         )}
         {tab.partyOpen && !tab.bagOpen && (
           <PartyPanel
