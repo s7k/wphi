@@ -8,7 +8,7 @@ import { latestRelease } from "./update.ts";
 import { isMac, MenuBar } from "./MenuBar";
 import { LogMenu, type LogMenuAt } from "./LogMenu";
 import { selectedLines } from "./logCopy.ts";
-import { MASTER_EXP, parseMasterMagic, runMasterItem, type MasterMenu } from "./masterMagic.ts";
+import { MASTER_EXP, MASTER_MENU, runMasterItem } from "./masterMagic.ts";
 import { caretLine } from "./chat.ts";
 import { SENT_EVENT, type Sent } from "./keyInput";
 import { isNorthFix, isTextTarget, KEY_EVENT, MOUSE_EVENT, RELEASE_ALL, type ForwardedMouse, keyContext, runKeyAction, sendLine, sendLines, type ForwardedKey } from "./keyInput";
@@ -799,33 +799,26 @@ export function App() {
   // モードはサーバが決めるので、地図を受けるたびに見る。変わった時だけ Rust へ送る
   const viewChecks = useRef<boolean | null>(null);
   // 超魔法メニュー(#83)。表のタブのキャラがマスター(経験値 99999999)か、設定で出す時だけ出す
-  const [masterMenu, setMasterMenu] = useState<MasterMenu | null>(null);
-  const masterMenuRef = useRef<MasterMenu | null>(null);
-  masterMenuRef.current = masterMenu;
+  const masterMenu = MASTER_MENU;
   const [masterShown, setMasterShown] = useState(false);
   const masterShownRef = useRef(false);
-  useEffect(() => {
-    invoke<string | null>("master_magic_xml")
-      .then((xml) => setMasterMenu(xml ? parseMasterMagic(xml) : null))
-      .catch(console.error);
-  }, []);
   // 受信の処理からも呼ぶので、状態は ref から読む
   const syncMasterMenu = () => {
-    const menu = masterMenuRef.current;
+    const menu = masterMenu;
     const s = activeRef.current === null ? undefined : mapStates.current.get(activeRef.current);
-    const show = !!menu && activeRef.current !== null && (settingsRef.current.masterMagicMenu || s?.status?.exp === MASTER_EXP);
+    const show = activeRef.current !== null && (settingsRef.current.masterMagicMenu || s?.status?.exp === MASTER_EXP);
     if (show === masterShownRef.current) return;
     masterShownRef.current = show;
     setMasterShown(show);
     invoke("set_master_menu", {
-      caption: menu?.caption ?? "",
-      menus: show ? menu!.menus.map((m) => ({ caption: m.caption, items: m.items.map((it) => (it === "-" ? "-" : it.caption)) })) : null,
+      caption: menu.caption,
+      menus: show ? menu.menus.map((m) => ({ caption: m.caption, items: m.items.map((it) => (it === "-" ? "-" : it.caption)) })) : null,
     }).catch(console.error);
   };
-  useEffect(syncMasterMenu, [active, masterMenu, settings.masterMagicMenu]);
+  useEffect(syncMasterMenu, [active, settings.masterMagicMenu]);
   const runMaster = (id: string, session: number) => {
     const [, i, j] = id.split(":").map(Number);
-    const item = masterMenuRef.current?.menus[i]?.items[j];
+    const item = masterMenu.menus[i]?.items[j];
     if (!item || item === "-") return;
     runMasterItem(item.steps, {
       send: (lines, cancel) => {
@@ -1982,7 +1975,7 @@ export function App() {
         <MenuBar
           checked={menuChecked}
           extra={
-            masterShown && masterMenu
+            masterShown
               ? {
                   name: masterMenu.caption,
                   items: masterMenu.menus.flatMap((m, i) => [

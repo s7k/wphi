@@ -740,21 +740,6 @@ fn select_menu(app: &tauri::AppHandle, id: &str) {
     let _ = app.emit_to("main", menu::MENU_EVENT, id.to_string());
 }
 
-/// 超魔法メニューの MasterMagicMenu.xml(#83)。設定フォルダ → 取り込んだ Philly フォルダの Config の順に探す。
-/// Philly のパーツなので同梱はしない
-#[tauri::command]
-fn master_magic_xml(app: tauri::AppHandle) -> Option<String> {
-    let philly = Store::load(&store_path(&app).ok()?).philly_folder;
-    [
-        config_dir(&app).ok().map(|d| d.join("MasterMagicMenu.xml")),
-        philly.map(|f| std::path::Path::new(&f).join("Config").join("MasterMagicMenu.xml")),
-    ]
-    .into_iter()
-    .flatten()
-    .find_map(|p| std::fs::read(p).ok())
-    .map(|b| phi_proto::codec::decode(&b))
-}
-
 /// 超魔法メニューを OS のメニューに足すか外す(#83)。`menus` が None なら外す。
 /// 項目の id は `mm:<メニューの番号>:<項目の番号>` で、選ぶと MENU_EVENT で UI へ送る
 #[tauri::command]
@@ -1006,7 +991,6 @@ fn main() {
             open_config_dir,
             menu_select,
             menu_model,
-            master_magic_xml,
             logs::save_log_buffer,
             open_character_dir,
             reload_assets,

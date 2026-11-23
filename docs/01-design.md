@@ -30,7 +30,7 @@ Apple Silicon は署名の無いバイナリを起動しないので、その時
 
 - 新規キャラ作成(Philly では別プログラムの `PhillyNewCharacter.exe`)。phi-client-web の `register.py` を移植して後の段階で足す
 - 自動更新(`PhillyUpdate.exe`)。配布方法を決めてから `tauri-plugin-updater` で作る
-- 隠しコマンド(`HiddenCommand.ini`)。超魔法メニュー(`MasterMagicMenu.xml`。Philly のパーツなので同梱せず、設定フォルダか Philly フォルダの物を読む)は #83 で入れた。マスター(経験値 99999999)の時か、設定で出す
+- 隠しコマンド(`HiddenCommand.ini`)。超魔法メニューは #83 で入れた。項目は DM のマスター専用の魔法から WPHI で起こした物 (ui/src/masterMagic.ts) で、Philly の `MasterMagicMenu.xml` は読まない。マスター(経験値 99999999)の時か、設定で出す
 - v6 プロトコル(`#hello phi/6`)。本番の v5y サーバが v6 に移るまで対応しない
 
 ## 2. 全体構成

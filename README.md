@@ -63,7 +63,7 @@ Linux の AppImage は FUSE(Ubuntu では `libfuse2`)が要る。無い時は `A
 | Ctrl+F(macOS は Cmd+F) | ログを検索 |
 
 メニューは Philly と同じ並びで、macOS では窓の中にも出す。
-マスターのキャラには超魔法のメニューも出る。メニューの定義 (`MasterMagicMenu.xml`) は Philly のパーツなので同梱せず、設定フォルダか取り込んだ Philly フォルダの `Config` に置いた物を読む。
+マスターのキャラには超魔法のメニューも出る。項目は DM のマスター専用の魔法から WPHI で起こした物で、Philly の `MasterMagicMenu.xml` は読まない。
 
 ## Philly に無い機能
 

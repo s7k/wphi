@@ -18,7 +18,7 @@ Philly フォルダを持たない利用者の為に、アプリへ同梱する�
 | `Config/unew.ini`、`Config/worlds.ini` | キャラグラとマップチップの取得元の一覧と、世界の一覧。Master NEO から頂いた物 | Master NEO から提供を受けた (2026-11-23 に作者が確認) |
 
 Philly (PhillySrc) のパーツ (既定のスキン `Skins/Mine/` と超魔法メニューの `Config/MasterMagicMenu.xml`) は同梱しない。
-利用者の Philly フォルダにあれば、超魔法メニューとスキンのマウスカーソルはそちらを読む。
+利用者の Philly フォルダにあれば、スキンのマウスカーソルはそちらを読む。超魔法メニューは WPHI で起こした項目を出す (ui/src/masterMagic.ts)。
 
 `chara/` と `DefaultChip.bmp` の画像は PCGL のグラフィックスパーツで、PCGL c項に従い、同梱するグラフィックスが PCGL 下にある事をここに明記する。
 `sushi_*.bmp`、`alnes_*.bmp`、`wphi_*.bmp` は同じフォルダにあるが、PCGL b項の「適用範囲の明示」により PCGL の対象から外す。

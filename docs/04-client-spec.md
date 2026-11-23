@@ -545,54 +545,24 @@ v5y は、権限ファイルで一般のキャラをマスターにする事も�
 WPHI は Exp で判定する。
 それ以外の人の為に「超魔法メニューを、マスターでなくても出す」設定を設けた。
 
-### 9.2 メニューの定義(MasterMagicMenu.xml)
+### 9.2 メニューの項目
 
-項目は Philly の `Config/MasterMagicMenu.xml`(Shift_JIS)で決める。
-WPHI はこのファイルを同梱しない (Philly のパーツの為)。設定フォルダか、取り込んだ Philly フォルダの `Config` にある物を読む。
-どちらにも無ければ、マスターでも超魔法メニューを出さない。
+項目は WPHI の `ui/src/masterMagic.ts` (`MASTER_MENU`) に書いてある。
+DM のマスター専用の魔法 (phidm-v6 の `docs/gm/ops/admin-commands.md`) から WPHI で起こした物で、Philly の `Config/MasterMagicMenu.xml` は読まない。
 
-| 要素 | 意味 |
+| サブメニュー | 項目 |
 |---|---|
-| `mastermagic` | 親のメニュー。caption がメニューの名前 |
-| `menu` | サブメニュー |
-| `item` | 項目。caption="-" で区切り線 |
-| `send` | 送る行(1つの item に5個まで)。`list="no"` なら、届くリストを1つ出さない |
-| `ok_dialog` | OK・キャンセルで確かめる。キャンセルなら以降を実行しない |
-| `int_dialog` | 数を聞く。答えは `%int` に入る |
-| `string_dialog` | 文字を聞く。答えは `%string` に入る |
+| プレイヤー | Master list、Jump、Draw、Basi Rurla、Be Pygmalion、Evil wind to、Brizzard from Cokyutos to、Close box of Pandora、Open box of Pandora、Deny PK、Permit PK |
+| 移動と調査 | Malor、Pass wall、Dumapic、Eye of the Yog=Sothoth、Book of the Yog=Sothoth、Flag、Variable |
+| 地形・アイテム・キャラ | Resource、Createobj、Eraseobj、Wish、Dup、Cache、Metamorphosis、Restoration |
+| 読み直しと保存 | Load td・gate・swt・ban・cmd・fd・crt・ed・ddx・ex・obj・sd、Close gate、Save id、Save obj |
+| 停止 | Evil wind from Hyades、Evil wind from Malaika |
 
-item の子要素は前から順に実行する。
-`send` はダイアログの前でまとめて送り、`list="no"` の数だけ次に届くリストを出さない(Philly の MainForm.cpp)。
-ダイアログの文の `&#xa;` は改行。
-
-### 9.3 同梱の定義の項目
-
-| サブメニュー | 項目 | 説明(定義の hint) | 手順 |
-|---|---|---|---|
-| 移動魔法 | jump | 対象 PC の所に移動する | `cast`・`list` → 番号を聞く → `cast`・`jump <番号>` |
-| | draw | 対象 PC を呼び寄せる | `cast`・`list` → 番号を聞く → `cast`・`draw <番号>` |
-| | malor | 指定座標に移動する | 座標(xx yy)を聞く → `cast`・`malor`・`<座標>` |
-| | basi rurla | 対象を指定座標に移動する | `cast`・`list` → 「n xx yy」を聞く → `cast`・`basi Rurla <答え>` |
-| | Pass wall | 壁を通過できるようになる | `cast`・`Pass wall` |
-| 通常魔法 | Eye of the Yog=Sothoth | クリーチャーの位置を知る | `cast`・`Eye of the Yog=Sothoth` |
-| | Book of the Yog=Sothoth | クリーチャーの位置を知り phied.log に書き出す | `cast`・`Book of the Yog=Sothoth` |
-| | Dumapic | 自分の絶対座標を知る | `cast`・`Dumapic` |
-| | Flag | 汎用フラグを表示する | `cast`・`Flag` |
-| | Variable | 汎用変数の内容を表示する | `cast`・`Variable` |
-| | Cache | 所持金 ⇔ TAX | `cast`・`Cache` |
-| | Metamorphosis | FLV, WLV, MLV, CLV, MHp, MMp, karma の値を変更する | `cast`・`Metamorphosis` |
-| | Restoration | Hp と Mp を最大値に回復し、一時的な負のステータスを回復する | `cast`・`Restoration` |
-| | Adjustment inflation | tax と taxbase の設定 | `cast`・`Adjustment inflation` |
-| 操作魔法 | Load td・swt・fd・ed・dd・ddx・ex・sd・crt | サーバのデータファイル(phi.td など)を読み込む | `cast`・`Load td` など |
-| 創造魔法 | Resource | 地形を変化する | 「aa bb」を聞く → `cast`・`Resource <答え>` |
-| | Wish | アイテムを作成する | 性能を聞く → `cast`・`Wish <答え>` |
-| | Dup | アイテムを複製する | `cast`・`Dup` |
-| | Createobj | オブジェデータを作成する | 「t_woman SDK "表示名"」の形を聞く → `cast`・`Createobj <答え>` |
-| | Eraseobj | オブジェデータを消去する | 座標を聞く → `cast`・`Eraseobj <答え>` |
-| | Save obj | オブジェデータをセーブする | `cast`・`Save obj` |
-| 世界停止魔法 | Evil wind from Malaika | 世界を停止させる | 確かめる → `cast`・`Evil wind from Malaika` |
-
-どの項目も最初の `cast` は `list="no"` で、魔法の一覧のリストを出さない。
+どの項目も `cast` の後に呪文を送り、`cast` が出す魔法の一覧のリストは出さない。
+番号を取る呪文 (Jump、Draw、Be Pygmalion、Evil wind to) は、先に番号 (Master list の番号) を聞いて `Jump <番号>` の様に送る。
+引数を取る呪文 (Basi Rurla、Brizzard from Cokyutos to、Resource、Createobj、Wish) は、先に引数を聞いて呪文の後ろに付ける。
+唱えた後にサーバが行を聞く呪文 (Malor、Close box of Pandora、Open box of Pandora) は、先に聞いておいた行を呪文の次に送る。
+Eraseobj、Close gate、Evil wind to と、停止の 2 つは、OK・キャンセルで確かめてから送る。
 
 ## 10. キー操作
 
