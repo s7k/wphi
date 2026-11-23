@@ -74,6 +74,11 @@ await page.evaluate(() => window.guideEffect("back"));
 await page.evaluate(() => window.guideEffect("party"));
 await page.waitForTimeout(400);
 await shot("party-hud");
+// 依頼の欄。右上の仲間の一覧の下に出る
+await page.evaluate(() => window.guideEffect("fx-quest"));
+await page.waitForTimeout(300);
+await shot("quest");
+await page.evaluate(() => window.guideEffect("quest-end"));
 // 入力欄の上のパーティのタブ
 await page.getByRole("tab", { name: "パーティ" }).click();
 await page.waitForTimeout(300);
@@ -91,6 +96,13 @@ await page.waitForTimeout(400);
 await shot("party-far");
 await page.evaluate(() => window.guideEffect("party-end"));
 await page.waitForTimeout(300);
+// GM が置いた目印。視界の外の宿屋は端の矢印、視界の中の井戸は旗
+await page.evaluate(() => window.guideEffect("fx-marks"));
+await page.waitForTimeout(400);
+await shot("marks");
+await page.evaluate(() => window.guideEffect("marks-end"));
+await page.evaluate(() => window.guideEffect("party-end"));
+await page.waitForTimeout(300);
 
 // NPC との会話の窓と、店の窓
 await page.evaluate(() => window.guideEffect("fx-talk"));
@@ -103,6 +115,12 @@ await page.waitForTimeout(300);
 await shot("shop");
 await page.locator(".phi-log").focus();
 await page.keyboard.press("Escape");
+// 取引の窓
+await page.evaluate(() => window.guideEffect("fx-trade"));
+await page.waitForTimeout(300);
+await shot("trade");
+await page.evaluate(() => window.guideEffect("trade-end"));
+await page.waitForTimeout(300);
 
 // 看板を読んだ時の札
 await page.evaluate(() => window.guideEffect("sign"));
@@ -187,10 +205,21 @@ const log = await page.locator(".log-area").boundingBox();
 await shot("log-filter", { clip: { x: log.x, y: log.y - 16, width: log.width, height: log.height + 16 } });
 await button("全部").click();
 
+// 魔法の列の左端の自動攻撃のボタン。押すと近い猫を対象にして始め、ボタンが赤くなる。ログに行が残るので最後の方で撮る
+await page.locator(".spell-tile.auto-attack").click();
+await page.waitForTimeout(300);
+const bar = await page.locator(".spell-bar").boundingBox();
+await shot("auto-attack", { clip: { x: bar.x - 48, y: bar.y - 40, width: bar.width + 56, height: bar.height + 48 } });
+await page.locator(".spell-tile.auto-attack").click();
+await page.locator(".phi-log").focus();
+await page.keyboard.press("Escape");
+await page.waitForTimeout(300);
+
 // 設定
 await button("設定").click();
 await page.waitForTimeout(300);
 await shot("settings");
+await page.locator("fieldset.settings-group", { hasText: "戦闘" }).screenshot({ path: `${out}/settings-combat.png` });
 
 // クラシック(1窓)。窓の形の説明に使う
 const classic = await open("");

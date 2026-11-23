@@ -244,6 +244,10 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
             "#v6 Y .",
         ],
         // 確かめ用: 店 (#v6 B) と NPC との会話 (#v6 K)
+        // 撮った後に、取引の窓・依頼・目印を消す
+        "trade-end" => &["#v6 Y end cancel"],
+        "quest-end" => &["#v6 Q ."],
+        "marks-end" => &["#v6 L ."],
         "fx-shop" => &[
             "#v6 B 1\tgp=200\teq=-\tit=1\twt=0\tmt=3\tfn=1\twp=8\top=2,25,10,0\tready=0\ttype=Armor\twtype=claw\tmat=Steel\telem=Earth\tname=Iron shield",
             "#v6 B 2\tgp=5000\teq=-\tit=2\twt=1\tmt=3\tfn=6\twp=10\top=12,30,0,0\tready=0\ttype=Weapon\twtype=Sword\tmat=Steel\telem=Fire\tname=Flame sword",
