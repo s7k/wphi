@@ -201,7 +201,13 @@ pub struct Spell {
 
 /// `#v6 S` の番号の後ろの欄(タブで区切った キー=値)を読む
 fn parse_spell(no: i64, fields: &str) -> Spell {
-    let mut sp = Spell { no, name: String::new(), html: String::new(), ef: 0, fn_: 0 };
+    let mut sp = Spell {
+        no,
+        name: String::new(),
+        html: String::new(),
+        ef: 0,
+        fn_: 0,
+    };
     for f in fields.split('\t') {
         let Some((k, v)) = f.split_once('=') else { continue };
         match k {
@@ -288,7 +294,12 @@ fn parse_wait(rest: &str) -> Option<Event> {
     let (kind, v) = f.next()?.split_once('=')?;
     let ticks = if v == "stop" { None } else { Some(v.parse().ok()?) };
     let spell = f.next().and_then(|s| s.parse().ok());
-    Some(Event::Wait { who, kind: kind.to_string(), ticks, spell })
+    Some(Event::Wait {
+        who,
+        kind: kind.to_string(),
+        ticks,
+        spell,
+    })
 }
 
 /// `#v6 H` の欄。`C%04x hp=<0-100> ag=<0|1>`
@@ -309,8 +320,15 @@ fn parse_char_hp(rest: &str) -> Option<Event> {
 /// `#v6 E` の欄。座標は 2 桁の数か、視界の外なら `--`。受けた側が読めなければ捨てる
 fn parse_effect(rest: &str) -> Option<Event> {
     let f: Vec<&str> = rest.split_whitespace().collect();
-    let [kind, ax, ay, tx, ty, ref more @ ..] = f[..] else { return None };
-    let pos = |x: &str, y: &str| Some(Pos { x: x.parse().ok()?, y: y.parse().ok()? });
+    let [kind, ax, ay, tx, ty, ref more @ ..] = f[..] else {
+        return None;
+    };
+    let pos = |x: &str, y: &str| {
+        Some(Pos {
+            x: x.parse().ok()?,
+            y: y.parse().ok()?,
+        })
+    };
     Some(Event::Effect {
         kind: kind.to_string(),
         from: pos(ax, ay),
@@ -361,7 +379,10 @@ fn parse_item(fields: &str) -> Item {
 
 /// `#v6 P` の番号の後ろの欄(タブで区切った キー=値)を読む
 fn parse_party_member(no: i64, fields: &str) -> PartyMember {
-    let mut m = PartyMember { no, ..Default::default() };
+    let mut m = PartyMember {
+        no,
+        ..Default::default()
+    };
     for f in fields.split('\t') {
         let Some((k, v)) = f.split_once('=') else { continue };
         let num = || v.trim().parse::<i64>().unwrap_or(0);
@@ -784,7 +805,10 @@ impl Parser {
     pub fn feed(&mut self, raw: &[u8]) -> Vec<Event> {
         // #v6 T は次の 1 行の発言の種類。次の行が発言でなくても、そこで捨てる (#190)
         if let Some(rest) = raw.strip_prefix(b"#v6 T ") {
-            self.speech = String::from_utf8_lossy(rest).split_whitespace().next().map(str::to_string);
+            self.speech = String::from_utf8_lossy(rest)
+                .split_whitespace()
+                .next()
+                .map(str::to_string);
             return Vec::new();
         }
         let speech = self.speech.take();
@@ -1070,24 +1094,38 @@ impl Parser {
         }
         if let Some(rest) = text.strip_prefix("#v6 B ") {
             if rest.trim() == "." {
-                return vec![Event::Shop { items: std::mem::take(&mut self.shop) }];
+                return vec![Event::Shop {
+                    items: std::mem::take(&mut self.shop),
+                }];
             }
             if let Some((no, fields)) = rest.split_once('\t')
                 && let Ok(no) = no.trim().parse()
                 && self.shop.len() < MAX_LIST_LINES
             {
-                let gp = fields.split('\t').find_map(|f| f.strip_prefix("gp=")).and_then(|v| v.trim().parse().ok());
-                self.shop.push(FloorItem { no, gp, item: Some(parse_item(fields)) });
+                let gp = fields
+                    .split('\t')
+                    .find_map(|f| f.strip_prefix("gp="))
+                    .and_then(|v| v.trim().parse().ok());
+                self.shop.push(FloorItem {
+                    no,
+                    gp,
+                    item: Some(parse_item(fields)),
+                });
             }
             return Vec::new();
         }
         if let Some(rest) = text.strip_prefix("#v6 K ") {
             if rest.trim() == "." {
-                return vec![Event::TalkWords { words: std::mem::take(&mut self.talk) }];
+                return vec![Event::TalkWords {
+                    words: std::mem::take(&mut self.talk),
+                }];
             }
             if self.talk.len() < MAX_LIST_LINES {
                 let (word, tail) = rest.split_once('\t').unwrap_or((rest, ""));
-                self.talk.push(TalkWord { word: word.trim().to_string(), menu: tail.trim() == "menu" });
+                self.talk.push(TalkWord {
+                    word: word.trim().to_string(),
+                    menu: tail.trim() == "menu",
+                });
             }
             return Vec::new();
         }
@@ -1153,7 +1191,12 @@ impl Parser {
         // `#v6 D n 名前`。v6 の 16 枠のマップセット (phi_dm の docs/dev/protocol-v6.md)。枠 0 は `#mapset`
         if let Some(rest) = text.strip_prefix("#v6 D ") {
             let mut it = rest.split_whitespace();
-            if let (Some(no), Some(mapset)) = (it.next().and_then(|n| n.parse::<u8>().ok()).filter(|n| (1..16).contains(n)), it.next()) {
+            if let (Some(no), Some(mapset)) = (
+                it.next()
+                    .and_then(|n| n.parse::<u8>().ok())
+                    .filter(|n| (1..16).contains(n)),
+                it.next(),
+            ) {
                 return vec![Event::Notice(Notice {
                     mapset_define: Some((no, mapset.to_string())),
                     ..Default::default()
@@ -1279,7 +1322,11 @@ impl Parser {
             chip.as_chunks::<2>()
                 .0
                 .iter()
-                .map(|&[chip, attr]| Cell { chip, attr, ..Default::default() })
+                .map(|&[chip, attr]| Cell {
+                    chip,
+                    attr,
+                    ..Default::default()
+                })
                 .collect(),
         );
     }
@@ -1408,7 +1455,11 @@ impl Parser {
                 chip.as_chunks::<2>()
                     .0
                     .iter()
-                    .map(|&[chip, attr]| Cell { chip, attr, ..Default::default() })
+                    .map(|&[chip, attr]| Cell {
+                        chip,
+                        attr,
+                        ..Default::default()
+                    })
                     .collect(),
             );
         }
@@ -1551,11 +1602,15 @@ mod tests {
     fn party_talk() {
         let mut p = super::Parser::default();
         let evs = p.feed("\"/*color=red*/Wilt/*.*/\" > 集合".as_bytes());
-        let [super::Event::Message(m)] = evs.as_slice() else { panic!() };
+        let [super::Event::Message(m)] = evs.as_slice() else {
+            panic!()
+        };
         assert_eq!((m.channel, m.from.as_deref()), (super::Channel::Party, Some("Wilt")));
         // 引用符で始まっても、" > が無ければ普通のログ
         let evs = p.feed(b"\"quoted\" text");
-        let [super::Event::Message(m)] = evs.as_slice() else { panic!() };
+        let [super::Event::Message(m)] = evs.as_slice() else {
+            panic!()
+        };
         assert_eq!(m.channel, super::Channel::Log);
     }
 
@@ -1646,7 +1701,10 @@ mod tests {
         let mut lines = v6_frame(3, 2, [0, 1], &[]);
         lines.insert(3, b"#v6 A 01 0a5".to_vec());
         let m = only_map(feed_all(&mut p, lines));
-        assert_eq!(m.cells.iter().map(|c| c.set).collect::<Vec<_>>(), [None, None, None, None, Some(10), Some(5)]);
+        assert_eq!(
+            m.cells.iter().map(|c| c.set).collect::<Vec<_>>(),
+            [None, None, None, None, Some(10), Some(5)]
+        );
         let m = only_map(feed_all(&mut p, v6_frame(3, 2, [0, 1], &[])));
         assert!(m.cells.iter().all(|c| c.set.is_none()));
         assert_eq!(
@@ -1668,7 +1726,13 @@ mod tests {
         lines.push(b"#v6 X 01 .x..x".to_vec());
         lines.push(end);
         let m = only_map(feed_all(&mut p, lines));
-        let blocked: Vec<usize> = m.cells.iter().enumerate().filter(|(_, c)| c.blocked).map(|(i, _)| i).collect();
+        let blocked: Vec<usize> = m
+            .cells
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.blocked)
+            .map(|(i, _)| i)
+            .collect();
         assert_eq!(blocked, [6, 9]);
         let m = only_map(feed_all(&mut p, v6_frame(5, 3, 0..3, &[])));
         assert!(m.cells.iter().all(|c| !c.blocked));
@@ -1680,8 +1744,22 @@ mod tests {
         let m = only_map(feed_all(&mut p, v6_frame(9, 9, 0..9, &[(4, 4, "me")])));
         assert_eq!((m.width, m.height, m.dir, m.v6), (9, 9, 0, true));
         assert_eq!(m.cells.len(), 81);
-        assert_eq!(m.cells[0], Cell { chip: b'0', attr: 0, ..Default::default() });
-        assert_eq!(m.cells[80], Cell { chip: b'8', attr: 0, ..Default::default() });
+        assert_eq!(
+            m.cells[0],
+            Cell {
+                chip: b'0',
+                attr: 0,
+                ..Default::default()
+            }
+        );
+        assert_eq!(
+            m.cells[80],
+            Cell {
+                chip: b'8',
+                attr: 0,
+                ..Default::default()
+            }
+        );
         let c = &m.chars[0];
         assert_eq!(
             (c.x, c.y, c.dir, c.name.as_str(), c.gra.as_str(), c.layer, c.default),
@@ -1719,7 +1797,14 @@ mod tests {
         let mut p = Parser::new();
         let m = only_map(feed_all(&mut p, v6_frame(11, 7, 0..7, &[(5, 3, "me")])));
         assert_eq!((m.width, m.height, m.cells.len()), (11, 7, 77));
-        assert_eq!(m.cells[11], Cell { chip: b'1', attr: 0, ..Default::default() });
+        assert_eq!(
+            m.cells[11],
+            Cell {
+                chip: b'1',
+                attr: 0,
+                ..Default::default()
+            }
+        );
         assert_eq!((m.chars[0].x, m.chars[0].y), (5, 3));
     }
 
@@ -1729,10 +1814,24 @@ mod tests {
         assert!(p.feed(b"#v6 I 1\teq=W\tit=2\twt=1\tmt=3\tfn=6\twp=10\top=12,30,0,0\tready=0\ttype=Weapon\twtype=Sword\tmat=Steel\telem=Fire\teffect=Fire\tse=Power\tcurse=1\tname=Long sword").is_empty());
         assert!(p.feed(b"#v6 I 2").is_empty());
         assert!(p.feed(b"#v6 P 3\tname=/*color=red*/Wilt/*.*/\tarea=Town\tdx=-2\tdy=1\tidle=65\tlag=3\thp=90\tmhp=100\tmp=5\tmmp=50\tcond=*-----*").is_empty());
-        assert!(p.feed(b"#v6 P 7\tname=Ann\tarea=Cave\tidle=0\thp=1\tmhp=2\tmp=3\tmmp=4\tcond=-------").is_empty());
+        assert!(
+            p.feed(b"#v6 P 7\tname=Ann\tarea=Cave\tidle=0\thp=1\tmhp=2\tmp=3\tmmp=4\tcond=-------")
+                .is_empty()
+        );
         let evs = p.feed(b"#v6 P .");
-        let [Event::Party { members }] = evs.as_slice() else { panic!() };
-        assert_eq!((members[0].no, members[0].name.as_str(), members[0].dx, members[0].dy, members[0].lag), (3, "Wilt", Some(-2), Some(1), Some(3)));
+        let [Event::Party { members }] = evs.as_slice() else {
+            panic!()
+        };
+        assert_eq!(
+            (
+                members[0].no,
+                members[0].name.as_str(),
+                members[0].dx,
+                members[0].dy,
+                members[0].lag
+            ),
+            (3, "Wilt", Some(-2), Some(1), Some(3))
+        );
         assert!(members[0].cond.poison && members[0].cond.blind && !members[0].cond.palsy);
         assert_eq!((members[1].dx, members[1].lag, members[1].mmp), (None, None, 4));
         assert_eq!(p.feed(b"#v6 P ."), vec![Event::Party { members: vec![] }]);
@@ -1774,37 +1873,92 @@ mod tests {
     #[test]
     fn v6_moved() {
         let mut p = Parser::new();
-        assert_eq!(p.feed(b"#v6 G 0 -1"), vec![Event::Moved { dx: 0, dy: -1, reason: None }]);
-        assert_eq!(p.feed(b"#v6 G 0 0"), vec![Event::Moved { dx: 0, dy: 0, reason: None }]);
+        assert_eq!(
+            p.feed(b"#v6 G 0 -1"),
+            vec![Event::Moved {
+                dx: 0,
+                dy: -1,
+                reason: None
+            }]
+        );
+        assert_eq!(
+            p.feed(b"#v6 G 0 0"),
+            vec![Event::Moved {
+                dx: 0,
+                dy: 0,
+                reason: None
+            }]
+        );
         assert_eq!(
             p.feed(b"#v6 G 0 0 wall"),
-            vec![Event::Moved { dx: 0, dy: 0, reason: Some("wall".into()) }]
+            vec![Event::Moved {
+                dx: 0,
+                dy: 0,
+                reason: Some("wall".into())
+            }]
         );
         assert_eq!(
             p.feed(b"#v6 G 1 0 push"),
-            vec![Event::Moved { dx: 1, dy: 0, reason: Some("push".into()) }]
+            vec![Event::Moved {
+                dx: 1,
+                dy: 0,
+                reason: Some("push".into())
+            }]
         );
         assert_eq!(
             p.feed(b"#v6 W cast=12 3"),
-            vec![Event::Wait { who: None, kind: "cast".into(), ticks: Some(12), spell: Some(3) }]
+            vec![Event::Wait {
+                who: None,
+                kind: "cast".into(),
+                ticks: Some(12),
+                spell: Some(3)
+            }]
         );
         assert_eq!(
             p.feed(b"#v6 W C0002 cast=stop"),
-            vec![Event::Wait { who: Some(2), kind: "cast".into(), ticks: None, spell: None }]
+            vec![Event::Wait {
+                who: Some(2),
+                kind: "cast".into(),
+                ticks: None,
+                spell: None
+            }]
         );
-        assert_eq!(p.feed(b"#v6 W at=7"), vec![Event::Wait { who: None, kind: "at".into(), ticks: Some(7), spell: None }]);
-        assert_eq!(p.feed(b"#v6 H C001a hp=42 ag=1"), vec![Event::CharHp { id: 0x1a, hp: 42, ag: true }]);
+        assert_eq!(
+            p.feed(b"#v6 W at=7"),
+            vec![Event::Wait {
+                who: None,
+                kind: "at".into(),
+                ticks: Some(7),
+                spell: None
+            }]
+        );
+        assert_eq!(
+            p.feed(b"#v6 H C001a hp=42 ag=1"),
+            vec![Event::CharHp {
+                id: 0x1a,
+                hp: 42,
+                ag: true
+            }]
+        );
         assert_eq!(p.feed(b"#ex-inv F 1\tgp=120"), vec![]);
         let floor = p.feed(b"#ex-inv F .");
-        assert!(matches!(&floor[..], [Event::Floor { items }] if items.len() == 1 && items[0].gp == Some(120) && items[0].item.is_none()));
+        assert!(
+            matches!(&floor[..], [Event::Floor { items }] if items.len() == 1 && items[0].gp == Some(120) && items[0].item.is_none())
+        );
         assert_eq!(p.feed(b"#v6 B 1\tgp=200\teq=-\tit=1\tname=Iron shield"), vec![]);
-        assert!(matches!(&p.feed(b"#v6 B .")[..], [Event::Shop { items }] if items[0].gp == Some(200) && items[0].item.as_ref().unwrap().name == "Iron shield"));
+        assert!(
+            matches!(&p.feed(b"#v6 B .")[..], [Event::Shop { items }] if items[0].gp == Some(200) && items[0].item.as_ref().unwrap().name == "Iron shield")
+        );
         assert_eq!(p.feed(b"#v6 K shop"), vec![]);
         assert_eq!(p.feed(b"#v6 K \xe5\xae\xbf\tmenu"), vec![]);
-        assert!(matches!(&p.feed(b"#v6 K .")[..], [Event::TalkWords { words }] if words.len() == 2 && !words[0].menu && words[1].menu));
+        assert!(
+            matches!(&p.feed(b"#v6 K .")[..], [Event::TalkWords { words }] if words.len() == 2 && !words[0].menu && words[1].menu)
+        );
         // #v6 T は次の発言の行に種類を付ける
         p.feed(b"#v6 T shout C0003");
-        assert!(matches!(&p.feed(b"(Kotone) > \x82\xa0")[..], [Event::Message(m)] if m.speech.as_deref() == Some("shout")));
+        assert!(
+            matches!(&p.feed(b"(Kotone) > \x82\xa0")[..], [Event::Message(m)] if m.speech.as_deref() == Some("shout"))
+        );
         assert!(matches!(&p.feed(b"Kotone > hi")[..], [Event::Message(m)] if m.speech.is_none()));
         assert!(!p.has_v6_map());
         p.feed(b"#v6 M N 6a3b0000 3 3");
@@ -1812,7 +1966,14 @@ mod tests {
         assert_eq!(p.feed(b"#v6 J"), vec![Event::Jumped]);
         assert_eq!(
             p.feed(b"#v6 E hit 10 12 11 12"),
-            vec![Event::Effect { kind: "hit".into(), from: Some(Pos { x: 10, y: 12 }), at: Pos { x: 11, y: 12 }, element: None, category: None, wait: None }]
+            vec![Event::Effect {
+                kind: "hit".into(),
+                from: Some(Pos { x: 10, y: 12 }),
+                at: Pos { x: 11, y: 12 },
+                element: None,
+                category: None,
+                wait: None
+            }]
         );
         // 攻撃した側が視界の外
         assert_eq!(
@@ -1842,9 +2003,14 @@ mod tests {
         assert!(p.feed(b"#v6 S 1\tef=1\tfn=6\tname=Fire ball").is_empty());
         assert!(p.feed(b"#v6 S 2\tef=9\tfn=0\tname=/*color=cyan*/Cure/*.*/").is_empty());
         let evs = p.feed(b"#v6 S .");
-        let [Event::Spells { spells }] = evs.as_slice() else { panic!("{evs:?}") };
+        let [Event::Spells { spells }] = evs.as_slice() else {
+            panic!("{evs:?}")
+        };
         assert_eq!(
-            spells.iter().map(|s| (s.no, s.name.as_str(), s.ef, s.fn_)).collect::<Vec<_>>(),
+            spells
+                .iter()
+                .map(|s| (s.no, s.name.as_str(), s.ef, s.fn_))
+                .collect::<Vec<_>>(),
             [(1, "Fire ball", 1, 6), (2, "Cure", 9, 0)]
         );
         assert!(spells[1].html.contains("Cure"));
@@ -1887,7 +2053,14 @@ mod tests {
             // 行優先で、右下のマスが最後に来る
             let last = e.cells[e.cells.len() - 1];
             assert_eq!((last.chip, last.attr), (w - 1, h - 1));
-            assert_eq!(e.cells[w as usize], Cell { chip: 0, attr: 1, ..Default::default() });
+            assert_eq!(
+                e.cells[w as usize],
+                Cell {
+                    chip: 0,
+                    attr: 1,
+                    ..Default::default()
+                }
+            );
         }
     }
 }

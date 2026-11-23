@@ -235,7 +235,14 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
             "#v6 B 2\tgp=5000\teq=-\tit=2\twt=1\tmt=3\tfn=6\twp=10\top=12,30,0,0\tready=0\ttype=Weapon\twtype=Sword\tmat=Steel\telem=Fire\tname=Flame sword",
             "#v6 B .",
         ],
-        "fx-talk" => &["#v6 K bye", "#v6 K help", "#v6 K shop", "#v6 K inn", "#v6 K 宿に泊まる\tmenu", "#v6 K ."],
+        "fx-talk" => &[
+            "#v6 K bye",
+            "#v6 K help",
+            "#v6 K shop",
+            "#v6 K inn",
+            "#v6 K 宿に泊まる\tmenu",
+            "#v6 K .",
+        ],
         // 確かめ用: 足元の物 (#ex-inv F)
         "fx-floor" => &[
             "#ex-inv F 1\teq=-\tit=5\twt=0\tmt=1\tfn=1\twp=1\top=1,0,1,0\tready=0\ttype=Food\twtype=claw\tmat=Wood\telem=Earth\tname=Nuts",
@@ -297,7 +304,10 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
         // 演出の確かめ用 (ガイドの画像には使わない)
         "fx-explode" => &["#v6 E magic 19 12 16 13 fire explode"],
         "fx-chant" => &["#v6 E chant 19 12 19 12 none - 14"],
-        "fx-swirl" => &["#v6 E spell 16 12 16 13 spirit illusion", "#v6 E spell 16 12 11 13 spirit down"],
+        "fx-swirl" => &[
+            "#v6 E spell 16 12 16 13 spirit illusion",
+            "#v6 E spell 16 12 11 13 spirit down",
+        ],
         "fx-hit" => &["#v6 E hit 16 12 16 13 - -", "#v6 E miss 19 12 19 13 - -"],
         "heal" => &[
             "#v6 E spell 19 12 16 12 water heal",
@@ -398,10 +408,7 @@ fn main() {
                     .collect();
                 ("application/json", Some(Value::Array(rows).to_string().into_bytes()))
             }
-            "/log_css" => (
-                "text/css",
-                assets::bundled("wphi/log.css").map(<[u8]>::to_vec),
-            ),
+            "/log_css" => ("text/css", assets::bundled("wphi/log.css").map(<[u8]>::to_vec)),
             "/log_html" => {
                 let text = query(q).remove("text").unwrap_or_default();
                 ("text/html", Some(to_html(&text, &LogOptions::default()).into_bytes()))

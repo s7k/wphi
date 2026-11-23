@@ -72,7 +72,11 @@ type Table = &'static [(&'static str, &'static [(&'static str, &'static str)])];
 
 /// メニューの項目名。macOS はログの検索を Cmd+F で開くので、表記もそれに合わせる (#175)
 fn label(text: &str) -> String {
-    if cfg!(target_os = "macos") { text.replace("(Ctrl+F)", "(Cmd+F)") } else { text.to_string() }
+    if cfg!(target_os = "macos") {
+        text.replace("(Ctrl+F)", "(Cmd+F)")
+    } else {
+        text.to_string()
+    }
 }
 
 const MENUS: Table = &[
@@ -359,10 +363,7 @@ pub fn model() -> Vec<MenuModel> {
         .collect()
 }
 
-pub fn build<R: Runtime>(
-    app: &AppHandle<R>,
-    settings: &crate::settings::Settings,
-) -> tauri::Result<Menu<R>> {
+pub fn build<R: Runtime>(app: &AppHandle<R>, settings: &crate::settings::Settings) -> tauri::Result<Menu<R>> {
     let mut settings = settings.clone();
     let menu = Menu::new(app)?;
     // macOS は窓ごとのメニューを出さず、画面の上のアプリのメニューを使う。先頭の項目はアプリ名の項目になるので、
@@ -422,7 +423,14 @@ pub fn build<R: Runtime>(
                 || LAYOUTS.iter().any(|l| l.0 == *id)
             {
                 let checked = experiment(&mut settings, id).is_some_and(|v| *v) || layout_id(&settings) == *id;
-                sub.append(&CheckMenuItem::with_id(app, *id, label(text), true, checked, None::<&str>)?)?;
+                sub.append(&CheckMenuItem::with_id(
+                    app,
+                    *id,
+                    label(text),
+                    true,
+                    checked,
+                    None::<&str>,
+                )?)?;
             } else {
                 sub.append(&MenuItem::with_id(app, *id, label(text), true, None::<&str>)?)?;
             }

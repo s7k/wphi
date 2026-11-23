@@ -42,20 +42,20 @@ const TEAL: [u8; 3] = [0, 128, 128];
 /// `#m57 O` の種別 → 既定のキャラグラ(`chara/` の中。種別は Philly `Const.cpp` の SKIN_CHARA_GRA)。
 /// Philly のスキンの `Chara/Index.txt` は同梱しないので、同梱の PCGL と WPHI の絵から選んだ。表に無い種別は知的生物
 const DEFAULT_GRA: &[(u32, &str)] = &[
-    (0x00, "t_man.bmp"),       // 人・銅像
-    (0x01, "t_elf.bmp"),       // 知的生物
-    (0x02, "t_dog.bmp"),       // 獣
-    (0x03, "t_fightery.bmp"),  // 狂戦士
-    (0x04, "t_golem1.bmp"),    // 魔法生物
-    (0x05, "t_skeltonr.bmp"),  // アンデッド
-    (0x06, "t_ghost2.bmp"),    // 精神体
-    (0x07, "tak_bslime.bmp"),  // イレイザー
-    (0x40, "t_man.bmp"),       // setcg を使うキャラ
-    (0x80, "t_elf.bmp"),       // 生物
-    (0x81, "alnes_board.bmp"), // 看板
+    (0x00, "t_man.bmp"),        // 人・銅像
+    (0x01, "t_elf.bmp"),        // 知的生物
+    (0x02, "t_dog.bmp"),        // 獣
+    (0x03, "t_fightery.bmp"),   // 狂戦士
+    (0x04, "t_golem1.bmp"),     // 魔法生物
+    (0x05, "t_skeltonr.bmp"),   // アンデッド
+    (0x06, "t_ghost2.bmp"),     // 精神体
+    (0x07, "tak_bslime.bmp"),   // イレイザー
+    (0x40, "t_man.bmp"),        // setcg を使うキャラ
+    (0x80, "t_elf.bmp"),        // 生物
+    (0x81, "alnes_board.bmp"),  // 看板
     (0x82, "wphi_sparkle.bmp"), // 魔法の演出
-    (0x70, "t_elf.bmp"),       // 動くオブジェ
-    (0x75, "alnes_board.bmp"), // 動かないオブジェ
+    (0x70, "t_elf.bmp"),        // 動くオブジェ
+    (0x75, "alnes_board.bmp"),  // 動かないオブジェ
 ];
 
 pub struct Assets {
@@ -147,7 +147,10 @@ impl Assets {
 
     /// 種別の既定グラのファイル(DEFAULT_GRA)
     fn default_chara(&self, code: u32) -> Option<String> {
-        let file = DEFAULT_GRA.iter().find(|(c, _)| *c == code).map_or("t_elf.bmp", |(_, f)| f);
+        let file = DEFAULT_GRA
+            .iter()
+            .find(|(c, _)| *c == code)
+            .map_or("t_elf.bmp", |(_, f)| f);
         Some(format!("chara/{file}")).filter(|rel| self.exists(rel))
     }
 

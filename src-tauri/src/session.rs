@@ -309,8 +309,15 @@ impl NetStats {
             v.sort_unstable();
             format!("{}ms(中央) {}ms(最大) n={}", v[v.len() / 2], v[v.len() - 1], v.len())
         };
-        crate::trace::write(&format!("net recv={}B/s 展開後={}B/s send={}B/s rtt={rtt}", self.raw, self.data, self.sent));
-        *self = Self { gos: std::mem::take(&mut self.gos), since: Some(now), ..Self::default() };
+        crate::trace::write(&format!(
+            "net recv={}B/s 展開後={}B/s send={}B/s rtt={rtt}",
+            self.raw, self.data, self.sent
+        ));
+        *self = Self {
+            gos: std::mem::take(&mut self.gos),
+            since: Some(now),
+            ..Self::default()
+        };
     }
 }
 
@@ -551,7 +558,10 @@ pub async fn run(login: Login, mut outgoing: mpsc::Receiver<String>, mut emit: i
         let bytes: Vec<u8> = reply.iter().flat_map(|l| line_bytes(l)).collect();
         if crate::trace::on() {
             let now = Instant::now();
-            reply.iter().filter(|l| l.starts_with("go")).for_each(|_| stats.sent_go(now));
+            reply
+                .iter()
+                .filter(|l| l.starts_with("go"))
+                .for_each(|_| stats.sent_go(now));
             stats.sent += bytes.len();
             stats.flush(now);
         }
@@ -938,7 +948,10 @@ mod tests {
         let mut g = HitGate::default();
         assert!(!g.hold("hit", false, t), "待ちでなければそのまま送る");
         assert!(!g.hold("say", true, t), "hit 以外はそのまま送る");
-        assert!(g.hold("hit", true, t) && g.hold("hit", true, t), "連打しても覚えるのは 1 回");
+        assert!(
+            g.hold("hit", true, t) && g.hold("hit", true, t),
+            "連打しても覚えるのは 1 回"
+        );
         assert!(!g.release(true, t), "待ちの間は送らない");
         assert!(g.release(false, t), "明けたら送る");
         assert!(!g.release(false, t), "送るのは 1 回だけ");
