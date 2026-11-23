@@ -3,7 +3,10 @@
 // ドラッグか Shift+← / → で並べ替える。HTML5 のドラッグ＆ドロップは、Windows の Tauri が窓へのファイルのドロップを
 // 受ける間は効かないので、ポインタの操作で作る
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { ELEMENT_COLOR, Pixels } from "./BagPanel";
+import { ELEMENT_COLOR, ItemIcon, Pixels } from "./BagPanel";
+
+/** 自動攻撃のボタンの絵。itemIcons.png の双剣 (武器の種類の 9 番) */
+const AUTO_ATTACK_ICON = 9;
 import { spellPixels } from "./pixelIcons.ts";
 import type { Spell } from "./protocol";
 
@@ -16,6 +19,9 @@ export function SpellBar(props: {
   onCast: (spell: Spell) => void;
   /** 列の from 番目を to 番目へ動かす */
   onMove: (from: number, to: number) => void;
+  /** 自動攻撃のボタン (列の左端。Shift+G と同じ。#183)。入っている間は赤くする */
+  autoAttack?: boolean;
+  onAutoAttack?: () => void;
 }) {
   const tiles = useRef<(HTMLButtonElement | null)[]>([]);
   // 押した所。dragging になったら、離した時に唱えずに並べ替える
@@ -31,7 +37,7 @@ export function SpellBar(props: {
     setFocusName(null);
   }, [props.spells, focusName]);
 
-  if (!props.spells.length) return null;
+  if (!props.spells.length && !props.onAutoAttack) return null;
 
   /** clientX の下のタイルの番号。端より外は端 */
   const indexAt = (x: number) => {
@@ -82,6 +88,19 @@ export function SpellBar(props: {
 
   return (
     <div className="spell-bar" role="toolbar" aria-label="魔法 (ドラッグか Shift+← → で並べ替え)">
+      {props.onAutoAttack && (
+        <button
+          type="button"
+          className={props.autoAttack ? "spell-tile auto-attack on" : "spell-tile auto-attack"}
+          aria-pressed={!!props.autoAttack}
+          aria-label={props.autoAttack ? "自動攻撃を止める (Shift+G)" : "近い敵を対象にして自動攻撃を始める (Shift+G)"}
+          onClick={props.onAutoAttack}
+        >
+          <ItemIcon index={AUTO_ATTACK_ICON} size={32} />
+          <span className="spell-key">Shift+G</span>
+          <span className="spell-name">{props.autoAttack ? "自動攻撃を止める" : "自動攻撃"}</span>
+        </button>
+      )}
       {props.spells.map((s, i) => {
         const color = ELEMENT_COLOR[s.fn] ?? ELEMENT_COLOR[0];
         const cls = ["spell-tile", drag?.from === i ? "dragging" : "", drag && drag.over === i && drag.from !== i ? "drop-target" : ""];

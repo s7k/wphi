@@ -2090,6 +2090,7 @@ button > svg:only-child,
   right: 114px;
 }
 
+
 .bag-button:hover {
   background: rgb(255 252 244);
 }
@@ -2686,6 +2687,16 @@ button > svg:only-child,
   background: rgb(16 20 24 / 70%);
   border: 1px solid rgb(255 255 255 / 30%);
   border-radius: 10px;
+}
+
+/* 魔法の列の左端の自動攻撃のボタン (SpellBar.tsx。#183)。入っている間は赤い地 */
+.spell-tile.auto-attack {
+  background: #6b5a48;
+  margin-right: 6px;
+}
+.spell-tile.auto-attack.on {
+  background: #c8322a;
+  box-shadow: 0 0 8px #ff6050;
 }
 
 .spell-tile {

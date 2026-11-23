@@ -110,6 +110,8 @@ export type Tab = {
   bag?: ItemInfo[] | null;
   /** 足元の物 (#ex-inv F。#189)。求めていなければ undefined */
   floor?: FloorItem[] | null;
+  /** 自動攻撃中か (ボタンの見た目の為。本体は地図の状態の autoAttack。#183) */
+  autoAttack?: boolean;
   /** 乗ったマスの売り場の品 (#v6 B。#187)。売り場でなければ undefined */
   shop?: FloorItem[];
   /** NPC に言える言葉 (#v6 K。#188)。会話の窓を出していなければ undefined */
@@ -480,7 +482,10 @@ export function App() {
     const s = mapStates.current.get(session);
     if (!s) return;
     s.target = c?.id;
-    if (!c) s.autoAttack = false;
+    if (!c && s.autoAttack) {
+      s.autoAttack = false;
+      update(session, (t) => ({ ...t, autoAttack: false }));
+    }
     sendMapState(session);
   };
   const cycleTarget = (session: number) => {
@@ -496,6 +501,8 @@ export function App() {
     if (s.target === undefined) cycleTarget(session);
     if (s.target === undefined) return;
     s.autoAttack = !s.autoAttack;
+    // 自動攻撃のボタンの見た目の為に、タブにも持つ
+    update(session, (t) => ({ ...t, autoAttack: s.autoAttack }));
     sendMapState(session);
     append(session, systemOk(s.autoAttack ? "自動攻撃を始めました。Shift+G か Esc で止めます。" : "自動攻撃を止めました。"));
   };
@@ -971,6 +978,9 @@ export function App() {
       if (id === "all-force-close") return tabsNow.filter((t) => !t.closed).forEach((t) => forceClose(t.session));
       if (id === "new-tab") return setActive(null);
       if (id === "bag-open") return session === null ? undefined : openBag(session);
+      if (id === "target-next" && session !== null) return cycleTarget(session);
+      if (id === "auto-attack" && session !== null) return toggleAutoAttack(session);
+      if (id === "target-clear" && session !== null) return setTarget(session, null);
       // カバンの操作は、断られた理由 (#ex-inv no) がカバンの画面に出るので、開いてから送る
       if (id === "bag-stash" && session !== null) {
         // 装備中以外の手持ちを、枠の後ろから入れる (入れるたびに後ろの枠が詰まる為)
@@ -1893,6 +1903,8 @@ export function App() {
             waiting={!!tab.spellWaiting}
             onCast={(sp) => castSpell(tab.session, sp)}
             onMove={(from, to) => moveSpellTile(tab.session, from, to)}
+            autoAttack={!!tab.autoAttack}
+            onAutoAttack={tab.items ? () => toggleAutoAttack(tab.session) : undefined}
           />
         )}
         {tab.following && (
