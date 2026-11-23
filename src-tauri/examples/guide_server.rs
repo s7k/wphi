@@ -232,7 +232,7 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
         // 確かめ用: 目印 (#v6 L)、依頼 (#v6 Q)、取引 (#v6 Y)
         "fx-marks" => &["#v6 L 宿屋\tdx=30\tdy=-4", "#v6 L 井戸\tdx=2\tdy=1", "#v6 L ."],
         "fx-quest" => &[
-            "#v6 Q 1\ttitle=狼の毛皮\ttext=狼の毛皮を集める 3/5",
+            "#v6 Q 1\tkind=main\ttitle=狼の毛皮\ttext=狼の毛皮を集める 3/5",
             "#v6 Q 2\ttitle=迷子の猫\ttext=市場の猫を見つける",
             "#v6 Q .",
         ],

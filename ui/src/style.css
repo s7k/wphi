@@ -2039,6 +2039,29 @@ button > svg:only-child,
 .quest-title::before {
   content: "◆ ";
 }
+/* 本筋は赤みの金、日課は水色、寄り道は今まで通りの黄 */
+.quest-main .quest-title {
+  color: #ffa860;
+}
+.quest-main .quest-title::before {
+  content: "★ ";
+}
+.quest-daily .quest-title {
+  color: #80e0ff;
+}
+.quest-daily .quest-title::before {
+  content: "◎ ";
+}
+.quest-more {
+  pointer-events: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  color: #ccc;
+  text-shadow: var(--outline);
+  font-size: 12px;
+  cursor: pointer;
+}
 /* 取引の窓 (#192) */
 .sign-card.trade-card {
   max-height: calc(100% - var(--hud-bottom, 88px) - 24px);

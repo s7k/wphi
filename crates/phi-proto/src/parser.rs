@@ -102,7 +102,7 @@ pub enum Event {
     TradeRefused {
         reason: String,
     },
-    /// `#v6 Q 番号<TAB>title=<TAB>text=` 〜 `#v6 Q .`。今出ている依頼と、その今の段階の目的 (#193)
+    /// `#v6 Q 番号<TAB>kind=<TAB>title=<TAB>text=` 〜 `#v6 Q .`。今出ている依頼と、その今の段階の目的 (#193)
     Quests {
         quests: Vec<Quest>,
     },
@@ -194,6 +194,8 @@ pub struct TradeItem {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Quest {
     pub no: u32,
+    /// main・sub・daily。kind の無い DM (種類を足す前の版) からは sub
+    pub kind: String,
     pub title: String,
     pub text: String,
 }
@@ -1198,6 +1200,9 @@ impl Parser {
             {
                 self.quests.push(Quest {
                     no,
+                    kind: Some(field("kind="))
+                        .filter(|k| !k.is_empty())
+                        .unwrap_or_else(|| "sub".into()),
                     title: field("title="),
                     text: field("text="),
                 });
@@ -2147,8 +2152,9 @@ mod tests {
             matches!(&p.feed(b"#v6 L .")[..], [Event::Marks { marks }] if marks[0] == Mark { name: "Inn".into(), dx: 3, dy: -2 })
         );
         p.feed(b"#v6 Q 1\ttitle=Wolf\ttext=3/5");
+        p.feed(b"#v6 Q 2\tkind=main\ttitle=Well\ttext=Go");
         assert!(
-            matches!(&p.feed(b"#v6 Q .")[..], [Event::Quests { quests }] if quests[0].title == "Wolf" && quests[0].text == "3/5")
+            matches!(&p.feed(b"#v6 Q .")[..], [Event::Quests { quests }] if quests[0].title == "Wolf" && quests[0].text == "3/5" && quests[0].kind == "sub" && quests[1].kind == "main")
         );
         assert_eq!(
             p.feed(b"#v6 Y ask C0002 Bob"),

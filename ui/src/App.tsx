@@ -146,6 +146,8 @@ export type Tab = {
   talk?: TalkWord[];
   /** 今出ている依頼 (#v6 Q。#193) */
   quests?: Quest[];
+  /** 最後に段階か目的の文が替わった寄り道 (sub) の番号。HUD の寄り道はこれだけを畳まずに出す */
+  questRecent?: number;
   /** 取引の両方の出す物 (#v6 Y。#192)。取引していなければ undefined */
   trade?: { name: string; me: TradeSide; you: TradeSide };
   bagOpen?: boolean;
@@ -1692,7 +1694,11 @@ export function App() {
           update(session, (t) => ({ ...t, shop: ev.items.length ? ev.items : undefined }));
           break;
         case "quests":
-          update(session, (t) => ({ ...t, quests: ev.quests }));
+          update(session, (t) => {
+            const old = new Map((t.quests ?? []).map((q) => [q.no, q.text + "\t" + q.title]));
+            const moved = ev.quests.find((q) => q.kind === "sub" && old.get(q.no) !== q.text + "\t" + q.title);
+            return { ...t, quests: ev.quests, questRecent: moved?.no ?? t.questRecent };
+          });
           break;
         case "tradeAsk":
           // 取引の申し込み (#192)。受けると一覧が届いて窓が開く
@@ -2085,7 +2091,7 @@ export function App() {
             {!!tab.party?.length && !tab.partyOpen && (
               <PartyHud members={tab.party} besidePriv={false} onOpen={() => update(tab.session, (t) => ({ ...t, partyOpen: true, bagOpen: false }))} />
             )}
-            {settings.modern && tab.quests && <QuestHud quests={tab.quests} />}
+            {settings.modern && tab.quests && <QuestHud quests={tab.quests} recent={tab.questRecent} />}
           </div>
         )}
         {tab.partyOpen && !tab.bagOpen && (

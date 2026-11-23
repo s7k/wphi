@@ -56,17 +56,33 @@ export function TalkPanel(props: { words: TalkWord[]; onSay: (w: TalkWord) => vo
   );
 }
 
-/** 今出ている依頼と、その今の段階の目的 (#v6 Q。#193)。モダンの左上の HUD の下に出す */
-export function QuestHud(props: { quests: Quest[] }) {
+const QUEST_ORDER = { main: 0, daily: 1, sub: 2 };
+
+/**
+ * 今出ている依頼と、その今の段階の目的 (#v6 Q。#193)。本筋 (main)、日課 (daily)、寄り道 (sub) の順に出す。
+ * 寄り道は数が多いと目が散るので、最後に替わった 1 件 (recent) だけを出し、残りは「他 N 件」で開く
+ */
+export function QuestHud(props: { quests: Quest[]; recent?: number }) {
+  const [open, setOpen] = useState(false);
   if (!props.quests.length) return null;
+  const all = [...props.quests].sort((a, b) => QUEST_ORDER[a.kind] - QUEST_ORDER[b.kind] || a.no - b.no);
+  const subs = all.filter((q) => q.kind === "sub");
+  const shownSub = subs.find((q) => q.no === props.recent) ?? subs[0];
+  const shown = open ? all : all.filter((q) => q.kind !== "sub" || q === shownSub);
+  const hidden = all.length - shown.length;
   return (
     <div className="quest-hud" aria-label="依頼">
-      {props.quests.map((q) => (
-        <div key={q.no} className="quest-row">
+      {shown.map((q) => (
+        <div key={q.no} className={`quest-row quest-${q.kind}`}>
           <span className="quest-title">{stripTags(q.title)}</span>
           <span className="quest-text">{stripTags(q.text)}</span>
         </div>
       ))}
+      {(hidden > 0 || open) && subs.length > 1 && (
+        <button type="button" className="quest-more" onClick={() => setOpen(!open)}>
+          {open ? "畳む" : `他 ${hidden} 件`}
+        </button>
+      )}
     </div>
   );
 }

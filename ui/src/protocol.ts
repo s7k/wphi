@@ -165,7 +165,7 @@ export type FloorItem = { no: number; gp?: number; item?: ItemInfo };
 /** NPC に言える言葉 (#v6 K。#188)。menu はスイッチのメニューの選択 */
 export type TalkWord = { word: string; menu: boolean };
 /** 依頼 1 つ (#v6 Q。#193)。text は今の段階の目的 (タグ付き) */
-export type Quest = { no: number; title: string; text: string };
+export type Quest = { no: number; kind: "main" | "sub" | "daily"; title: string; text: string };
 /** 取引の片方の出す物 (#v6 Y。#192)。from は出した所 (put 枠 か bag 番号) */
 export type TradeSide = { gp: number; ok: boolean; items: { from: string; item: ItemInfo }[] };
 
