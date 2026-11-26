@@ -11,15 +11,28 @@ import type { MapChar, MapEvent } from "./protocol";
 const OBJECT_KINDS = new Set([0x80, 0x81, 0x82, 0x70, 0x75]);
 
 /**
- * G で次の対象。自分・仲間・オブジェを除いた名前のあるキャラを近い順に並べ、今の対象の次を選ぶ (最後なら最初へ戻る)。
- * 居なければ null
+ * G で次の対象。自分・仲間・傭兵・オブジェを除いた名前のあるキャラを近い順に並べ、今の対象の次を選ぶ (最後なら最初へ戻る)。
+ * 傭兵は #v6 H の merc で分かる (mercs)。居なければ null
  */
-export function nextTarget(map: MapEvent, party: string[], current: number | null, aggro: Set<number> = new Set()): MapChar | null {
+export function nextTarget(
+  map: MapEvent,
+  party: string[],
+  current: number | null,
+  aggro: Set<number> = new Set(),
+  mercs: Set<number> = new Set(),
+): MapChar | null {
   const me = selfPos(map.width, map.height, map.style === "turn");
   const dist = (c: MapChar) => Math.abs(c.x - me.x) + Math.abs(c.y - me.y);
   // 自分か仲間を狙っている敵 (#v6 H の ag) を、距離より先に並べる
   const list = map.chars
-    .filter((c) => (c.x !== me.x || c.y !== me.y) && stripTags(c.name) && !party.includes(stripTags(c.name)) && !OBJECT_KINDS.has(c.default))
+    .filter(
+      (c) =>
+        (c.x !== me.x || c.y !== me.y) &&
+        stripTags(c.name) &&
+        !party.includes(stripTags(c.name)) &&
+        !mercs.has(c.id) &&
+        !OBJECT_KINDS.has(c.default),
+    )
     .sort((a, b) => Number(aggro.has(b.id)) - Number(aggro.has(a.id)) || dist(a) - dist(b) || a.id - b.id);
   if (list.length === 0) return null;
   const i = list.findIndex((c) => c.id === current);

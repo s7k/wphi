@@ -526,8 +526,11 @@ export function App() {
   const cycleTarget = (session: number) => {
     const s = mapStates.current.get(session);
     if (!s?.map) return;
-    const aggro = new Set(Object.entries(s.charHp ?? {}).flatMap(([id, v]) => (v.ag ? [Number(id)] : [])));
-    const c = nextTarget(s.map, s.party ?? [], s.target ?? null, aggro);
+    const hp = Object.entries(s.charHp ?? {});
+    const aggro = new Set(hp.flatMap(([id, v]) => (v.ag ? [Number(id)] : [])));
+    // 傭兵 (#v6 H の merc) は誰の物でも対象にしない
+    const mercs = new Set(hp.flatMap(([id, v]) => (v.merc ? [Number(id)] : [])));
+    const c = nextTarget(s.map, s.party ?? [], s.target ?? null, aggro, mercs);
     if (c) setTarget(session, { id: c.id, name: stripTags(c.name) });
     else append(session, systemNg("近くに対象がいません。"));
   };
@@ -1276,7 +1279,7 @@ export function App() {
         s.marks = ev.marks;
         break;
       case "charHp":
-        s.charHp = { ...s.charHp, [ev.id]: { hp: ev.hp, ag: ev.ag } };
+        s.charHp = { ...s.charHp, [ev.id]: { hp: ev.hp, ag: ev.ag, merc: ev.merc } };
         break;
       case "wait": {
         // 詠唱バーと攻撃の待ちの輪 (#185)。ticks は 0.1 秒単位、無ければ止まった

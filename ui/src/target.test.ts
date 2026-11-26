@@ -20,6 +20,9 @@ test("G は自分・仲間・オブジェを除き、近い順に対象を回す
   assert.equal(nextTarget(map([ch(1, 3, 3, "Me")]), [], null), null);
   // 狙ってくる敵を先に
   assert.equal(nextTarget(m, ["Kotone"], null, new Set([2]))?.id, 2);
+  // 傭兵 (#v6 H の merc) は、隣に居ても狙ってきても対象にしない
+  assert.equal(nextTarget(m, ["Kotone"], null, new Set([3]), new Set([3]))?.id, 2);
+  assert.equal(nextTarget(map([ch(1, 3, 3, "Me"), ch(3, 3, 4, "Mercenary priest")]), [], null, new Set(), new Set([3])), null);
 });
 
 test("対象が隣なら向いて殴り、離れていれば近づき、居なければ外す", () => {

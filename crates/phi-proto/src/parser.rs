@@ -117,11 +117,14 @@ pub enum Event {
         #[serde(skip_serializing_if = "Option::is_none")]
         spell: Option<u32>,
     },
-    /// `#v6 H C%04x hp=<0-100> ag=<0|1>`。視界のキャラの HP の割合と、自分か仲間を狙っているか (#184)
+    /// `#v6 H C%04x hp=<0-100> ag=<0|1>[ merc=1]`。視界のキャラの HP の割合と、自分か仲間を狙っているか (#184)。
+    /// merc は傭兵 (DM の phi.ed の :O F) か。自動攻撃の対象にしない
     CharHp {
         id: u32,
         hp: u8,
         ag: bool,
+        #[serde(skip_serializing_if = "std::ops::Not::not")]
+        merc: bool,
     },
     /// `#ex-switch move=diag` の返事。この接続では斜めの 1 歩を `go ne` などの 1 行で送れる (#196)
     MoveDiag,
@@ -363,19 +366,20 @@ fn parse_wait(rest: &str) -> Option<Event> {
     })
 }
 
-/// `#v6 H` の欄。`C%04x hp=<0-100> ag=<0|1>`
+/// `#v6 H` の欄。`C%04x hp=<0-100> ag=<0|1>[ merc=1]`
 fn parse_char_hp(rest: &str) -> Option<Event> {
     let mut f = rest.split_whitespace();
     let id = u32::from_str_radix(f.next()?.strip_prefix('C')?, 16).ok()?;
-    let (mut hp, mut ag) = (None, false);
+    let (mut hp, mut ag, mut merc) = (None, false, false);
     for kv in f {
         match kv.split_once('=') {
             Some(("hp", v)) => hp = v.parse().ok(),
             Some(("ag", v)) => ag = v == "1",
+            Some(("merc", v)) => merc = v == "1",
             _ => {}
         }
     }
-    Some(Event::CharHp { id, hp: hp?, ag })
+    Some(Event::CharHp { id, hp: hp?, ag, merc })
 }
 
 /// `#v6 E` の欄。座標は 2 桁の数か、視界の外なら `--`。受けた側が読めなければ捨てる
@@ -2124,7 +2128,17 @@ mod tests {
             vec![Event::CharHp {
                 id: 0x1a,
                 hp: 42,
-                ag: true
+                ag: true,
+                merc: false
+            }]
+        );
+        assert_eq!(
+            p.feed(b"#v6 H C001b hp=100 ag=0 merc=1"),
+            vec![Event::CharHp {
+                id: 0x1b,
+                hp: 100,
+                ag: false,
+                merc: true
             }]
         );
         assert_eq!(p.feed(b"#ex-inv F 1\tgp=120"), vec![]);
