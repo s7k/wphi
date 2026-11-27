@@ -19,9 +19,12 @@ export function SpellBar(props: {
   onCast: (spell: Spell) => void;
   /** 列の from 番目を to 番目へ動かす */
   onMove: (from: number, to: number) => void;
-  /** 自動攻撃のボタン (列の左端。Shift+G と同じ。#183)。入っている間は赤くする */
+  /** 自動攻撃のボタン (列の左端。G と同じ。#183)。入っている間は赤くする */
   autoAttack?: boolean;
   onAutoAttack?: () => void;
+  /** 自動攻撃の隣の、カルマの低い NPC を対象にしないかのボタン (設定の autoSkipLowKarma)。入っている間は青くする */
+  skipLowKarma?: boolean;
+  onSkipLowKarma?: () => void;
 }) {
   const tiles = useRef<(HTMLButtonElement | null)[]>([]);
   // 押した所。dragging になったら、離した時に唱えずに並べ替える
@@ -37,7 +40,7 @@ export function SpellBar(props: {
     setFocusName(null);
   }, [props.spells, focusName]);
 
-  if (!props.spells.length && !props.onAutoAttack) return null;
+  if (!props.spells.length && !props.onAutoAttack && !props.onSkipLowKarma) return null;
 
   /** clientX の下のタイルの番号。端より外は端 */
   const indexAt = (x: number) => {
@@ -93,12 +96,28 @@ export function SpellBar(props: {
           type="button"
           className={props.autoAttack ? "spell-tile auto-attack on" : "spell-tile auto-attack"}
           aria-pressed={!!props.autoAttack}
-          aria-label={props.autoAttack ? "自動攻撃を止める (Shift+G)" : "近い敵を対象にして自動攻撃を始める (Shift+G)"}
+          aria-label={props.autoAttack ? "自動攻撃を止める (G)" : "近い敵を対象にして自動攻撃を始める (G)"}
           onClick={props.onAutoAttack}
         >
           <ItemIcon index={AUTO_ATTACK_ICON} size={32} />
-          <span className="spell-key">Shift+G</span>
+          <span className="spell-key">G</span>
           <span className="spell-name">{props.autoAttack ? "自動攻撃を止める" : "自動攻撃"}</span>
+        </button>
+      )}
+      {props.onSkipLowKarma && (
+        <button
+          type="button"
+          className={props.skipLowKarma ? "spell-tile skip-low on" : "spell-tile skip-low"}
+          aria-pressed={!!props.skipLowKarma}
+          aria-label={
+            props.skipLowKarma ? "カルマの低い NPC (町の人など) を対象にしない。押すと対象にする" : "カルマの低い NPC も対象にする。押すと対象にしない"
+          }
+          onClick={props.onSkipLowKarma}
+        >
+          <span className="skip-low-mark" aria-hidden="true">
+            {props.skipLowKarma ? "町人\n除く" : "町人\n含む"}
+          </span>
+          <span className="spell-name">{props.skipLowKarma ? "カルマの低い NPC を対象にしない" : "カルマの低い NPC も対象にする"}</span>
         </button>
       )}
       {props.spells.map((s, i) => {

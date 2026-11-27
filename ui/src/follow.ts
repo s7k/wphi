@@ -32,7 +32,7 @@ export function targetPos(map: MapEvent, name: string, party: PartyMember[]): Po
 }
 
 /** 地図の (x, y) を歩けるか。通れない地形、サーバの通れない印 (#v6 X)、見えない所、2x2 の大きな敵の体は歩かない */
-function walkable(map: MapEvent, x: number, y: number): boolean {
+export function walkable(map: MapEvent, x: number, y: number): boolean {
   if (x < 0 || y < 0 || x >= map.width || y >= map.height) return false;
   const cell = map.cells[y * map.width + x];
   if (cell.blocked || cell.chip === UNKNOWN || BLOCKED.has(cell.chip)) return false;

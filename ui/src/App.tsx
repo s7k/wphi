@@ -528,9 +528,10 @@ export function App() {
     if (!s?.map) return;
     const hp = Object.entries(s.charHp ?? {});
     const aggro = new Set(hp.flatMap(([id, v]) => (v.ag ? [Number(id)] : [])));
-    // 傭兵 (#v6 H の merc) は誰の物でも対象にしない
+    // 傭兵 (#v6 H の merc) は誰の物でも対象にしない。カルマの低い NPC (low) は設定でオンの時に外す
     const mercs = new Set(hp.flatMap(([id, v]) => (v.merc ? [Number(id)] : [])));
-    const c = nextTarget(s.map, s.party ?? [], s.target ?? null, aggro, mercs);
+    const low = new Set(settingsRef.current.autoSkipLowKarma ? hp.flatMap(([id, v]) => (v.low ? [Number(id)] : [])) : []);
+    const c = nextTarget(s.map, s.party ?? [], s.target ?? null, aggro, mercs, low);
     if (c) setTarget(session, { id: c.id, name: stripTags(c.name) });
     else append(session, systemNg("近くに対象がいません。"));
   };
@@ -545,7 +546,22 @@ export function App() {
     // 自動攻撃のボタンの見た目の為に、タブにも持つ
     update(session, (t) => ({ ...t, autoAttack: s.autoAttack }));
     sendMapState(session);
-    append(session, systemOk(s.autoAttack ? "自動攻撃を始めました。Shift+G か Esc で止めます。" : "自動攻撃を止めました。"));
+    append(session, systemOk(s.autoAttack ? "自動攻撃を始めました。G か Esc で止めます。" : "自動攻撃を止めました。"));
+  };
+  /** 地図のキャラを右クリックした時。そのキャラを対象にし、v6 のサーバなら自動攻撃を始める (止まっていれば) */
+  const clickTarget = (session: number, c: { id: number; name: string }) => {
+    const s = mapStates.current.get(session);
+    setTarget(session, c);
+    if (s?.map?.v6 && !s.autoAttack) toggleAutoAttack(session);
+    else attackTarget(session);
+  };
+  /** 自動攻撃と Shift+G の対象に、カルマの低い NPC を入れないかを切り替える (魔法の列のボタン) */
+  const toggleSkipLowKarma = () => {
+    const next = { ...settingsRef.current, autoSkipLowKarma: !settingsRef.current.autoSkipLowKarma };
+    setSettings(next);
+    invoke("save_settings", { settings: next }).catch((e) => fail(String(e)));
+    if (activeRef.current !== null)
+      append(activeRef.current, systemOk(next.autoSkipLowKarma ? "カルマの低い NPC (町の人など) を対象にしません。" : "カルマの低い NPC も対象にします。"));
   };
   /**
    * 対象を殴る 1 回分。対象が隣なら向いて hit、離れていれば 1 歩近づく。対象が居なければ外す。
@@ -1011,9 +1027,9 @@ export function App() {
         if (!e.repeat) sendLines(session, shortcut);
         return true;
       }
-      // G で近い順に対象を回し、Shift+G で自動攻撃を入り切りする (#183)
+      // G で自動攻撃を入り切りし、Shift+G で近い順に対象を回す (#183)
       if (e.code === "KeyG" && !e.ctrlKey && !e.altKey && !e.metaKey && !list) {
-        if (!e.repeat) (e.shiftKey ? toggleAutoAttack(session) : cycleTarget(session));
+        if (!e.repeat) (e.shiftKey ? cycleTarget(session) : toggleAutoAttack(session));
         return true;
       }
       const action = keyAction(e, ctx);
@@ -1174,9 +1190,10 @@ export function App() {
       const session = activeRef.current;
       if (session === null) return;
       if (m.type === "hit") {
-        // 右クリックしたキャラを対象にする。対象があれば、対象の方を向いて殴るか近づく (#183)
-        if (m.target) setTarget(session, m.target);
-        if (!attackTarget(session)) sendLine(session, "hit");
+        // 右クリックしたキャラを対象にして自動攻撃を始める (v6 のサーバだけ。他は対象の方を向いて殴るか近づく。#183)。
+        // カルマの低い NPC の設定は G と Shift+G の対象選びだけに掛け、右クリックで選んだキャラは殴る
+        if (m.target) clickTarget(session, m.target);
+        else if (!attackTarget(session)) sendLine(session, "hit");
       }
       else {
         // 追尾移動は長押しと同じ速さにする。スムーズ移動で歩く時は歩き方に任せる(ui/src/walker.ts)。
@@ -1279,7 +1296,7 @@ export function App() {
         s.marks = ev.marks;
         break;
       case "charHp":
-        s.charHp = { ...s.charHp, [ev.id]: { hp: ev.hp, ag: ev.ag, merc: ev.merc } };
+        s.charHp = { ...s.charHp, [ev.id]: { hp: ev.hp, ag: ev.ag, merc: ev.merc, low: ev.low } };
         break;
       case "wait": {
         // 詠唱バーと攻撃の待ちの輪 (#185)。ticks は 0.1 秒単位、無ければ止まった
@@ -2056,6 +2073,8 @@ export function App() {
             onMove={(from, to) => moveSpellTile(tab.session, from, to)}
             autoAttack={!!tab.autoAttack}
             onAutoAttack={tab.items ? () => toggleAutoAttack(tab.session) : undefined}
+            skipLowKarma={settings.autoSkipLowKarma}
+            onSkipLowKarma={tab.items ? toggleSkipLowKarma : undefined}
           />
         )}
         {tab.following && (

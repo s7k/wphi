@@ -1,18 +1,18 @@
 // 対象を決めて殴る (最近の MMO のターゲット。#183)。対象は地図のキャラの番号 (#v6 O の C%04x) で覚える。
 // 殴る時は、対象が隣なら向いてから hit、離れていれば対象へ 1 歩近づく (北固定の v6 の地図だけ)。サーバへは turn・go・hit を送るだけ
 
-import { followStep } from "./follow.ts";
+import { followStep, walkable } from "./follow.ts";
 import type { MoveKey } from "./keys.ts";
 import { stripTags } from "./mapPop.ts";
-import { charCells, isBig, selfPos } from "./mapRender.ts";
+import { charCells, selfPos } from "./mapRender.ts";
 import type { MapChar, MapEvent } from "./protocol";
 
 /** 対象にしない種別。オブジェ (生物・看板・魔法の演出・動くオブジェ・動かないオブジェ。assets.rs の DEFAULT_GRA) */
 const OBJECT_KINDS = new Set([0x80, 0x81, 0x82, 0x70, 0x75]);
 
 /**
- * G で次の対象。自分・仲間・傭兵・オブジェを除いた名前のあるキャラを近い順に並べ、今の対象の次を選ぶ (最後なら最初へ戻る)。
- * 傭兵は #v6 H の merc で分かる (mercs)。居なければ null
+ * Shift+G で次の対象。自分・仲間・傭兵・オブジェを除いた名前のあるキャラを近い順に並べ、今の対象の次を選ぶ (最後なら最初へ戻る)。
+ * 傭兵は #v6 H の merc で分かる (mercs)。low は設定で外すカルマの低い NPC (#v6 H の low)。居なければ null
  */
 export function nextTarget(
   map: MapEvent,
@@ -20,6 +20,7 @@ export function nextTarget(
   current: number | null,
   aggro: Set<number> = new Set(),
   mercs: Set<number> = new Set(),
+  low: Set<number> = new Set(),
 ): MapChar | null {
   const me = selfPos(map.width, map.height, map.style === "turn");
   const dist = (c: MapChar) => Math.abs(c.x - me.x) + Math.abs(c.y - me.y);
@@ -31,6 +32,7 @@ export function nextTarget(
         stripTags(c.name) &&
         !party.includes(stripTags(c.name)) &&
         !mercs.has(c.id) &&
+        !low.has(c.id) &&
         !OBJECT_KINDS.has(c.default),
     )
     .sort((a, b) => Number(aggro.has(b.id)) - Number(aggro.has(a.id)) || dist(a) - dist(b) || a.id - b.id);
@@ -57,19 +59,27 @@ export function attackPlan(map: MapEvent, id: number, opts: { dodge?: boolean } 
   if (!c) return { kind: "lost" };
   const turnMap = map.style === "turn";
   const me = selfPos(map.width, map.height, turnMap);
-  const near = charCells(c, map.dir).find((p) => Math.abs(p.x - me.x) + Math.abs(p.y - me.y) === 1);
-  // 自動攻撃の、こちらの攻撃の待ちの間 (dodge)。対象が隣でこちらを向いていれば、対象の横のマスへよける。
-  // 敵は向いている先を殴るので、横へ動けば待ちの間の攻撃を外せる。待ちが明けたら殴る (北固定の v6 の地図だけ)
-  if (near && opts.dodge && !turnMap && map.v6 && !isBig(c.gigant)) {
-    const f = FACING[c.dir];
-    if (f && c.x + f.x === me.x && c.y + f.y === me.y) {
-      // 今の位置から敵の向きと直角に 1 歩。敵の斜めに出て、正面の線から外れる
-      for (const side of [{ x: me.x + f.y, y: me.y + f.x }, { x: me.x - f.y, y: me.y - f.x }]) {
-        const key = followStep(map, side, true);
-        if (key && key !== "arrived") return { kind: "step", key };
-      }
+  const body = charCells(c, map.dir);
+  const inBody = (p: { x: number; y: number }) => body.some((b) => b.x === p.x && b.y === p.y);
+  const dist = (p: { x: number; y: number }) => Math.abs(p.x - me.x) + Math.abs(p.y - me.y);
+  const near = body.find((p) => dist(p) === 1);
+  // 対象の正面のマス (体の向いている先で、体の外)。2x2 の敵は 2 マス
+  const f = FACING[c.dir];
+  const isFront = (p: { x: number; y: number }) => !!f && inBody({ x: p.x - f.x, y: p.y - f.y }) && !inBody(p);
+  // 1 歩で入れる歩けるマスへの 1 歩。壁の先 (followStep の onto はゲートの為に壁でも 1 歩を返す) は選ばない
+  const stepTo = (p: { x: number; y: number }) => {
+    if (dist(p) !== 1 || !walkable(map, p.x, p.y) || inBody(p)) return null;
+    const key = followStep(map, p, true);
+    return key && key !== "arrived" ? key : null;
+  };
+  // 自動攻撃の、こちらの攻撃の待ちの間 (dodge)。対象が隣でこちらを向いていれば、正面から外れる横のマスへよける。
+  // 敵は向いている先を殴るので、横へ動けば待ちの間の攻撃を外せる。よける先が壁なら、その場で殴る (北固定の v6 の地図だけ)
+  if (near && opts.dodge && !turnMap && map.v6) {
+    if (!isFront(me)) return { kind: "wait" };
+    for (const side of f ? [{ x: me.x + f.y, y: me.y + f.x }, { x: me.x - f.y, y: me.y - f.x }] : []) {
+      const key = isFront(side) ? null : stepTo(side);
+      if (key) return { kind: "step", key };
     }
-    return { kind: "wait" };
   }
   if (near) {
     const d = `${near.x - me.x},${near.y - me.y}`;
@@ -79,26 +89,27 @@ export function attackPlan(map: MapEvent, id: number, opts: { dodge?: boolean } 
     return { kind: "hit", turn: turn ?? null, near: { x: near.x - me.x, y: near.y - me.y } };
   }
   if (turnMap || !map.v6) return { kind: "wait" };
-  // 1 歩で着く対象の隣のマスがあれば、対象の正面 (向いている先) より横や後ろを選ぶ。正面へ入ると殴られる
-  const f = FACING[c.dir];
-  if (f && !isBig(c.gigant)) {
-    const around = [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }]
-      .map((d) => ({ x: c.x + d.x, y: c.y + d.y, front: d.x === f.x && d.y === f.y }))
-      .filter((p) => Math.abs(p.x - me.x) + Math.abs(p.y - me.y) === 1)
-      .sort((a, b) => Number(a.front) - Number(b.front));
-    for (const p of around) {
-      const key = followStep(map, p, true);
-      if (key && key !== "arrived") return { kind: "step", key };
-    }
+  // 1 歩で着く対象の隣 (体のどのマスの縦横の隣でも良い) があれば、正面より横や後ろを選ぶ。正面へ入ると殴られる
+  const around = body
+    .flatMap((b) => [{ x: b.x, y: b.y - 1 }, { x: b.x + 1, y: b.y }, { x: b.x, y: b.y + 1 }, { x: b.x - 1, y: b.y }])
+    .filter((p) => !inBody(p))
+    .sort((a, b) => Number(isFront(a)) - Number(isFront(b)));
+  for (const p of around) {
+    const key = stepTo(p);
+    if (key) return { kind: "step", key };
   }
   // 対象が同じマスに乗っている時 (敵の方から重なってきた時) は、隣の通れるマスへよける。hit は隣にしか当たらない
-  if (charCells(c, map.dir).some((p) => p.x === me.x && p.y === me.y)) {
+  if (inBody(me)) {
     for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
-      const key = followStep(map, { x: me.x + dx, y: me.y + dy }, true);
-      if (key && key !== "arrived") return { kind: "step", key };
+      const key = stepTo({ x: me.x + dx, y: me.y + dy });
+      if (key) return { kind: "step", key };
     }
     return { kind: "wait" };
   }
-  const step = followStep(map, { x: c.x, y: c.y });
-  return step && step !== "arrived" ? { kind: "step", key: step } : { kind: "wait" };
+  // 遠ければ、体の近いマスから順に、隣まで行く道を探す (2x2 の敵は北西の角の隣が壁でも、他の角の隣へ回る)
+  for (const b of [...body].sort((a, b) => dist(a) - dist(b))) {
+    const step = followStep(map, b);
+    if (step && step !== "arrived") return { kind: "step", key: step };
+  }
+  return { kind: "wait" };
 }

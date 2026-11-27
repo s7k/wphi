@@ -139,8 +139,8 @@ const MENUS: Table = &[
             ("spells", "魔法の一覧 (R)"),
             ("-", ""),
             // 対象と自動攻撃 (WPHI で足した。#183)
-            ("target-next", "近い敵を対象にする (G)"),
-            ("auto-attack", "自動攻撃を始める・止める (Shift+G)"),
+            ("target-next", "近い敵を対象にする (Shift+G)"),
+            ("auto-attack", "自動攻撃を始める・止める (G)"),
             ("target-clear", "対象を外す"),
             ("-", ""),
             ("equip", "一番強い装備にする (Q)"),

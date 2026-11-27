@@ -109,7 +109,7 @@ export type UiEvent =
   | { type: "castEnd" }
   | { type: "moveDiag" }
   | { type: "wait"; who?: number; kind: string; ticks?: number; spell?: number }
-  | { type: "charHp"; id: number; hp: number; ag: boolean; merc?: boolean }
+  | { type: "charHp"; id: number; hp: number; ag: boolean; merc?: boolean; low?: boolean }
   | { type: "floor"; items: FloorItem[] }
   | { type: "shop"; items: FloorItem[] }
   | { type: "talkWords"; words: TalkWord[] }
@@ -247,7 +247,7 @@ export type MapState = {
   target?: number;
   autoAttack?: boolean;
   /** 視界のキャラの HP の割合 (0-100) と、自分か仲間を狙っているか (#v6 H。#184)。キーはキャラの番号 */
-  charHp?: Record<number, { hp: number; ag: boolean; merc?: boolean }>;
+  charHp?: Record<number, { hp: number; ag: boolean; merc?: boolean; low?: boolean }>;
   /** 詠唱 (#v6 W cast=。#185)。who が無ければ自分。at は始まった時刻 (performance.timeOrigin + now の ms)、ms は長さ */
   casts?: { who?: number; at: number; ms: number }[];
   /** 攻撃の待ち (#v6 W at=) の始まった時刻と長さ (ms) */

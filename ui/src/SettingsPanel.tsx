@@ -208,6 +208,10 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
             />{" "}
             分を超えたら自動攻撃を止める (0 なら止めない)
           </label>
+          <label>
+            <input type="checkbox" checked={s.autoSkipLowKarma} onChange={(e) => set("autoSkipLowKarma", e.target.checked)} />
+            自動攻撃と Shift+G の対象に、カルマの低い NPC (町の人など) を入れない
+          </label>
         </fieldset>
         <fieldset className="settings-group">
           <legend>魔法</legend>

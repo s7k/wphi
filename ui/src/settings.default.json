@@ -44,5 +44,6 @@
   ],
   "confirmTransfer": false,
   "autoStopHp": 30,
-  "autoStopIdleMin": 10
+  "autoStopIdleMin": 10,
+  "autoSkipLowKarma": true
 }

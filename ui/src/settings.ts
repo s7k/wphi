@@ -56,6 +56,8 @@ export type Settings = {
   autoStopHp: number;
   /** キーもマウスも触らない時間がこの分を超えたら自動攻撃を止める。0 なら止めない */
   autoStopIdleMin: number;
+  /** 自動攻撃と Shift+G の対象に、カルマの低い NPC (#v6 H の low。町の人など) を入れない */
+  autoSkipLowKarma: boolean;
 };
 
 /** モダンの左上に出せるステータス。設定の画面の並びと、出す順 */

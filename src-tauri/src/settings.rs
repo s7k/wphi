@@ -73,6 +73,8 @@ pub struct Settings {
     pub auto_stop_hp: u8,
     /// キーもマウスも触らない時間がこの分を超えたら自動攻撃を止める。0 なら止めない(Philly に無い)
     pub auto_stop_idle_min: u16,
+    /// 自動攻撃と Shift+G の対象に、カルマの低い NPC (#v6 H の low。町の人など) を入れない。既定はオン(Philly に無い)
+    pub auto_skip_low_karma: bool,
 }
 
 impl Default for Settings {
@@ -109,6 +111,7 @@ impl Default for Settings {
             confirm_transfer: false,
             auto_stop_hp: 30,
             auto_stop_idle_min: 10,
+            auto_skip_low_karma: true,
         }
     }
 }
