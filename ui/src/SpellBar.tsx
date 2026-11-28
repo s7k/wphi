@@ -149,85 +149,90 @@ export function SpellBar(props: {
   };
 
   return (
-    <div className="spell-bar" role="toolbar" aria-label="魔法 (ドラッグか Shift+← → で並べ替え)">
-      {props.onAutoAttack && (
-        <button
-          type="button"
-          className={props.autoAttack ? "spell-tile auto-attack on" : "spell-tile auto-attack"}
-          aria-pressed={!!props.autoAttack}
-          aria-label={props.autoAttack ? "自動攻撃を止める (G)" : "近い敵を対象にして自動攻撃を始める (G)"}
-          onClick={props.onAutoAttack}
-        >
-          <ItemIcon index={AUTO_ATTACK_ICON} size={32} />
-          <span className="spell-key">G</span>
-          <span className="spell-name">{props.autoAttack ? "自動攻撃を止める" : "自動攻撃"}</span>
-        </button>
-      )}
-      {props.onSkipLowKarma && (
-        <button
-          type="button"
-          className={props.skipLowKarma ? "spell-tile skip-low on" : "spell-tile skip-low"}
-          aria-pressed={!!props.skipLowKarma}
-          aria-label={
-            props.skipLowKarma ? "カルマの低い NPC (町の人など) を対象にしない。押すと対象にする" : "カルマの低い NPC も対象にする。押すと対象にしない"
-          }
-          onClick={props.onSkipLowKarma}
-        >
-          <span className="skip-low-mark" aria-hidden="true">
-            {props.skipLowKarma ? "町人\n除く" : "町人\n含む"}
-          </span>
-          <span className="spell-name">{props.skipLowKarma ? "カルマの低い NPC を対象にしない" : "カルマの低い NPC も対象にする"}</span>
-        </button>
-      )}
-      {props.skills?.length ? (
-        <div className="skill-group" role="group" aria-label="技">
-          {props.skills.map((sk, i) => (
-            <SkillTile
-              key={sk.no}
-              skill={sk}
-              slot={i + 1}
-              icon={i}
-              until={props.skillUntil}
-              ms={props.skillMs}
-              onUse={() => props.onSkill?.(sk)}
-            />
-          ))}
-        </div>
-      ) : null}
-      {props.spells.map((s, i) => {
-        const color = ELEMENT_COLOR[s.fn] ?? ELEMENT_COLOR[0];
-        const cls = ["spell-tile", drag?.from === i ? "dragging" : "", drag && drag.over === i && drag.from !== i ? "drop-target" : ""];
-        return (
+    <div className="spell-bar" role="toolbar" aria-label="技と魔法 (魔法はドラッグか Shift+← → で並べ替え)">
+      {/* 上の段に自動攻撃と技、下の段に魔法 */}
+      <div className="spell-row attack-row">
+        {props.onAutoAttack && (
           <button
-            key={s.name}
-            ref={(el) => {
-              tiles.current[i] = el;
-            }}
             type="button"
-            className={cls.filter(Boolean).join(" ")}
-            disabled={props.waiting}
-            aria-label={i < 8 ? `${s.name} (Alt+${i + 1})` : s.name}
-            style={color === "rainbow" ? { background: "conic-gradient(#c4482f, #c9a227, #3f9d8e, #3577c4, #7d5bc4, #c4482f)" } : { background: color }}
-            onPointerDown={onDown(i)}
-            onPointerMove={onDrag}
-            onPointerUp={(e) => {
-              dragged.current = !!press.current?.dragging;
-              onUp(e);
-            }}
-            onPointerCancel={() => {
-              press.current = null;
-              setDrag(null);
-            }}
-            onClick={onClick(s)}
-            onKeyDown={onKey(i, s)}
+            className={props.autoAttack ? "spell-tile auto-attack on" : "spell-tile auto-attack"}
+            aria-pressed={!!props.autoAttack}
+            aria-label={props.autoAttack ? "自動攻撃を止める (G)" : "近い敵を対象にして自動攻撃を始める (G)"}
+            onClick={props.onAutoAttack}
           >
-            <Pixels rows={spellPixels(s.ef)} size={32} />
-            {i < 8 && <span className="spell-key">Alt+{i + 1}</span>}
-            {/* カーソルを当てるかキーで選ぶと、すぐ上に呪文の名前を出す */}
-            <span className="spell-name">{s.name}</span>
+            <ItemIcon index={AUTO_ATTACK_ICON} size={32} />
+            <span className="spell-key">G</span>
+            <span className="spell-name">{props.autoAttack ? "自動攻撃を止める" : "自動攻撃"}</span>
           </button>
-        );
-      })}
+        )}
+        {props.onSkipLowKarma && (
+          <button
+            type="button"
+            className={props.skipLowKarma ? "spell-tile skip-low on" : "spell-tile skip-low"}
+            aria-pressed={!!props.skipLowKarma}
+            aria-label={
+              props.skipLowKarma ? "カルマの低い NPC (町の人など) を対象にしない。押すと対象にする" : "カルマの低い NPC も対象にする。押すと対象にしない"
+            }
+            onClick={props.onSkipLowKarma}
+          >
+            <span className="skip-low-mark" aria-hidden="true">
+              {props.skipLowKarma ? "町人\n除く" : "町人\n含む"}
+            </span>
+            <span className="spell-name">{props.skipLowKarma ? "カルマの低い NPC を対象にしない" : "カルマの低い NPC も対象にする"}</span>
+          </button>
+        )}
+        {props.skills?.length ? (
+          <div className="skill-group" role="group" aria-label="技">
+            {props.skills.map((sk, i) => (
+              <SkillTile
+                key={sk.no}
+                skill={sk}
+                slot={i + 1}
+                icon={i}
+                until={props.skillUntil}
+                ms={props.skillMs}
+                onUse={() => props.onSkill?.(sk)}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <div className="spell-row magic-row">
+        {props.spells.map((s, i) => {
+          const color = ELEMENT_COLOR[s.fn] ?? ELEMENT_COLOR[0];
+          const cls = ["spell-tile", drag?.from === i ? "dragging" : "", drag && drag.over === i && drag.from !== i ? "drop-target" : ""];
+          return (
+            <button
+              key={s.name}
+              ref={(el) => {
+                tiles.current[i] = el;
+              }}
+              type="button"
+              className={cls.filter(Boolean).join(" ")}
+              disabled={props.waiting}
+              aria-label={i < 8 ? `${s.name} (Alt+${i + 1})` : s.name}
+              style={color === "rainbow" ? { background: "conic-gradient(#c4482f, #c9a227, #3f9d8e, #3577c4, #7d5bc4, #c4482f)" } : { background: color }}
+              onPointerDown={onDown(i)}
+              onPointerMove={onDrag}
+              onPointerUp={(e) => {
+                dragged.current = !!press.current?.dragging;
+                onUp(e);
+              }}
+              onPointerCancel={() => {
+                press.current = null;
+                setDrag(null);
+              }}
+              onClick={onClick(s)}
+              onKeyDown={onKey(i, s)}
+            >
+              <Pixels rows={spellPixels(s.ef)} size={32} />
+              {i < 8 && <span className="spell-key">Alt+{i + 1}</span>}
+              {/* カーソルを当てるかキーで選ぶと、すぐ上に呪文の名前を出す */}
+              <span className="spell-name">{s.name}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
