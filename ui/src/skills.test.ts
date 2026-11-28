@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { pickSkills, strongest } from "./skills.ts";
+import { parseSkillFx, pickSkills, strongest } from "./skills.ts";
 import type { Skill } from "./protocol";
 
 const sk = (no: number, name: string, len: number, bonus: number): Skill => ({ no, name, len, bonus, cd: Math.max(15, (bonus * 3) / 10), left: 0 });
@@ -19,4 +19,12 @@ test("技が 4 つより多ければ、一番強い技から一番弱い技ま�
 test("自動攻撃は一番強い技を使う", () => {
   assert.equal(strongest(sword)?.name, "9-headed dragon crush");
   assert.equal(strongest([]), null);
+});
+
+test("技の演出の分類を読み、上がるダメージで段を決める", () => {
+  assert.deepEqual(parseSkillFx("skill-350-Sigma_slash"), { bonus: 350, name: "Sigma slash", tier: 3 });
+  assert.equal(parseSkillFx("skill-150-Double_slash")?.tier, 2);
+  assert.equal(parseSkillFx("skill-20-Side_slash")?.tier, 1);
+  assert.equal(parseSkillFx(undefined), null);
+  assert.equal(parseSkillFx("explode"), null);
 });

@@ -110,6 +110,7 @@ UI は前の地図のまま描く。
 | `#v6 J` | `Jumped` | App.tsx から predict.ts の `onJumped` (7.2) |
 | `#v6 S` 〜 `#v6 S .` | `Spells` | App.tsx の `spells` (5) |
 | `#v6 Z` 〜 `#v6 Z .`、`#v6 W skill=`、`#ex-skill no` | `Skills`、`SkillWait`、`SkillRefused` | 魔法の列の技のボタン (SpellBar.tsx の SkillTile、ui/src/skills.ts)。強い順に最大 4 つ、待ちの間はグレーを 12 時から時計回りに戻す |
+| `#v6 E hit … skill-上がる%-名前` | `Effect` の category | 技の演出 (map.tsx の fxEls、ui/src/skills.ts の parseSkillFx)。+150% 未満は金色の太い十字の斬撃と名前、+150% 以上は衝撃の輪と飛び散る光を足し、+300% 以上は回る光の筋と地図全体の一瞬の閃光も足す。名前は敵の上に浮かんで消える。動きを減らす設定では光の筋・閃光・飛び散る光を出さない |
 | `#v6 I` 〜 `#v6 I .` | `Items` | App.tsx の `items` (6) |
 | `#ex-inv I` 〜 `#ex-inv .` | `Bag` | App.tsx の `bag` (6) |
 | `#ex-inv no` | `BagRefused` | App.tsx の `bagMessage` (6) |

@@ -21,6 +21,7 @@ import { CondBadges, Compass, StatusPanel } from "./StatusPanel";
 import { hideOnClose, useImages, useScreenshot } from "./windowUtil";
 import { glideMoves, GLIDE_MS } from "./glide.ts";
 import { findChar, MAP_POP_EVENT, type Fx, type Pop, type PopKind } from "./mapPop.ts";
+import { parseSkillFx } from "./skills.ts";
 import { Pixels } from "./BagPanel.tsx";
 import { COMPASS_PIXELS } from "./pixelIcons.ts";
 
@@ -53,6 +54,8 @@ const TALK_MS = 4000;
 const AMOUNT_MS = 1200;
 /** #v6 E の演出を出しておく時間 (ms)。斬撃と魔法弾のアニメーションより長く */
 const FX_MS = 1500;
+/** 技の演出を消すまで (ms)。名前が浮かんで消えるのを待つ */
+const SKILL_FX_MS = 1700;
 /** #v6 E の後、この間に届いた同じ名前の増減の数字は、当たった位置に出す (ms) */
 const FX_PIN_MS = 1500;
 
@@ -191,7 +194,8 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
         fxServer.current = true;
         const c = chars.find((c) => c.x === f.at.x && c.y === f.at.y);
         lastFx.current = c ? { at: f.at, name: stripTags(c.name), t: now } : null;
-        setTimeout(() => setFxs((fs) => fs.filter((q) => q.id !== f.id)), f.kind === "chant" ? Math.min(6000, (f.wait ?? 14) * 100) + 200 : FX_MS);
+        const life = f.kind === "chant" ? Math.min(6000, (f.wait ?? 14) * 100) + 200 : f.category?.startsWith("skill-") ? SKILL_FX_MS : FX_MS;
+        setTimeout(() => setFxs((fs) => fs.filter((q) => q.id !== f.id)), life);
       }
       if (fx.length) setFxs((fs) => [...fs, ...fx]);
       const hit = lastFx.current && now - lastFx.current.t < FX_PIN_MS ? lastFx.current : null;
@@ -697,6 +701,21 @@ export function MapView(props: { embedded?: boolean; modern?: boolean }) {
           style={{ left: at.left, top: at.top, ...vars, animationDuration: `${Math.min(6000, Math.max(600, (f.wait ?? 14) * 100))}ms` }}
         />,
       ];
+    // 技 (分類が skill-上がる%-名前。phidm-v6 の phi_skill.rs)。上がるダメージで 3 段に分け、強いほど派手にする
+    const skill = f.kind === "hit" ? parseSkillFx(f.category) : null;
+    if (skill) {
+      const t = skill.tier;
+      return [
+        one(`fx-sk-cut fx-sk-cut1 fx-sk${t}`),
+        one(`fx-sk-cut fx-sk-cut2 fx-sk${t}`),
+        one("fx-spark"),
+        ...(t >= 2 ? [one("fx-sk-ring"), one("fx-sk-sparks")] : []),
+        ...(t >= 3 ? [one("fx-sk-rays"), <div key={`${f.id}flash`} className="fx fx-sk-flash" />] : []),
+        <div key={`${f.id}name`} className={`fx fx-sk-name fx-sk${t}`} style={{ left: at.left, top: at.top - CHIP_SIZE * zoom }}>
+          {skill.name}!
+        </div>,
+      ];
+    }
     if (f.kind === "hit") return [one("fx-cut fx-cut1"), one("fx-cut fx-cut2"), one("fx-spark")];
     if (f.kind === "miss") return [one("fx-whiff")];
     const cat = f.category ?? (f.kind === "magic" ? "line" : "heal");

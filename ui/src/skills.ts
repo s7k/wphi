@@ -21,3 +21,14 @@ export function pickSkills(skills: Skill[], max = MAX_SKILL_BUTTONS): Skill[] {
 export function strongest(skills: Skill[]): Skill | null {
   return skills.reduce<Skill | null>((a, b) => (a && a.bonus >= b.bonus ? a : b), null);
 }
+
+/**
+ * 技が当たった #v6 E hit の分類 `skill-上がる%-名前` (名前の空白は _) を読む。技でなければ null。
+ * tier は演出の段: +150% 未満は 1、+300% 未満は 2、それ以上は 3
+ */
+export function parseSkillFx(category?: string): { bonus: number; name: string; tier: 1 | 2 | 3 } | null {
+  const m = /^skill-(\d+)-(.+)$/.exec(category ?? "");
+  if (!m) return null;
+  const bonus = Number(m[1]);
+  return { bonus, name: m[2].replace(/_/g, " "), tier: bonus >= 300 ? 3 : bonus >= 150 ? 2 : 1 };
+}
