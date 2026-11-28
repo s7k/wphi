@@ -2,6 +2,8 @@
 
 /** 覚えている呪文 (#v6 S)。no は cast で選ぶ今の番号、ef は効果 (EF_*)、fn は属性 */
 export type Spell = { no: number; name: string; html: string; ef: number; fn: number };
+/** 武器の技 (#v6 Z)。cd と left は 0.1 秒単位、bonus は上がるダメージ (%) */
+export type Skill = { no: number; name: string; len: number; bonus: number; cd: number; left: number };
 
 /** blocked は見た目と違って通れない印 (#v6 X)。自キャラの周りだけ届く */
 /** set は v6 のマップセットの枠 1〜15(#v6 A)。無ければ attr の下位 2 ビット */
@@ -122,6 +124,9 @@ export type UiEvent =
   | { type: "effect"; kind: string; from?: { x: number; y: number }; at: { x: number; y: number }; element?: string; category?: string; wait?: number }
   /** #v6 S。覚えている呪文を cast の番号の順に */
   | { type: "spells"; spells: Spell[] }
+  | { type: "skills"; skills: Skill[] }
+  | { type: "skillWait"; no: number; cd: number }
+  | { type: "skillRefused"; wait?: number }
   /** #v6 I。手持ちの 8 個(空きは null) */
   | { type: "items"; items: (ItemInfo | null)[] }
   /** #v6 P。自分を先頭にした仲間の一覧。パーティに入っていなければ空 */

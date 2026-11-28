@@ -212,6 +212,10 @@ export function SettingsPanel(props: { settings: Settings; onSaved: (s: Settings
             <input type="checkbox" checked={s.autoSkipLowKarma} onChange={(e) => set("autoSkipLowKarma", e.target.checked)} />
             自動攻撃と Shift+G の対象に、カルマの低い NPC (町の人など) を入れない
           </label>
+          <label>
+            <input type="checkbox" checked={s.autoUseSkill} onChange={(e) => set("autoUseSkill", e.target.checked)} />
+            自動攻撃で、技の待ちが明けていれば一番強い技を使う
+          </label>
         </fieldset>
         <fieldset className="settings-group">
           <legend>魔法</legend>

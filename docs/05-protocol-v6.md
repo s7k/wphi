@@ -109,6 +109,7 @@ UI は前の地図のまま描く。
 | `#v6 G` | `Moved { dx, dy, reason }` | App.tsx から predict.ts の `onMoved` (7.2) |
 | `#v6 J` | `Jumped` | App.tsx から predict.ts の `onJumped` (7.2) |
 | `#v6 S` 〜 `#v6 S .` | `Spells` | App.tsx の `spells` (5) |
+| `#v6 Z` 〜 `#v6 Z .`、`#v6 W skill=`、`#ex-skill no` | `Skills`、`SkillWait`、`SkillRefused` | 魔法の列の技のボタン (SpellBar.tsx の SkillTile、ui/src/skills.ts)。強い順に最大 4 つ、待ちの間はグレーを 12 時から時計回りに戻す |
 | `#v6 I` 〜 `#v6 I .` | `Items` | App.tsx の `items` (6) |
 | `#ex-inv I` 〜 `#ex-inv .` | `Bag` | App.tsx の `bag` (6) |
 | `#ex-inv no` | `BagRefused` | App.tsx の `bagMessage` (6) |

@@ -8,7 +8,61 @@ import { ELEMENT_COLOR, ItemIcon, Pixels } from "./BagPanel";
 /** 自動攻撃のボタンの絵。itemIcons.png の双剣 (武器の種類の 9 番) */
 const AUTO_ATTACK_ICON = 9;
 import { spellPixels } from "./pixelIcons.ts";
-import type { Spell } from "./protocol";
+import type { Skill, Spell } from "./protocol";
+import { Crosshair, Flame, Swords, Zap } from "lucide-react";
+
+/** 技のボタンの絵。強い順に並べた位置で決める (技ごとの絵は無い) */
+const SKILL_ICONS = [Flame, Zap, Swords, Crosshair];
+
+/**
+ * 技のボタン。待ちの間はグレーを重ね、12 時から時計回りに明るさを戻し、残りの秒数を出す。明けた時に縁を一度光らせる。
+ * 扇形は毎フレーム CSS の変数 --p (残りの割合) を書き換えるだけで、React の描き直しはしない
+ */
+function SkillTile(props: { skill: Skill; slot: number; icon: number; until?: number; ms?: number; onUse: () => void }) {
+  const el = useRef<HTMLButtonElement>(null);
+  const sec = useRef<HTMLSpanElement>(null);
+  const { until = 0, ms = 0 } = props;
+  useEffect(() => {
+    const b = el.current;
+    if (!b) return;
+    let raf = 0;
+    let was = false;
+    const tick = () => {
+      const left = Math.max(0, until - performance.now());
+      b.style.setProperty("--p", ms > 0 ? (left / ms).toFixed(4) : "0");
+      b.classList.toggle("cooling", left > 0);
+      if (sec.current) sec.current.textContent = left > 0 ? String(Math.ceil(left / 1000)) : "";
+      if (was && left === 0) {
+        b.classList.remove("ready-flash");
+        void b.offsetWidth;
+        b.classList.add("ready-flash");
+      }
+      was = left > 0;
+      if (left > 0) raf = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => cancelAnimationFrame(raf);
+  }, [until, ms]);
+  const Icon = SKILL_ICONS[props.icon % SKILL_ICONS.length];
+  const s = props.skill;
+  return (
+    <button
+      ref={el}
+      type="button"
+      className="spell-tile skill-tile"
+      aria-label={`${s.name} (Shift+${props.slot}) ダメージ +${s.bonus}% 待ち ${s.cd / 10} 秒`}
+      onClick={props.onUse}
+    >
+      <Icon aria-hidden="true" />
+      <span className="skill-cd" aria-hidden="true" />
+      <span className="skill-sec" ref={sec} aria-hidden="true" />
+      <span className="spell-key">⇧{props.slot}</span>
+      <span className="spell-name">
+        {s.name} +{s.bonus}% (待ち {s.cd / 10} 秒)
+      </span>
+    </button>
+  );
+}
 
 /** これだけ動かしたらドラッグとみなす (px)。押しただけでは唱える */
 const DRAG_PX = 6;
@@ -25,6 +79,11 @@ export function SpellBar(props: {
   /** 自動攻撃の隣の、カルマの低い NPC を対象にしないかのボタン (設定の autoSkipLowKarma)。入っている間は青くする */
   skipLowKarma?: boolean;
   onSkipLowKarma?: () => void;
+  /** 武器の技のボタン (ui/src/skills.ts。左から Shift+1〜4)。待ちはキャラに 1 つで、全ボタンに同じ扇形を出す */
+  skills?: Skill[];
+  skillUntil?: number;
+  skillMs?: number;
+  onSkill?: (skill: Skill) => void;
 }) {
   const tiles = useRef<(HTMLButtonElement | null)[]>([]);
   // 押した所。dragging になったら、離した時に唱えずに並べ替える
@@ -40,7 +99,7 @@ export function SpellBar(props: {
     setFocusName(null);
   }, [props.spells, focusName]);
 
-  if (!props.spells.length && !props.onAutoAttack && !props.onSkipLowKarma) return null;
+  if (!props.spells.length && !props.onAutoAttack && !props.onSkipLowKarma && !props.skills?.length) return null;
 
   /** clientX の下のタイルの番号。端より外は端 */
   const indexAt = (x: number) => {
@@ -120,6 +179,21 @@ export function SpellBar(props: {
           <span className="spell-name">{props.skipLowKarma ? "カルマの低い NPC を対象にしない" : "カルマの低い NPC も対象にする"}</span>
         </button>
       )}
+      {props.skills?.length ? (
+        <div className="skill-group" role="group" aria-label="技">
+          {props.skills.map((sk, i) => (
+            <SkillTile
+              key={sk.no}
+              skill={sk}
+              slot={i + 1}
+              icon={i}
+              until={props.skillUntil}
+              ms={props.skillMs}
+              onUse={() => props.onSkill?.(sk)}
+            />
+          ))}
+        </div>
+      ) : null}
       {props.spells.map((s, i) => {
         const color = ELEMENT_COLOR[s.fn] ?? ELEMENT_COLOR[0];
         const cls = ["spell-tile", drag?.from === i ? "dragging" : "", drag && drag.over === i && drag.from !== i ? "drop-target" : ""];

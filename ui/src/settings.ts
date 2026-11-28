@@ -58,6 +58,8 @@ export type Settings = {
   autoStopIdleMin: number;
   /** 自動攻撃と Shift+G の対象に、カルマの低い NPC (#v6 H の low。町の人など) を入れない */
   autoSkipLowKarma: boolean;
+  /** 自動攻撃で、技の待ちが明けていれば一番強い技を使う */
+  autoUseSkill: boolean;
 };
 
 /** モダンの左上に出せるステータス。設定の画面の並びと、出す順 */

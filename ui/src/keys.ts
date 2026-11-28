@@ -31,7 +31,9 @@ export type KeyAction =
   /** メニューの項目と同じ事をする(接続・切断など。App のメニューの処理に任せる) */
   | { menu: string }
   /** 魔法の列の n 番目 (1 から) を唱える (ui/src/spells.ts) */
-  | { spellSlot: number };
+  | { spellSlot: number }
+  /** 技のボタンの n 番目 (1 から) を使う (ui/src/skills.ts) */
+  | { skillSlot: number };
 
 /** initial は欄に初めから入れておく文字 */
 export type AskOptions = { title: string; label: string; numeric?: boolean; initial?: string };
@@ -176,6 +178,8 @@ const SHIFT: Record<string, KeyAction> = {
   KeyT: { send: "#ex-map style=solid" },
   Digit7: { send: "#ex-map size=57" },
   Numpad7: { send: "#ex-map size=57" },
+  // 技のボタンの左から 1〜4 番目 (ui/src/skills.ts)
+  ...Object.fromEntries([1, 2, 3, 4].map((n) => [`Digit${n}`, { skillSlot: n }])),
 };
 
 /** Alt(KeyBindAlt)。G(AltGWord)は設定の文字列なので shortcutText で扱う */

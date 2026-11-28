@@ -73,6 +73,7 @@ export function runKeyAction(
     systemMagic: () => { unequip: boolean; equip: boolean };
     /** 魔法の列の n 番目を唱える */
     castSpellSlot?: (n: number) => void;
+    fireSkillSlot?: (n: number) => void;
   },
 ) {
   if ("ask" in action) {
@@ -102,6 +103,7 @@ export function runKeyAction(
   else if ("focusInput" in action) hooks.focusInput();
   else if ("menu" in action) invoke("menu_select", { id: action.menu }).catch(console.error);
   else if ("spellSlot" in action) hooks.castSpellSlot?.(action.spellSlot);
+  else if ("skillSlot" in action) hooks.fireSkillSlot?.(action.skillSlot);
   else hooks.nextTab();
 }
 

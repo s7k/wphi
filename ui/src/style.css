@@ -2822,6 +2822,59 @@ button > svg:only-child,
   background: #c8322a;
   box-shadow: 0 0 8px #ff6050;
 }
+/* 武器の技のボタン (SpellBar.tsx の SkillTile)。待ちの間はグレーを重ね、--p (残りの割合) の分だけ 12 時から扇形で覆う */
+.skill-group {
+  display: flex;
+  gap: 6px;
+  margin-right: 6px;
+  padding-right: 8px;
+  border-right: 1px solid rgb(255 255 255 / 22%);
+}
+.spell-tile.skill-tile {
+  background: #6b7f94;
+  color: #fff;
+}
+.skill-tile .skill-cd {
+  position: absolute;
+  inset: 0;
+  border-radius: 7px;
+  pointer-events: none;
+  background: conic-gradient(transparent calc((1 - var(--p, 0)) * 360deg), rgb(18 20 24 / 72%) 0);
+}
+.skill-tile.cooling > svg {
+  filter: grayscale(1) brightness(0.75);
+}
+.skill-tile .skill-sec {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.skill-tile.ready-flash::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 10px;
+  box-shadow: 0 0 0 2px #ffd879, 0 0 12px #ffd879;
+  animation: skill-ready 0.5s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes skill-ready {
+  from { opacity: 1; }
+  to { opacity: 0; transform: scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skill-tile .skill-cd { background: rgb(18 20 24 / 72%); opacity: 0; }
+  .skill-tile.cooling .skill-cd { opacity: 1; }
+  .skill-tile.ready-flash::after { animation: none; opacity: 0; }
+}
+
 /* 自動攻撃の隣の、カルマの低い NPC を対象にしないかのボタン。入っている間は青い地 */
 .spell-tile.skip-low {
   background: #6b5a48;

@@ -32,7 +32,7 @@ import { checkAll, listNo, listOk, moreNo, moveListCursor, receiveList, type Lis
 import { trace } from "./trace.ts";
 import { PREDICT_TICK_MS, predictedMap, Predictor } from "./predict.ts";
 import { hasItem, selfPos } from "./mapRender.ts";
-import { CHAR_ACTION_EVENT, EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, type CharAction, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type FloorItem, type TalkWord, type Quest, type TradeSide, type ItemInfo, type MapListAction, type PartyMember, type MapState, type Spell, type UiEvent } from "./protocol";
+import { CHAR_ACTION_EVENT, EAGLE_EYE_EVENT, MAP_HIDDEN_EVENT, MAP_LIST_EVENT, MAP_STATE_EVENT, PARTY_FOLLOW_EVENT, type CharAction, PARTY_OPEN_EVENT, TRANSFER_NO, TRANSFER_YES, type FloorItem, type TalkWord, type Quest, type TradeSide, type ItemInfo, type MapListAction, type PartyMember, type MapState, type Skill, type Spell, type UiEvent } from "./protocol";
 import { Window } from "@tauri-apps/api/window";
 import { LogFind } from "./LogFind";
 import { pushLine, pushLines, scopeLogCss, type LogLine } from "./logLines.ts";
@@ -45,6 +45,7 @@ import { afterClose, DEAD_LINE, KICKED_LINE, lossText, RETRY_DELAYS } from "./re
 import { applyMapset, holdMapset, type PendingMapset } from "./mapsetPending.ts";
 import { castLines, loadSpellOrder, moveSpell, orderSpells, saveSpellOrder, SPELL_WAIT_MS, waitsForOrder } from "./spells.ts";
 import { SpellBar } from "./SpellBar";
+import { pickSkills, strongest } from "./skills.ts";
 import { followGoal, followStep, targetPos, type FollowMemory } from "./follow.ts";
 import { TabBar } from "./TabBar";
 import { LogView } from "./LogView";
@@ -132,6 +133,10 @@ export type Tab = {
   /** 魔法の列に並べる呪文 (並びは固定。ui/src/spells.ts) と、番号が入れ替わるのを待っている間 */
   spells?: Spell[];
   spellWaiting?: boolean;
+  /** 武器の技 (#v6 Z) と、技の待ちが明ける時刻 (performance.now の ms) とその長さ (ui/src/skills.ts) */
+  skills?: Skill[];
+  skillUntil?: number;
+  skillMs?: number;
   /** 札の看板を書いた人と日付 (ui/src/signHead.ts)。看板でないお知らせは null */
   signAuthor?: { name: string; date: string } | null;
   /** 手持ちの 8 個(#v6 I)とインベントリ(#ex-inv)。v6 で届いた時だけ */
@@ -411,6 +416,24 @@ export function App() {
     }
     if (spells[n - 1]) castSpell(session, spells[n - 1]);
   };
+  /**
+   * 技のボタン。次の攻撃を技にする予約 (#ex-skill) を送り、対象を殴る (隣に居なければ近づく)。
+   * 待ちの間は送らずに残りを知らせる。対象が無ければ近い敵を選ぶ
+   */
+  const fireSkill = (session: number, sk: Skill) => {
+    const t = tabOf(session);
+    const left = (t?.skillUntil ?? 0) - performance.now();
+    if (left > 0) return void append(session, systemNg(`技はあと ${Math.ceil(left / 1000)} 秒使えません。`));
+    const s = mapStates.current.get(session);
+    if (s && s.target === undefined) cycleTarget(session);
+    if (mapStates.current.get(session)?.target === undefined) return;
+    sendLine(session, `#ex-skill ${sk.no}`);
+    if (!attackTarget(session)) sendLine(session, "hit");
+  };
+  const fireSkillSlot = (session: number, n: number) => {
+    const sk = pickSkills(tabOf(session)?.skills ?? [])[n - 1];
+    if (sk) fireSkill(session, sk);
+  };
   /** カバンの操作を送る。前の操作で断られた理由 (bagMessage) は、ここで消す */
   const sendBag = (session: number, lines: string) => {
     update(session, (t) => (t.bagMessage ? { ...t, bagMessage: "" } : t));
@@ -588,7 +611,13 @@ export function App() {
       } else append(session, systemOk(was ? "対象を見失ったので、自動攻撃を止めました。" : "対象を見失いました。"));
     } else if (plan.kind === "hit") {
       if (plan.near) lastNear.current.set(session, { id: s.target, dx: plan.near.x, dy: plan.near.y, at: now });
-      if (!(auto && s.mode?.attack)) sendLines(session, plan.turn ? `turn ${plan.turn}\nhit` : "hit");
+      if (!(auto && s.mode?.attack)) {
+        // 自動攻撃は、技の待ちが明けていれば一番強い技を予約してから殴る (設定でオン。ui/src/skills.ts)
+        const t = tabOf(session);
+        const sk = auto && settingsRef.current.autoUseSkill ? strongest(t?.skills ?? []) : null;
+        if (sk && (t?.skillUntil ?? 0) <= now) sendLine(session, `#ex-skill ${sk.no}`);
+        sendLines(session, plan.turn ? `turn ${plan.turn}\nhit` : "hit");
+      }
     } else if (plan.kind === "step") {
       // ついて行く機能と同じく、前の移動の返事を待ち、FOLLOW_MS に 1 歩まで
       const now = performance.now();
@@ -928,6 +957,7 @@ export function App() {
       ask,
       systemMagic,
       castSpellSlot: (n: number) => castSpellSlot(session, n),
+      fireSkillSlot: (n: number) => fireSkillSlot(session, n),
     });
     // マップ窓の表示・非表示(Philly の Shift+F5 DispMap)
     const toggleMap = () => {
@@ -1687,6 +1717,23 @@ export function App() {
         case "items":
           update(session, (t) => ({ ...t, items: ev.items }));
           break;
+        case "skills": {
+          // 武器の技 (#v6 Z)。left は持ち替える前から続く待ちの残り
+          const now = performance.now();
+          update(session, (t) => ({
+            ...t,
+            skills: ev.skills,
+            ...(ev.skills.some((k) => k.left > 0) ? { skillUntil: now + Math.max(...ev.skills.map((k) => k.left)) * 100, skillMs: Math.max(...ev.skills.map((k) => k.left)) * 100 } : {}),
+          }));
+          break;
+        }
+        case "skillWait":
+          // 技が出て待ちに入った。待ちはキャラに 1 つで、全ての技のボタンが同じ扇形で戻る
+          update(session, (t) => ({ ...t, skillUntil: performance.now() + ev.cd * 100, skillMs: ev.cd * 100 }));
+          break;
+        case "skillRefused":
+          append(session, systemNg(ev.wait ? `技はあと ${Math.ceil(ev.wait / 10)} 秒使えません。` : "その技は今は出せません。"));
+          break;
         case "spells":
           clearSpellWait(session);
           // 列の並びはキャラごとに最初に見た順で固定し、番号だけ今の物にする
@@ -2075,6 +2122,10 @@ export function App() {
             onAutoAttack={tab.items ? () => toggleAutoAttack(tab.session) : undefined}
             skipLowKarma={settings.autoSkipLowKarma}
             onSkipLowKarma={tab.items ? toggleSkipLowKarma : undefined}
+            skills={pickSkills(tab.skills ?? [])}
+            skillUntil={tab.skillUntil}
+            skillMs={tab.skillMs}
+            onSkill={(sk) => fireSkill(tab.session, sk)}
           />
         )}
         {tab.following && (

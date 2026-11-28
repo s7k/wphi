@@ -75,6 +75,8 @@ pub struct Settings {
     pub auto_stop_idle_min: u16,
     /// 自動攻撃と Shift+G の対象に、カルマの低い NPC (#v6 H の low。町の人など) を入れない。既定はオン(Philly に無い)
     pub auto_skip_low_karma: bool,
+    /// 自動攻撃で、技の待ちが明けていれば一番強い技を使う。既定はオン(Philly に無い)
+    pub auto_use_skill: bool,
 }
 
 impl Default for Settings {
@@ -112,6 +114,7 @@ impl Default for Settings {
             auto_stop_hp: 30,
             auto_stop_idle_min: 10,
             auto_skip_low_karma: true,
+            auto_use_skill: true,
         }
     }
 }

@@ -154,6 +154,20 @@ pub enum Event {
     Spells {
         spells: Vec<Spell>,
     },
+    /// `#v6 Z` 〜 `#v6 Z .`。持っている武器で出せる技 (phidm-v6 の phi_skill.rs)。武器を持ち替えた時に届く
+    Skills {
+        skills: Vec<Skill>,
+    },
+    /// `#v6 W skill=番号 cd=待ち`。技が出て、技の待ち (0.1 秒単位) に入った。待ちはキャラに 1 つで、全ての技に掛かる
+    SkillWait {
+        no: u32,
+        cd: u32,
+    },
+    /// `#ex-skill no wait=待ち` / `reason=`。技の予約を断られた。wait は残りの待ち (0.1 秒単位)
+    SkillRefused {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        wait: Option<u32>,
+    },
     /// `#v6 I` 〜 `#v6 I .`。手持ちの 8 個。空いた枠は None(phi_dm の docs/dev/protocol-v6.md の「呪文・持ち物・カバン」)
     Items {
         items: Vec<Option<Item>>,
@@ -266,6 +280,44 @@ pub struct Spell {
     pub fn_: i8,
 }
 
+/// 武器の技 1 つ (`#v6 Z` の欄)
+#[derive(Debug, Clone, PartialEq, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Skill {
+    /// `#ex-skill` で送る番号 (1 から)
+    pub no: u32,
+    pub name: String,
+    /// 並びの手数
+    pub len: u32,
+    /// 上がるダメージ (%)
+    pub bonus: u32,
+    /// 使った後の待ち (0.1 秒単位)
+    pub cd: u32,
+    /// 届いた時の残りの待ち (0.1 秒単位)
+    pub left: u32,
+}
+
+/// `#v6 Z 番号<TAB>name=<TAB>len=<TAB>bonus=<TAB>cd=<TAB>left=` の番号の後ろを読む
+fn parse_skill(no: u32, fields: &str) -> Skill {
+    let mut sk = Skill {
+        no,
+        ..Default::default()
+    };
+    for f in fields.split('\t') {
+        let Some((k, v)) = f.split_once('=') else { continue };
+        let num = || v.trim().parse().unwrap_or(0);
+        match k {
+            "name" => sk.name = strip_tags(v),
+            "len" => sk.len = num(),
+            "bonus" => sk.bonus = num(),
+            "cd" => sk.cd = num(),
+            "left" => sk.left = num(),
+            _ => {}
+        }
+    }
+    sk
+}
+
 /// `#v6 S` の番号の後ろの欄(タブで区切った キー=値)を読む
 fn parse_spell(no: i64, fields: &str) -> Spell {
     let mut sp = Spell {
@@ -350,6 +402,16 @@ fn strip_tags(s: &str) -> String {
 
 /// `#v6 W` の欄。`[C%04x] cast=<ティック>|stop [呪文の番号]` か `at=<ティック>`
 fn parse_wait(rest: &str) -> Option<Event> {
+    // 技の待ち `skill=番号 cd=待ち`
+    if rest.starts_with("skill=") {
+        let mut f = rest.split_whitespace();
+        let no = f.next()?.strip_prefix("skill=")?.parse().ok()?;
+        let cd = f
+            .find_map(|kv| kv.strip_prefix("cd="))
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0);
+        return Some(Event::SkillWait { no, cd });
+    }
     let mut f = rest.split_whitespace().peekable();
     let who = match f.peek() {
         Some(w) if w.starts_with('C') => {
@@ -825,6 +887,8 @@ pub struct Parser {
     party: Vec<PartyMember>,
     /// `#v6 S` で届いた呪文。`#v6 S .` で Spells にする
     spells: Vec<Spell>,
+    /// `#v6 Z` で届いた技。`#v6 Z .` で Skills にする
+    skills: Vec<Skill>,
     /// `#v6 M` の幅と高さと、届いた `#v6 R` の行(行番号の位置)。`#v6 .` で全部揃っていれば地図にする
     v6_size: (u8, u8),
     v6_rows: Vec<Option<Vec<Cell>>>,
@@ -1088,6 +1152,30 @@ impl Parser {
             {
                 self.spells.push(parse_spell(no, fields));
             }
+            return Vec::new();
+        }
+        if let Some(rest) = text.strip_prefix("#v6 Z ") {
+            if rest.trim() == "." {
+                return vec![Event::Skills {
+                    skills: std::mem::take(&mut self.skills),
+                }];
+            }
+            let (no, fields) = rest.split_once('\t').unwrap_or((rest, ""));
+            if let Ok(no) = no.trim().parse::<u32>()
+                && self.skills.len() < MAX_LIST_LINES
+            {
+                self.skills.push(parse_skill(no, fields));
+            }
+            return Vec::new();
+        }
+        if let Some(rest) = text.strip_prefix("#ex-skill no") {
+            let wait = rest
+                .split_whitespace()
+                .find_map(|kv| kv.strip_prefix("wait="))
+                .and_then(|v| v.parse().ok());
+            return vec![Event::SkillRefused { wait }];
+        }
+        if text.starts_with("#ex-skill ok") {
             return Vec::new();
         }
         if let Some(rest) = text.strip_prefix("#v6 P ") {
@@ -2270,6 +2358,32 @@ mod tests {
         );
         assert!(spells[1].html.contains("Cure"));
         assert_eq!(p.feed(b"#v6 S ."), vec![Event::Spells { spells: vec![] }]);
+        assert!(
+            p.feed(b"#v6 Z 3\tname=Sigma slash\tlen=7\tbonus=350\tcd=105\tleft=0")
+                .is_empty()
+        );
+        assert_eq!(
+            p.feed(b"#v6 Z ."),
+            vec![Event::Skills {
+                skills: vec![Skill {
+                    no: 3,
+                    name: "Sigma slash".into(),
+                    len: 7,
+                    bonus: 350,
+                    cd: 105,
+                    left: 0
+                }]
+            }]
+        );
+        assert_eq!(
+            p.feed(b"#v6 W skill=3 cd=105"),
+            vec![Event::SkillWait { no: 3, cd: 105 }]
+        );
+        assert_eq!(
+            p.feed(b"#ex-skill no wait=42"),
+            vec![Event::SkillRefused { wait: Some(42) }]
+        );
+        assert!(p.feed(b"#ex-skill ok 3").is_empty());
         assert_eq!(p.feed(b"#v6 G x"), vec![]);
     }
 

@@ -45,6 +45,7 @@ test("行動キーと修飾キー", () => {
   assert.ok((act(key("KeyR", { alt: true }), north) as { confirm?: string }).confirm);
   // F1〜F7 も魔法の列の何番目か (Alt+数字と同じ)
   assert.deepEqual(act(key("F3"), north), { spellSlot: 3 });
+  assert.deepEqual(act(key("Digit2", { shift: true }), north), { skillSlot: 2 });
   assert.deepEqual(act(key("F5", { shift: true }), north), { toggleMap: true });
   // Alt の時はフルキー移動の読み替えをしない
   assert.deepEqual(act(key("KeyU", { alt: true }), { northFix: true, fullKeyMove: true }), { send: "cast\nunlock\nsee", cancelList: 1, systemMagic: "reequip" });
