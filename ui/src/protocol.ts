@@ -125,7 +125,7 @@ export type UiEvent =
   /** #v6 S。覚えている呪文を cast の番号の順に */
   | { type: "spells"; spells: Spell[] }
   | { type: "skills"; skills: Skill[] }
-  | { type: "skillWait"; no: number; cd: number }
+  | { type: "skillWait"; no: number; cd: number; gcd: number }
   | { type: "skillRefused"; wait?: number }
   /** #v6 I。手持ちの 8 個(空きは null) */
   | { type: "items"; items: (ItemInfo | null)[] }

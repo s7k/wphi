@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseSkillFx, pickSkills, strongest } from "./skills.ts";
+import { bestReady, parseSkillFx, pickSkills, skillLeft, strongest } from "./skills.ts";
 import type { Skill } from "./protocol";
 
 const sk = (no: number, name: string, len: number, bonus: number): Skill => ({ no, name, len, bonus, cd: Math.max(15, (bonus * 3) / 10), left: 0 });
@@ -10,10 +10,19 @@ const sword = [
   sk(8, "Buster charge", 3, 150), sk(9, "Double slash", 3, 150), sk(11, "Head crush", 2, 100), sk(12, "Side slash", 2, 100),
 ];
 
-test("技が 4 つより多ければ、一番強い技から一番弱い技まで間を空けて 4 つ選ぶ", () => {
-  assert.deepEqual(pickSkills(sword).map((s) => s.name), ["9-headed dragon crush", "Omega blast", "Double slash", "Side slash"]);
-  assert.deepEqual(pickSkills(sword.slice(0, 3)).map((s) => s.no), [1, 3, 5]);
+test("技は強い順に 8 つまで並べる", () => {
+  assert.deepEqual(pickSkills(sword).map((s) => s.no), [1, 3, 5, 6, 8, 9, 11, 12]);
+  assert.deepEqual(pickSkills(sword, 2).map((s) => s.no), [1, 3]);
   assert.deepEqual(pickSkills([]), []);
+});
+
+test("待ちは技ごとと共通の長い方。自動攻撃は待ちの明けた一番強い技を使う", () => {
+  const t = { until: { 1: 5000 }, ms: { 1: 108000 }, gcdUntil: 1500, gcdMs: 2000 };
+  assert.deepEqual(skillLeft(t, sword[0], 1000), { left: 4000, total: 108000 });
+  assert.deepEqual(skillLeft(t, sword[1], 1000), { left: 500, total: 2000 });
+  assert.equal(bestReady(sword, t, 1000), null, "共通の待ちの間はどれも出ない");
+  assert.equal(bestReady(sword, t, 2000)?.name, "Sigma slash", "一番強い技が待ちなら、次に強い技");
+  assert.equal(bestReady(sword, undefined, 0)?.name, "9-headed dragon crush");
 });
 
 test("自動攻撃は一番強い技を使う", () => {

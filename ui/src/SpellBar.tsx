@@ -9,6 +9,7 @@ import { ELEMENT_COLOR, ItemIcon, Pixels } from "./BagPanel";
 const AUTO_ATTACK_ICON = 9;
 import { spellPixels } from "./pixelIcons.ts";
 import type { Skill, Spell } from "./protocol";
+import { SKILL_KEYS, skillLeft, type SkillTimers } from "./skills.ts";
 import { Crosshair, Flame, Swords, Zap } from "lucide-react";
 
 /** 技のボタンの絵。強い順に並べた位置で決める (技ごとの絵は無い) */
@@ -18,18 +19,19 @@ const SKILL_ICONS = [Flame, Zap, Swords, Crosshair];
  * 技のボタン。待ちの間はグレーを重ね、12 時から時計回りに明るさを戻し、残りの秒数を出す。明けた時に縁を一度光らせる。
  * 扇形は毎フレーム CSS の変数 --p (残りの割合) を書き換えるだけで、React の描き直しはしない
  */
-function SkillTile(props: { skill: Skill; slot: number; icon: number; until?: number; ms?: number; onUse: () => void }) {
+function SkillTile(props: { skill: Skill; slot: number; icon: number; timers?: SkillTimers; onUse: () => void }) {
   const el = useRef<HTMLButtonElement>(null);
   const sec = useRef<HTMLSpanElement>(null);
-  const { until = 0, ms = 0 } = props;
+  const { timers, skill } = props;
   useEffect(() => {
     const b = el.current;
     if (!b) return;
     let raf = 0;
     let was = false;
     const tick = () => {
-      const left = Math.max(0, until - performance.now());
-      b.style.setProperty("--p", ms > 0 ? (left / ms).toFixed(4) : "0");
+      // その技の待ちと共通の待ちの長い方を、それぞれの長さに対する割合で出す
+      const { left, total } = skillLeft(timers, skill, performance.now());
+      b.style.setProperty("--p", total > 0 ? (left / total).toFixed(4) : "0");
       b.classList.toggle("cooling", left > 0);
       if (sec.current) sec.current.textContent = left > 0 ? String(Math.ceil(left / 1000)) : "";
       if (was && left === 0) {
@@ -42,7 +44,7 @@ function SkillTile(props: { skill: Skill; slot: number; icon: number; until?: nu
     };
     tick();
     return () => cancelAnimationFrame(raf);
-  }, [until, ms]);
+  }, [timers, skill]);
   const Icon = SKILL_ICONS[props.icon % SKILL_ICONS.length];
   const s = props.skill;
   return (
@@ -50,13 +52,13 @@ function SkillTile(props: { skill: Skill; slot: number; icon: number; until?: nu
       ref={el}
       type="button"
       className="spell-tile skill-tile"
-      aria-label={`${s.name} (Shift+${props.slot}) ダメージ +${s.bonus}% 待ち ${s.cd / 10} 秒`}
+      aria-label={`${s.name}${props.slot <= SKILL_KEYS ? ` (Shift+${props.slot})` : ""} ダメージ +${s.bonus}% 待ち ${s.cd / 10} 秒`}
       onClick={props.onUse}
     >
       <Icon aria-hidden="true" />
       <span className="skill-cd" aria-hidden="true" />
       <span className="skill-sec" ref={sec} aria-hidden="true" />
-      <span className="spell-key">⇧{props.slot}</span>
+      {props.slot <= SKILL_KEYS && <span className="spell-key">⇧{props.slot}</span>}
       <span className="spell-name">
         {s.name} +{s.bonus}% (待ち {s.cd / 10} 秒)
       </span>
@@ -81,8 +83,7 @@ export function SpellBar(props: {
   onSkipLowKarma?: () => void;
   /** 武器の技のボタン (ui/src/skills.ts。左から Shift+1〜4)。待ちはキャラに 1 つで、全ボタンに同じ扇形を出す */
   skills?: Skill[];
-  skillUntil?: number;
-  skillMs?: number;
+  skillTimers?: SkillTimers;
   onSkill?: (skill: Skill) => void;
 }) {
   const tiles = useRef<(HTMLButtonElement | null)[]>([]);
@@ -189,8 +190,7 @@ export function SpellBar(props: {
                 skill={sk}
                 slot={i + 1}
                 icon={i}
-                until={props.skillUntil}
-                ms={props.skillMs}
+                timers={props.skillTimers}
                 onUse={() => props.onSkill?.(sk)}
               />
             ))}

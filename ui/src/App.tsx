@@ -45,7 +45,7 @@ import { afterClose, DEAD_LINE, KICKED_LINE, lossText, RETRY_DELAYS } from "./re
 import { applyMapset, holdMapset, type PendingMapset } from "./mapsetPending.ts";
 import { castLines, loadSpellOrder, moveSpell, orderSpells, saveSpellOrder, SPELL_WAIT_MS, waitsForOrder } from "./spells.ts";
 import { SpellBar } from "./SpellBar";
-import { pickSkills, strongest } from "./skills.ts";
+import { bestReady, pickSkills, skillLeft, type SkillTimers } from "./skills.ts";
 import { followGoal, followStep, targetPos, type FollowMemory } from "./follow.ts";
 import { TabBar } from "./TabBar";
 import { LogView } from "./LogView";
@@ -133,10 +133,9 @@ export type Tab = {
   /** 魔法の列に並べる呪文 (並びは固定。ui/src/spells.ts) と、番号が入れ替わるのを待っている間 */
   spells?: Spell[];
   spellWaiting?: boolean;
-  /** 武器の技 (#v6 Z) と、技の待ちが明ける時刻 (performance.now の ms) とその長さ (ui/src/skills.ts) */
+  /** 武器の技 (#v6 Z) と、技ごとの待ちと共通の待ち (ui/src/skills.ts) */
   skills?: Skill[];
-  skillUntil?: number;
-  skillMs?: number;
+  skillTimers?: SkillTimers;
   /** 札の看板を書いた人と日付 (ui/src/signHead.ts)。看板でないお知らせは null */
   signAuthor?: { name: string; date: string } | null;
   /** 手持ちの 8 個(#v6 I)とインベントリ(#ex-inv)。v6 で届いた時だけ */
@@ -421,9 +420,8 @@ export function App() {
    * 待ちの間は送らずに残りを知らせる。対象が無ければ近い敵を選ぶ
    */
   const fireSkill = (session: number, sk: Skill) => {
-    const t = tabOf(session);
-    const left = (t?.skillUntil ?? 0) - performance.now();
-    if (left > 0) return void append(session, systemNg(`技はあと ${Math.ceil(left / 1000)} 秒使えません。`));
+    const { left } = skillLeft(tabOf(session)?.skillTimers, sk, performance.now());
+    if (left > 0) return void append(session, systemNg(`${sk.name} はあと ${Math.ceil(left / 1000)} 秒使えません。`));
     const s = mapStates.current.get(session);
     if (s && s.target === undefined) cycleTarget(session);
     if (mapStates.current.get(session)?.target === undefined) return;
@@ -614,8 +612,9 @@ export function App() {
       if (!(auto && s.mode?.attack)) {
         // 自動攻撃は、技の待ちが明けていれば一番強い技を予約してから殴る (設定でオン。ui/src/skills.ts)
         const t = tabOf(session);
-        const sk = auto && settingsRef.current.autoUseSkill ? strongest(t?.skills ?? []) : null;
-        if (sk && (t?.skillUntil ?? 0) <= now) sendLine(session, `#ex-skill ${sk.no}`);
+        // 待ちの明けた技のうち一番強い物。強い技が待ちの間は次に強い技を使うので、全ての技が順に出る
+        const sk = auto && settingsRef.current.autoUseSkill ? bestReady(t?.skills ?? [], t?.skillTimers, now) : null;
+        if (sk) sendLine(session, `#ex-skill ${sk.no}`);
         sendLines(session, plan.turn ? `turn ${plan.turn}\nhit` : "hit");
       }
     } else if (plan.kind === "step") {
@@ -1718,18 +1717,35 @@ export function App() {
           update(session, (t) => ({ ...t, items: ev.items }));
           break;
         case "skills": {
-          // 武器の技 (#v6 Z)。left は持ち替える前から続く待ちの残り
+          // 武器の技 (#v6 Z)。left は持ち替える前から続く、その技の待ちの残り
           const now = performance.now();
           update(session, (t) => ({
             ...t,
             skills: ev.skills,
-            ...(ev.skills.some((k) => k.left > 0) ? { skillUntil: now + Math.max(...ev.skills.map((k) => k.left)) * 100, skillMs: Math.max(...ev.skills.map((k) => k.left)) * 100 } : {}),
+            skillTimers: {
+              until: Object.fromEntries(ev.skills.map((k) => [k.no, now + k.left * 100])),
+              ms: Object.fromEntries(ev.skills.map((k) => [k.no, Math.max(k.left, k.cd) * 100])),
+              gcdUntil: t.skillTimers?.gcdUntil ?? 0,
+              gcdMs: t.skillTimers?.gcdMs ?? 0,
+            },
           }));
           break;
         }
         case "skillWait":
-          // 技が出て待ちに入った。待ちはキャラに 1 つで、全ての技のボタンが同じ扇形で戻る
-          update(session, (t) => ({ ...t, skillUntil: performance.now() + ev.cd * 100, skillMs: ev.cd * 100 }));
+          // 技が出て、その技の待ちと共通の待ちに入った。使った技は長い扇形、他の技は共通の待ちの短い扇形で戻る
+          update(session, (t) => {
+            const now = performance.now();
+            const p = t.skillTimers ?? { until: {}, ms: {}, gcdUntil: 0, gcdMs: 0 };
+            return {
+              ...t,
+              skillTimers: {
+                until: { ...p.until, [ev.no]: now + ev.cd * 100 },
+                ms: { ...p.ms, [ev.no]: ev.cd * 100 },
+                gcdUntil: now + ev.gcd * 100,
+                gcdMs: ev.gcd * 100,
+              },
+            };
+          });
           break;
         case "skillRefused":
           append(session, systemNg(ev.wait ? `技はあと ${Math.ceil(ev.wait / 10)} 秒使えません。` : "その技は今は出せません。"));
@@ -2123,8 +2139,7 @@ export function App() {
             skipLowKarma={settings.autoSkipLowKarma}
             onSkipLowKarma={tab.items ? toggleSkipLowKarma : undefined}
             skills={pickSkills(tab.skills ?? [])}
-            skillUntil={tab.skillUntil}
-            skillMs={tab.skillMs}
+            skillTimers={tab.skillTimers}
             onSkill={(sk) => fireSkill(tab.session, sk)}
           />
         )}

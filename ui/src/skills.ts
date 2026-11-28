@@ -1,20 +1,31 @@
 // 武器の技のボタン (DM の #v6 Z と #ex-skill。phidm-v6 の phi_skill.rs)。
-// 技を出すと、キャラに 1 つの待ちに入る。待ちは使った技で上がるダメージの割合に比例する (1% ごとに 0.03 秒)
+// 技を出すと、その技の待ち (上がるダメージ × 技の数に比例) と、どの技にも掛かる短い共通の待ちに入る。
+// 強い技ほど長く待つので、待ちの明けた技を強い順に使うと全ての技が順に出る
 
 import type { Skill } from "./protocol";
 
-/** 魔法の列に並べる技の数 */
-export const MAX_SKILL_BUTTONS = 4;
+/** 魔法の列に並べる技の数。キーは Shift+1〜6 (Shift+7 は地図の切り替え) */
+export const MAX_SKILL_BUTTONS = 8;
+export const SKILL_KEYS = 6;
 
-/**
- * 並べる技を選ぶ。強い順に並べ、多ければ一番強い技から一番弱い技まで、間を等しく空けて 4 つ取る。
- * どれを使っても時間あたりの上乗せは同じなので、待ちの長さの違う物を並べ、場面で選べる様にする
- */
+/** 並べる技。強い順。全部回せる様に、8 つまでは全て出す */
 export function pickSkills(skills: Skill[], max = MAX_SKILL_BUTTONS): Skill[] {
-  const sorted = [...skills].sort((a, b) => b.bonus - a.bonus || a.no - b.no);
-  if (sorted.length <= max) return sorted;
-  const picks = new Set(Array.from({ length: max }, (_, i) => Math.round((i * (sorted.length - 1)) / (max - 1))));
-  return [...picks].map((i) => sorted[i]);
+  return [...skills].sort((a, b) => b.bonus - a.bonus || a.no - b.no).slice(0, max);
+}
+
+/** 技の待ち。until と ms は技の番号ごと (performance.now の ms)、gcd はどの技にも掛かる共通の待ち */
+export type SkillTimers = { until: Record<number, number>; ms: Record<number, number>; gcdUntil: number; gcdMs: number };
+
+/** 技 sk の残りの待ち (ms) と、扇形に使う長さ (ms)。技の待ちと共通の待ちの長い方 */
+export function skillLeft(t: SkillTimers | undefined, sk: Skill, now: number): { left: number; total: number } {
+  const own = Math.max(0, (t?.until[sk.no] ?? 0) - now);
+  const gcd = Math.max(0, (t?.gcdUntil ?? 0) - now);
+  return own >= gcd ? { left: own, total: t?.ms[sk.no] ?? own } : { left: gcd, total: t?.gcdMs ?? gcd };
+}
+
+/** 待ちの明けた技のうち一番強い物 (自動攻撃が使う)。無ければ null */
+export function bestReady(skills: Skill[], t: SkillTimers | undefined, now: number): Skill | null {
+  return strongest(skills.filter((sk) => skillLeft(t, sk, now).left === 0));
 }
 
 /** 一番強い技 (自動攻撃が使う)。無ければ null */

@@ -158,10 +158,11 @@ pub enum Event {
     Skills {
         skills: Vec<Skill>,
     },
-    /// `#v6 W skill=番号 cd=待ち`。技が出て、技の待ち (0.1 秒単位) に入った。待ちはキャラに 1 つで、全ての技に掛かる
+    /// `#v6 W skill=番号 cd=待ち gcd=共通の待ち`。技が出て、その技の待ちと、どの技にも掛かる共通の待ちに入った (0.1 秒単位)
     SkillWait {
         no: u32,
         cd: u32,
+        gcd: u32,
     },
     /// `#ex-skill no wait=待ち` / `reason=`。技の予約を断られた。wait は残りの待ち (0.1 秒単位)
     SkillRefused {
@@ -406,11 +407,15 @@ fn parse_wait(rest: &str) -> Option<Event> {
     if rest.starts_with("skill=") {
         let mut f = rest.split_whitespace();
         let no = f.next()?.strip_prefix("skill=")?.parse().ok()?;
-        let cd = f
-            .find_map(|kv| kv.strip_prefix("cd="))
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(0);
-        return Some(Event::SkillWait { no, cd });
+        let (mut cd, mut gcd) = (0, 0);
+        for kv in f {
+            match kv.split_once('=') {
+                Some(("cd", v)) => cd = v.parse().unwrap_or(0),
+                Some(("gcd", v)) => gcd = v.parse().unwrap_or(0),
+                _ => {}
+            }
+        }
+        return Some(Event::SkillWait { no, cd, gcd });
     }
     let mut f = rest.split_whitespace().peekable();
     let who = match f.peek() {
@@ -2376,8 +2381,12 @@ mod tests {
             }]
         );
         assert_eq!(
-            p.feed(b"#v6 W skill=3 cd=105"),
-            vec![Event::SkillWait { no: 3, cd: 105 }]
+            p.feed(b"#v6 W skill=3 cd=840 gcd=20"),
+            vec![Event::SkillWait {
+                no: 3,
+                cd: 840,
+                gcd: 20
+            }]
         );
         assert_eq!(
             p.feed(b"#ex-skill no wait=42"),
