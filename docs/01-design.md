@@ -21,10 +21,9 @@
 Linux は開発用で、窓の位置を扱う機能(吸い付き・位置記憶)を外して動かす。
 Wayland はアプリに窓の座標を読ませず、決めさせもしない為である。
 
-macOS は当面対象にしない。
-コードは macOS で動かない書き方を避けるだけにとどめ、配布物も作らない。
-必要になった時は署名と公証をせずに `.app` を作り、利用者に `xattr -dr com.apple.quarantine WPHI.app` で隔離属性を外して貰う。
-Apple Silicon は署名の無いバイナリを起動しないので、その時は `bundle.macOS.signingIdentity` に `"-"`(アドホック署名)を指定する。
+macOS は主な対象にしないが、配布物 (ユニバーサルの dmg と zip) は CI で作る。
+署名と公証はせず、利用者に `xattr -dr com.apple.quarantine WPHI.app` で隔離属性を外して貰う (README の「ダウンロード」)。
+Apple Silicon は署名の無いバイナリを起動しないので、`bundle.macOS.signingIdentity` に `"-"`(アドホック署名)を指定している。
 
 最初の版に含めないもの。
 
@@ -243,7 +242,7 @@ Philly フォルダを持たない利用者の為に、画像を `resources/phi/
 
 | 置き場所 | 出所 |
 |---|---|
-| `chara/<グラ名>.bmp`(336件) | phi-client-web の `assets/chara/*.png`(PCGL の透過 PNG)を teal カラーキーの 24bit BMP に戻したもの |
+| `chara/<グラ名>.bmp` | phi-client-web の `assets/chara/*.png`(PCGL の透過 PNG)を teal カラーキーの 24bit BMP に戻したもの |
 | `Skins/Mine/` | Philly の既定スキン(`Philly.ini` の `SkinName="Mine"`)をそのまま複写。チップの `chip/Default.bmp`、アイテムの `Images/Items.bmp`、HP/MP パネル、カーソル、`Log.css` を含む |
 
 Philly のパーツは再利用してよい事をリポジトリ管理者が確認済み(2026-11-07)。
@@ -280,9 +279,8 @@ priv は main 窓の右、看板エディタ・リスト・設定はログ欄の
 
 ### 6.2 吸い付きと位置記憶
 
-窓が画面端や他の窓に吸い付く動作(`SrcLink/WindowDock`)は、窓の移動イベントを受けて座標を補正して作る。
-窓の位置と大きさは `PosMemory.ini` に相当するファイルへ保存する。
-Linux では両方とも無効にする。
+窓が画面端や他の窓に吸い付く動作(`SrcLink/WindowDock`)は作らない事にした(s7k/wphi#17)。
+窓の位置と大きさは tauri-plugin-window-state が保存する(v0.1.13)。
 
 ### 6.3 ログ
 
@@ -333,20 +331,17 @@ P4 で対応表を作り、取り込む項目を決める。
 | 種類 | Philly | WPHI |
 |---|---|---|
 | 効果音 | `SoundRegexp.ini` に一致した行で WAV を鳴らす(`PlaySound`、`PersonalThread.cpp:929`) | `rodio` で鳴らす |
-| BGM | `#bgm` で MIDI を鳴らす | `midir` で Windows 標準の GS 音源(Microsoft GS Wavetable Synth)へ送る。Philly と同じ音源になる。Linux では鳴らさない |
+| BGM | `#bgm` で MIDI を鳴らす | 鳴らさない事にした。ソフトシンセと音色(SoundFont)を配布物に入れない為(s7k/wphi#20) |
 
 ## 9. 段階
 
+済んだ作業は [02-tasks.md](02-tasks.md)、残りは GitHub の issue(s7k/wphi)にある。
+
 | 段階 | 内容 | 終わりの条件 |
 |---|---|---|
-| P0(一部済) | `phi-proto` の行分割、cp932 変換、パーサ。同梱グラフィックス | Python 版と同じ入力で出力が一致する(`tools/golden/gen.py`、済)。実機の受信を `recorded/` に記録する(P1 の接続後)。cp932 の変換結果を Windows で照合する(未) |
-| P1(着手) | main 窓。接続、ログ(`tag_to_html` と `Log.css`)、入力欄、タブ | 実サーバにログインし、日本語のチャットを送受信出来る。IME の変換候補が入力欄の位置に出る |
+| P0 | `phi-proto` の行分割、cp932 変換、パーサ。同梱グラフィックス | Python 版と同じ入力で出力が一致する(`tools/golden/gen.py`、済)。実機の受信を `recorded/` に記録する(P1 の接続後)。cp932 の変換結果を Windows で照合する(未) |
+| P1 | main 窓。接続、ログ(`tag_to_html` と `Log.css`)、入力欄、タブ | 実サーバにログインし、日本語のチャットを送受信出来る。IME の変換候補が入力欄の位置に出る |
 | P2 | map 窓。BMP の読み込み、マップ描画、ステータス、キー操作 | 移動と攻撃が出来る。マップ表示までの時間を測る |
 | P3 | リスト、s-edit/m-edit、priv、EagleEye、世界移動 | Philly の操作マニュアル(PhillySrc `doc/操作マニュアル.txt`)の操作が一通り出来る |
 | P4 | 吸い付き、位置記憶、メニュー、設定の取り込み、音 | Philly の利用者が設定を持ち越せる |
 | P5 | 新規キャラ作成、署名、自動更新 | Windows の配布物を CI で作成出来る |
-
-## 10. 未決事項
-
-- Windows の配布物に署名するか。署名しないと SmartScreen が警告を出す
-- 開発環境に Tauri のビルドに要るパッケージ(`webkit2gtk-4.1`、`gtk3`、`libsoup-3.0` など)が入っていない。P1 の前に入れる

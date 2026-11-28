@@ -175,6 +175,7 @@ for (const [scene, at] of [
   ["debuff", 300],
   ["fx-explode", 350],
   ["fx-swirl", 400],
+  ["fx-skill", 300],
 ]) {
   await page.evaluate((s) => window.guideEffect(s), scene);
   await page.waitForTimeout(100);
@@ -183,9 +184,9 @@ for (const [scene, at] of [
   await page.evaluate(() => document.getAnimations().forEach((a) => a.play()));
   await page.waitForTimeout(4500);
 }
-// 対象 (G で一番近い猫) と HP バー、詠唱バー、足元の魔法陣と攻撃の待ちの輪
+// 対象 (Shift+G で一番近い猫) と HP バー、詠唱バー、足元の魔法陣と攻撃の待ちの輪
 await page.locator(".phi-log").focus();
-await page.keyboard.press("g");
+await page.keyboard.press("Shift+G");
 await page.evaluate(() => window.guideEffect("fx-hpbar"));
 await page.evaluate(() => window.guideEffect("fx-chant"));
 await page.waitForTimeout(100);
@@ -205,9 +206,11 @@ const log = await page.locator(".log-area").boundingBox();
 await shot("log-filter", { clip: { x: log.x, y: log.y - 16, width: log.width, height: log.height + 16 } });
 await button("全部").click();
 
-// 魔法の列の左端の自動攻撃のボタン。押すと近い猫を対象にして始め、ボタンが赤くなる。ログに行が残るので最後の方で撮る
+// 魔法の列。上の段の左端の自動攻撃のボタンを押すと、近い猫を対象にして始め、ボタンが赤くなる。ログに行が残るので最後の方で撮る。
+// 技を 1 つ出した直後の待ちを流し、使った技の長い扇形と、他の技の共通の待ちの扇形を見せる
 await page.locator(".spell-tile.auto-attack").click();
-await page.waitForTimeout(300);
+await page.evaluate(() => window.guideEffect("fx-skill-wait"));
+await page.waitForTimeout(1400);
 const bar = await page.locator(".spell-bar").boundingBox();
 await shot("auto-attack", { clip: { x: bar.x - 48, y: bar.y - 40, width: bar.width + 56, height: bar.height + 48 } });
 await page.locator(".spell-tile.auto-attack").click();

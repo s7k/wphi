@@ -60,12 +60,12 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 
 - [x] メニューバー(`MainForm.dfm` の構成、`Style/Menu.txt` で表示を切り替える)。ファイル・操作・行動・魔法・表示の項目はキーと同じ操作にした
   - [x] キャラクターとツールのメニュー、操作のメニューの大声・全タブ・ログ保存の切り替え #16
-- [ ] 窓の吸い付きと位置記憶(Windows のみ)。位置と大きさの記憶は済み(tauri-plugin-window-state)#17
+- [x] 窓の位置と大きさの記憶(tauri-plugin-window-state、v0.1.13)。吸い付きは作らない事にした #17
 - [x] 設定画面と `Philly.ini` の取り込み。今の項目はフルキー移動、F8〜F12、Alt+G。設定フォルダの `settings.json` に置く
-  - [ ] 他の項目(ログ表示、通知、フォントなど)の設定と取り込み #18
+  - [x] 時刻の表示、タスクバーの点滅、ログのフォントと大きさの設定と取り込み(07d057d)。他の項目は要る物が出た時に issue を立てる #18
 - [x] 効果音。Philly フォルダの `Config/SoundRegexp.ini` と `SoundFile.ini` を読み、受信した行に最初に一致した規則の WAV を鳴らす(ファイルが空ならタスクバーの点滅)。設定で切り替える
   - [x] `#more` の間は鳴らさない(Philly は #more の外だけで照合する)#19
-- [ ] BGM(MIDI)#20
+- [x] BGM(MIDI)は鳴らさない事にした。ソフトシンセと音色を配布物に入れない為 #20
 - [x] タスクバーの点滅と裏タブの未読表示。発言と priv が届いた時だけ(GtOnly=on)、大声では点滅しない(Loud=off)
   - [x] 点滅させない正規表現(Philly が読むのは `NotFlashRegexp.ini`)と、裏タブで HP・MP が減った時の印 #21
 - [x] 「ログを固定」の切り替え(ログを最下行に固定する。既定 on。off は Philly の「ログスクロール停止」)。スクロールバーを常に出す
@@ -75,13 +75,13 @@ Philly(PhillySrc)・phi-client-web・今の実装を 2026-11-07 に突き合わ�
 ## P5
 
 - [x] 新規キャラ作成(`#ex-register`。phi-client-web の `register.py` を移植した)。キャラ選択の画面で初期グラを選び、作ったキャラはそのまま一覧と `.phirc` に入る。改行や制御文字での行の差し込みは送る前に拒否する
-  - [ ] 実サーバでの確認 #23
+  - [x] 本番と同じ phi_dm を手元に立てて確かめた #23
 - [x] Windows(NSIS)・Linux(deb・AppImage)・macOS(dmg、ユニバーサル)の配布物を GitHub Actions で作る設定(`.github/workflows/build.yml`)。Linux 版は手元でビルドして起動を確かめた
   - [x] 同梱のグラフィックスとスキンを実行ファイルに埋め込み、配布物に並べない(Windows の zip に phi が出ていた為)。PCGL の全文と出所の説明だけを licenses に入れる
   - [x] 展開してそのまま使える zip(アプリと空の chara・chip)を作る(`tools/package.sh`)。アプリを置いたフォルダも画像を探す場所に加えた
   - [x] GitHub にリポジトリを作って push し、CI で3つとも作れるか確かめる(v0.1.0 から Releases に置く)
-  - [ ] 署名するか(未決。今は Windows は署名なし、macOS はアドホック署名)#24
-- [ ] 自動更新 #25
+  - [x] 署名は今は行わない(Windows は署名なし、macOS はアドホック署名)。資金の当てが出来た時に issue を立て直す #24
+- [x] 新しい版を起動時に知らせる(940af3a)。自動で置き換えはしない。Tauri の自動更新はインストーラで入れた物しか置き換えず、zip の WPHI.exe には効かない為 #25
 
 ## 監査と報告から見つけた作業
 

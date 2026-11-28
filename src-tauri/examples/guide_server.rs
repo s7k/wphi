@@ -217,14 +217,13 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
             "#v6 S 7\tef=29\tfn=5\tname=Antidote",
             "#v6 S 8\tef=68\tfn=2\tname=Save life",
             "#v6 S .",
-            // 武器の技 (#v6 Z)。魔法の列の左に技のボタンを出し、待ちの扇形を見せる
+            // 武器の技 (#v6 Z)。魔法の列の上の段に技のボタンを出す。待ちは fx-skill-wait で流す
             "#v6 Z 1\tname=9-headed dragon crush\tlen=9\tbonus=450\tcd=1080\tleft=0",
             "#v6 Z 3\tname=Sigma slash\tlen=7\tbonus=350\tcd=840\tleft=0",
             "#v6 Z 5\tname=Omega blast\tlen=5\tbonus=250\tcd=600\tleft=0",
             "#v6 Z 9\tname=Double slash\tlen=3\tbonus=150\tcd=360\tleft=0",
             "#v6 Z 12\tname=Side slash\tlen=2\tbonus=100\tcd=240\tleft=0",
             "#v6 Z .",
-            "#v6 W skill=3 cd=840 gcd=20",
             "#ex-inv I 1\teq=-\tit=2\twt=5\tmt=3\tfn=3\twp=12\top=15,20,0,0\tready=0\ttype=Weapon\twtype=Axe\tmat=Steel\telem=Air\tname=Battle axe",
             "#ex-inv I 2\teq=-\tit=6\twt=0\tmt=0\tfn=6\twp=2\top=1,2,3,0\tcount=2\tready=30\ttype=Charged item\twtype=claw\tmat=Leather\telem=Fire\tname=Fire rod",
             "#ex-inv I 3\teq=-\tit=5\twt=0\tmt=4\tfn=9\twp=1\top=1,50,0,0\tready=0\ttype=Jewel\twtype=claw\tmat=Silver\telem=Rainbow\tname=Rainbow gem",
@@ -242,6 +241,8 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
         "fx-quest" => &[
             "#v6 Q 1\tkind=main\ttitle=狼の毛皮\ttext=狼の毛皮を集める 3/5",
             "#v6 Q 2\ttitle=迷子の猫\ttext=市場の猫を見つける",
+            "#v6 Q 3\tkind=daily\ttitle=朝の水汲み\ttext=井戸の水を宿屋へ運ぶ",
+            "#v6 Q 4\ttitle=古い地図\ttext=北の池の祠を調べる",
             "#v6 Q .",
         ],
         "fx-trade" => &[
@@ -334,6 +335,13 @@ fn effect_lines(scene: &str) -> Vec<Vec<u8>> {
             "#v6 E spell 16 12 16 13 spirit illusion",
             "#v6 E spell 16 12 11 13 spirit down",
         ],
+        // 技が当たった時 (分類 skill-上がる%-名前)。+300% 以上なので一番派手な 3 段目
+        "fx-skill" => &[
+            "#v6 E hit 16 12 16 13 none skill-350-Sigma_slash",
+            "DM Mirai は 市場の猫 を /*.*/Sigma slash /*color=gray*/で攻撃した. [/*color=-hp*/54/*color=gray*/ hp] ",
+        ],
+        // 技を出した直後の待ち。Sigma slash は長い待ち、他の技は 2 秒の共通の待ち
+        "fx-skill-wait" => &["#v6 W skill=3 cd=840 gcd=20"],
         "fx-hit" => &["#v6 E hit 16 12 16 13 - -", "#v6 E miss 19 12 19 13 - -"],
         "heal" => &[
             "#v6 E spell 19 12 16 12 water heal",

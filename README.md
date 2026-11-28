@@ -172,6 +172,8 @@ cp /tmp/icons/{32x32.png,128x128.png,128x128@2x.png,icon.icns,icon.ico,icon.png}
 | `tools/png2phibmp` | phi-client-web の透過 PNG のキャラグラを Philly の BMP に戻す |
 | `tools/third-party-notices.mjs` | 依存ライブラリの著作権表示とライセンス文 (`src-tauri/THIRD-PARTY-NOTICES.txt`) を、手元の cargo と node_modules から作る |
 | `tools/defaultAssets.py` | WPHI で描いた既定の絵 (魔法のオブジェの既定グラ) を作る |
+| `tools/package.sh` | 展開してそのまま使える zip を作る (上の「配布物を作る」) |
+| `tools/spellIcons.py` | 魔法の列のアイコンの元の絵。直したら `ui/src/pixelIcons.ts` の SPELL_PIXELS も同じに直す |
 | `resources/phi` | 同梱のグラフィックスとログの CSS。ライセンスは同じフォルダの README |
 
 ## ライセンス
